@@ -1,75 +1,24 @@
-/*
- * Copyright 2026 ECSDevs
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package cc.ptoe.messenger
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import cc.ptoe.messenger.presentation.theme.MessengerTheme
+import cc.ptoe.messenger.presentation.theme.ThemeMode
+import cc.ptoe.messenger.presentation.ui.components.MainScaffold
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MessengerTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    Greeting("Android")
-                }
+            val themeMode by MessengerApplication.instance.themePreferences.themeMode
+                .collectAsState(initial = ThemeMode.SYSTEM)
+
+            MessengerTheme(themeMode = themeMode) {
+                MainScaffold()
             }
         }
-    }
-}
-
-@Composable
-fun MessengerTheme(
-    darkTheme: Boolean = false,
-    content: @Composable () -> Unit
-) {
-    val colorScheme = if (darkTheme) {
-        MaterialTheme.colorScheme
-    } else {
-        MaterialTheme.colorScheme
-    }
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = MaterialTheme.typography,
-        content = content
-    )
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    MessengerTheme {
-        Greeting("Android")
     }
 }

@@ -19,3 +19,24 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Room
+-keep class * extends androidx.room.RoomDatabase
+-dontwarn androidx.room.paging.**
+-keep class androidx.room.RoomSQLiteQuery
+-keep class * extends androidx.room.util.ShortcutUtil
+-keep @androidx.room.Entity class *
+-dontwarn androidx.room.**
+
+# Retrofit
+-keep class retrofit2.** { *; }
+-keepattributes Signature
+-keepattributes Exceptions
+-dontwarn retrofit2.**
+-keep class cc.ptoe.messenger.data.remote.dto.** { *; }
+
+# OkHttp
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**

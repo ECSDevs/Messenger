@@ -1,6 +1,6 @@
 # AI Chatbot App - The Implementation Plan (Decomposed and Prioritized Task List)
 
-## [/] Task 1: 项目基础架构搭建
+## [x] Task 1: 项目基础架构搭建
 - **Priority**: high
 - **Depends On**: None
 - **Description**: 
@@ -15,7 +15,7 @@
   - `human-judgement` TR-1.3: 包结构清晰，符合 MVVM 分层架构
 - **Notes**: 参考 gpt_mobile 的架构设计，使用现代 Android 开发最佳实践
 
-## [ ] Task 2: 数据库层设计与实现 (Room)
+## [x] Task 2: 数据库层设计与实现 (Room)
 - **Priority**: high
 - **Depends On**: Task 1
 - **Description**: 
@@ -31,7 +31,7 @@
   - `programmatic` TR-2.3: 应用重启后数据持久化保留
 - **Notes**: 表关系：Provider 1:N Model, Agent 1:N Conversation, Conversation 1:N Message
 
-## [ ] Task 3: 网络层设计与实现
+## [x] Task 3: 网络层设计与实现
 - **Priority**: high
 - **Depends On**: Task 1
 - **Description**: 
@@ -47,7 +47,7 @@
   - `programmatic` TR-3.3: API Key 通过 Header 正确传递
 - **Notes**: 使用 OkHttp 的 EventSource 或自定义 SSE 解析器处理流式响应
 
-## [ ] Task 4: 主题与基础 UI 组件
+## [x] Task 4: 主题与基础 UI 组件
 - **Priority**: high
 - **Depends On**: Task 1
 - **Description**: 
@@ -63,7 +63,7 @@
   - `human-judgement` TR-4.3: Material You 动态配色生效
 - **Notes**: 参考 Telegram 配色风格，用户消息气泡在右侧蓝色，AI 消息在左侧灰色
 
-## [ ] Task 5: Provider 管理模块
+## [x] Task 5: Provider 管理模块
 - **Priority**: high
 - **Depends On**: Task 2, Task 3
 - **Description**: 
@@ -79,7 +79,7 @@
   - `human-judgement` TR-5.3: 表单验证提示友好（必填项、URL 格式等）
 - **Notes**: API Key 使用 EncryptedSharedPreferences 或 Room + SQLCipher 加密存储
 
-## [ ] Task 6: 模型管理模块
+## [x] Task 6: 模型管理模块
 - **Priority**: high
 - **Depends On**: Task 5
 - **Description**: 
@@ -96,7 +96,7 @@
   - `programmatic` TR-6.4: 模型启用/禁用状态正确保存
 - **Notes**: 同步模型时展示加载状态和错误提示
 
-## [ ] Task 7: Agent 管理模块
+## [x] Task 7: Agent 管理模块
 - **Priority**: high
 - **Depends On**: Task 6
 - **Description**: 
@@ -113,7 +113,7 @@
   - `human-judgement` TR-7.4: Agent 列表 UI 美观，信息展示清晰
 - **Notes**: 标准 Agent 使用默认系统提示词"You are a helpful assistant."
 
-## [ ] Task 8: 对话列表模块
+## [x] Task 8: 对话列表模块
 - **Priority**: high
 - **Depends On**: Task 7
 - **Description**: 
@@ -130,7 +130,7 @@
   - `programmatic` TR-8.4: 列表项显示最近消息预览和时间
 - **Notes**: 对话列表是首页，显示在底部导航第一个 tab
 
-## [ ] Task 9: 聊天页面 UI (Telegram 风格)
+## [x] Task 9: 聊天页面 UI (Telegram 风格)
 - **Priority**: high
 - **Depends On**: Task 4, Task 8
 - **Description**: 
@@ -149,7 +149,7 @@
   - `human-judgement` TR-9.4: 消息状态指示器清晰可辨
 - **Notes**: 参考 Telegram 的气泡样式和颜色，确保视觉效果接近
 
-## [ ] Task 10: 聊天业务逻辑实现
+## [x] Task 10: 聊天业务逻辑实现
 - **Priority**: high
 - **Depends On**: Task 3, Task 8, Task 9
 - **Description**: 
@@ -170,7 +170,7 @@
   - `programmatic` TR-10.5: 消息状态正确流转（sending → sent/error）
 - **Notes**: 使用 Kotlin Flow 实现流式数据传递，确保 UI 响应式更新
 
-## [ ] Task 11: 设置页面
+## [x] Task 11: 设置页面
 - **Priority**: medium
 - **Depends On**: Task 4
 - **Description**: 
@@ -185,7 +185,7 @@
   - `human-judgement` TR-11.2: 设置页面布局清晰，分类合理
 - **Notes**: 设置页面在底部导航第三个 tab
 
-## [ ] Task 12: 应用集成与整体测试
+## [x] Task 12: 应用集成与整体测试
 - **Priority**: high
 - **Depends On**: Task 10, Task 11
 - **Description**: 

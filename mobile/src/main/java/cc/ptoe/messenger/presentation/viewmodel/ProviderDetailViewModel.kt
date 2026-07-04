@@ -1,0 +1,178 @@
+package cc.ptoe.messenger.presentation.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import cc.ptoe.messenger.domain.model.ChatModel
+import cc.ptoe.messenger.domain.model.Provider
+import cc.ptoe.messenger.domain.repository.ApiRepository
+import cc.ptoe.messenger.domain.repository.ModelRepository
+import cc.ptoe.messenger.domain.repository.ProviderRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.util.UUID
+
+enum class SyncStatus {
+    IDLE,
+    LOADING,
+    SUCCESS,
+    ERROR
+}
+
+data class ProviderDetailUiState(
+    val provider: Provider? = null,
+    val isLoading: Boolean = true,
+    val error: String? = null,
+    val syncStatus: SyncStatus = SyncStatus.IDLE,
+    val syncError: String? = null,
+    val syncedModels: List<ChatModel> = emptyList()
+)
+
+class ProviderDetailViewModel(
+    private val providerRepository: ProviderRepository,
+    private val modelRepository: ModelRepository,
+    private val apiRepository: ApiRepository,
+    private val providerId: String
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(ProviderDetailUiState())
+    val uiState: StateFlow<ProviderDetailUiState> = _uiState.asStateFlow()
+
+    val models = modelRepository.getByProviderId(providerId)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    init {
+        loadProvider()
+    }
+
+    private fun loadProvider() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                providerRepository.getById(providerId).collect { provider ->
+                    _uiState.value = _uiState.value.copy(
+                        provider = provider,
+                        isLoading = false
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = e.message ?: "加载失败"
+                )
+            }
+        }
+    }
+
+    fun syncModels() {
+        val provider = _uiState.value.provider ?: return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                syncStatus = SyncStatus.LOADING,
+                syncError = null,
+                syncedModels = emptyList()
+            )
+            try {
+                val fetchedModels = apiRepository.fetchModels(provider)
+                _uiState.value = _uiState.value.copy(
+                    syncStatus = SyncStatus.SUCCESS,
+                    syncedModels = fetchedModels
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    syncStatus = SyncStatus.ERROR,
+                    syncError = e.message ?: "同步失败"
+                )
+            }
+        }
+    }
+
+    fun resetSyncState() {
+        _uiState.value = _uiState.value.copy(
+            syncStatus = SyncStatus.IDLE,
+            syncError = null,
+            syncedModels = emptyList()
+        )
+    }
+
+    suspend fun saveSelectedModels(selectedModelIds: List<String>) {
+        val provider = _uiState.value.provider ?: return
+        val existingModels = modelRepository.getByProviderId(providerId).first()
+        val existingModelIds = existingModels.map { it.modelId }.toSet()
+        val newModels = _uiState.value.syncedModels
+            .filter { it.modelId in selectedModelIds && it.modelId !in existingModelIds }
+            .map { model ->
+                model.copy(
+                    id = UUID.randomUUID().toString(),
+                    providerId = provider.id,
+                    isEnabled = true,
+                    createdAt = System.currentTimeMillis()
+                )
+            }
+        if (newModels.isNotEmpty()) {
+            modelRepository.insertAll(newModels)
+        }
+        resetSyncState()
+    }
+
+    fun toggleModelEnabled(modelId: String, enabled: Boolean) {
+        viewModelScope.launch {
+            modelRepository.setEnabled(modelId, enabled)
+        }
+    }
+
+    fun addModelManually(modelId: String, displayName: String): Boolean {
+        val provider = _uiState.value.provider ?: return false
+        if (modelId.isBlank()) return false
+        viewModelScope.launch {
+            val existingModels = modelRepository.getByProviderId(providerId).first()
+            val exists = existingModels.any { it.modelId == modelId }
+            if (!exists) {
+                val newModel = ChatModel(
+                    id = UUID.randomUUID().toString(),
+                    providerId = provider.id,
+                    modelId = modelId,
+                    displayName = displayName.ifBlank { modelId },
+                    isEnabled = true,
+                    createdAt = System.currentTimeMillis()
+                )
+                modelRepository.insert(newModel)
+            }
+        }
+        return true
+    }
+
+    fun deleteModel(modelId: String) {
+        viewModelScope.launch {
+            modelRepository.delete(modelId)
+        }
+    }
+
+    companion object {
+        fun provideFactory(
+            providerRepository: ProviderRepository,
+            modelRepository: ModelRepository,
+            apiRepository: ApiRepository,
+            providerId: String
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return ProviderDetailViewModel(
+                    providerRepository,
+                    modelRepository,
+                    apiRepository,
+                    providerId
+                ) as T
+            }
+        }
+    }
+}

@@ -1,0 +1,61 @@
+package cc.ptoe.messenger.data.repository
+
+import cc.ptoe.messenger.data.local.dao.ProviderDao
+import cc.ptoe.messenger.data.local.entity.ProviderEntity
+import cc.ptoe.messenger.domain.model.Provider
+import cc.ptoe.messenger.domain.repository.ProviderRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+class ProviderRepositoryImpl(
+    private val providerDao: ProviderDao
+) : ProviderRepository {
+
+    override fun getAll(): Flow<List<Provider>> {
+        return providerDao.getAll().map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    override fun getById(id: String): Flow<Provider?> {
+        return providerDao.getById(id).map { entity ->
+            entity?.toDomain()
+        }
+    }
+
+    override suspend fun insert(provider: Provider) {
+        // TODO: 加密 API Key 后再保存到数据库
+        providerDao.insert(provider.toEntity())
+    }
+
+    override suspend fun update(provider: Provider) {
+        // TODO: 加密 API Key 后再保存到数据库
+        providerDao.update(provider.toEntity())
+    }
+
+    override suspend fun delete(id: String) {
+        providerDao.delete(id)
+    }
+
+    private fun ProviderEntity.toDomain(): Provider {
+        return Provider(
+            id = id,
+            name = name,
+            baseUrl = baseUrl,
+            apiKey = apiKey,
+            createdAt = createdAt,
+            updatedAt = updatedAt
+        )
+    }
+
+    private fun Provider.toEntity(): ProviderEntity {
+        return ProviderEntity(
+            id = id,
+            name = name,
+            baseUrl = baseUrl,
+            apiKey = apiKey,
+            createdAt = createdAt,
+            updatedAt = updatedAt
+        )
+    }
+}
