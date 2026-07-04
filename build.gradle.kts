@@ -21,11 +21,42 @@ plugins {
 }
 
 /**
- * 从 Git 自动计算版本信息：
- * - versionCode: git commit 总数
- * - versionName: 最新 version tag（如 v1.0.0），无 tag 时返回 "1.0.0-dev"
+ * 从 .env 文件加载环境变量（不覆盖已设置的系统环境变量）
  */
-fun getGitVersionCode(): Int {
+fun loadDotEnv() {
+    val envFile = rootDir.resolve(".env")
+    if (!envFile.exists()) return
+    envFile.readLines().forEach { line ->
+        val trimmed = line.trim()
+        if (trimmed.isBlank() || trimmed.startsWith("#")) return@forEach
+        val eqIndex = trimmed.indexOf('=')
+        if (eqIndex < 0) return@forEach
+        val key = trimmed.substring(0, eqIndex).trim()
+        val value = trimmed.substring(eqIndex + 1).trim()
+            .removeSurrounding("\"")
+            .removeSurrounding("'")
+        if (System.getenv(key) == null) {
+            System.setProperty(key, value)
+        }
+    }
+}
+
+loadDotEnv()
+
+/**
+ * 从环境变量或 Git 自动计算版本信息：
+ * - versionCode: 优先读取 VERSION_CODE 环境变量，否则 git commit 总数
+ * - versionName: "v" + versionCode（与 release tag 保持一致）
+ */
+fun getEnv(key: String): String? {
+    return System.getenv(key) ?: System.getProperty(key)
+}
+
+fun computeVersionCode(): Int {
+    val envValue = getEnv("VERSION_CODE")
+    if (envValue != null) {
+        return envValue.toIntOrNull() ?: 1
+    }
     val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
         .directory(rootDir)
         .redirectErrorStream(true)
@@ -34,14 +65,14 @@ fun getGitVersionCode(): Int {
     return output.toIntOrNull() ?: 1
 }
 
-fun getGitVersionName(): String {
-    val process = ProcessBuilder("git", "describe", "--tags", "--abbrev=0")
-        .directory(rootDir)
-        .redirectErrorStream(true)
-        .start()
-    val output = process.inputStream.bufferedReader().readText().trim()
-    return if (output.isNotEmpty()) output.removePrefix("v") else "1.0.0-dev"
+fun computeVersionName(code: Int): String {
+    return "v$code"
 }
 
-ext["gitVersionCode"] = getGitVersionCode()
-ext["gitVersionName"] = getGitVersionName()
+val verCode = computeVersionCode()
+ext["versionCode"] = verCode
+ext["versionName"] = computeVersionName(verCode)
+ext["keystoreFile"] = rootDir.resolve("keyring/messenger-release.jks")
+ext["keystorePassword"] = getEnv("KEYSTORE_PASSWORD") ?: ""
+ext["keyAlias"] = getEnv("KEY_ALIAS") ?: "messenger"
+ext["keyPassword"] = getEnv("KEY_PASSWORD") ?: ""

@@ -31,29 +31,39 @@ android {
         applicationId = "cc.ptoe.messenger"
         minSdk = 30
         targetSdk = 36
-        versionCode = rootProject.ext["gitVersionCode"] as Int
-        versionName = rootProject.ext["gitVersionName"] as String
+        versionCode = rootProject.ext["versionCode"] as Int
+        versionName = rootProject.ext["versionName"] as String
 
     }
 
     signingConfigs {
-        create("release") {
-            // 本地构建时从 keyring 目录读取
-            storeFile = file("../keyring/messenger-release.jks")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-            keyAlias = System.getenv("KEY_ALIAS") ?: "messenger"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+        create("messenger") {
+            storeFile = rootProject.ext["keystoreFile"] as java.io.File
+            storePassword = rootProject.ext["keystorePassword"] as String
+            keyAlias = rootProject.ext["keyAlias"] as String
+            keyPassword = rootProject.ext["keyPassword"] as String
         }
     }
 
     buildTypes {
+        debug {
+            val messengerKeystore = signingConfigs["messenger"]
+            val hasPassword = messengerKeystore.storePassword?.isNotBlank() == true
+            if (hasPassword && messengerKeystore.storeFile?.exists() == true) {
+                signingConfig = messengerKeystore
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            val messengerKeystore = signingConfigs["messenger"]
+            val hasPassword = messengerKeystore.storePassword?.isNotBlank() == true
+            if (hasPassword && messengerKeystore.storeFile?.exists() == true) {
+                signingConfig = messengerKeystore
+            }
         }
     }
     compileOptions {

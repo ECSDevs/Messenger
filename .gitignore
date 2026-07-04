@@ -19,3 +19,7 @@ local.properties
 *.jks
 *.keystore
 keyring/
+
+# Environment variables
+.env
+.env.*
