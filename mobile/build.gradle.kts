@@ -33,8 +33,8 @@ android {
         applicationId = "cc.ptoe.messenger"
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = rootProject.ext["gitVersionCode"] as Int
+        versionName = rootProject.ext["gitVersionName"] as String
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

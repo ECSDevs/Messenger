@@ -19,3 +19,29 @@ plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.compose) apply false
 }
+
+/**
+ * 从 Git 自动计算版本信息：
+ * - versionCode: git commit 总数
+ * - versionName: 最新 version tag（如 v1.0.0），无 tag 时返回 "1.0.0-dev"
+ */
+fun getGitVersionCode(): Int {
+    val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().readText().trim()
+    return output.toIntOrNull() ?: 1
+}
+
+fun getGitVersionName(): String {
+    val process = ProcessBuilder("git", "describe", "--tags", "--abbrev=0")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().readText().trim()
+    return if (output.isNotEmpty()) output.removePrefix("v") else "1.0.0-dev"
+}
+
+ext["gitVersionCode"] = getGitVersionCode()
+ext["gitVersionName"] = getGitVersionName()
