@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -52,9 +52,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.domain.model.Message
 import cc.ptoe.messenger.domain.model.MessageRole
 import cc.ptoe.messenger.domain.model.MessageStatus
 import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
+import cc.ptoe.messenger.presentation.utils.DateTimeUtils
 import cc.ptoe.messenger.presentation.viewmodel.ChatViewModel
 import kotlinx.coroutines.launch
 
@@ -105,11 +107,15 @@ fun ChatScreen(
         }
     }
 
+    // 预构建列表项（消息 + 日期分隔符），保证 LazyColumn item 索引与列表一致
+    val chatItems = remember(messages) { buildChatItems(messages) }
+
     LaunchedEffect(messages.size, isGenerating) {
-        if (messages.isNotEmpty()) {
-            val lastIndex = messages.size - 1
+        if (chatItems.isNotEmpty()) {
+            val lastIndex = chatItems.lastIndex
             val firstVisibleIndex = listState.firstVisibleItemIndex
-            if (firstVisibleIndex <= lastIndex - 3) {
+            // 用户停留在底部附近时自动跟随到最新消息
+            if (firstVisibleIndex >= lastIndex - 3) {
                 listState.animateScrollToItem(lastIndex)
             }
         }
@@ -129,12 +135,14 @@ fun ChatScreen(
                             Text(
                                 text = conversation?.title ?: "对话",
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 18.sp
+                                fontSize = 18.sp,
+                                maxLines = 1
                             )
                             Text(
                                 text = agent?.name ?: "",
                                 fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
                             )
                         }
                     }
@@ -161,17 +169,12 @@ fun ChatScreen(
             )
         },
         bottomBar = {
+            // Google Messages 风格：底部输入栏与顶栏同色，无分隔线
             Column(
                 modifier = Modifier
                     .background(MaterialTheme.colorScheme.surface)
                     .imePadding()
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(0.5.dp)
-                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                )
                 ChatInputBar(
                     text = inputText,
                     onTextChange = { inputText = it },
@@ -193,62 +196,82 @@ fun ChatScreen(
         },
         modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
+        // Google Messages 风格：聊天区使用纯净的 surface 背景
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                .background(MaterialTheme.colorScheme.surface)
         ) {
             if (messages.isEmpty()) {
                 EmptyChatState(
+                    avatar = agent?.avatar,
+                    agentName = agent?.name,
                     modifier = Modifier.align(Alignment.Center)
                 )
             } else {
                 LazyColumn(
                     state = listState,
                     reverseLayout = false,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Top,
+                    contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     items(
-                        items = messages,
-                        key = { it.id }
-                    ) { message ->
-                        val bubbleModifier = Modifier
-                            .fillMaxWidth()
-                            .combinedClickable(
-                                onClick = {
-                                    if (message.status == MessageStatus.ERROR && message.role == MessageRole.ASSISTANT) {
-                                        viewModel.retrySend(message.id)
-                                    }
-                                },
-                                onLongClick = {
-                                    selectedMessageId = message.id
-                                    selectedMessageRole = message.role
-                                    showActionMenu = true
-                                }
-                            )
-                            .padding(vertical = 2.dp)
-
-                        when (message.role) {
-                            MessageRole.USER -> {
-                                UserMessageBubble(
-                                    message = message,
-                                    modifier = bubbleModifier
-                                )
+                        items = chatItems,
+                        key = { item ->
+                            when (item) {
+                                is ChatListItem.DateSeparator -> "date_${item.id}"
+                                is ChatListItem.MessageItem -> "msg_${item.message.id}"
                             }
-                            MessageRole.ASSISTANT -> {
-                                AiMessageBubble(
-                                    message = message,
-                                    isGenerating = isGenerating,
-                                    onRetryClick = {
-                                        if (message.status == MessageStatus.ERROR) {
-                                            viewModel.retrySend(message.id)
+                        }
+                    ) { item ->
+                        when (item) {
+                            is ChatListItem.DateSeparator -> {
+                                DateSeparator(timestamp = item.timestamp)
+                            }
+                            is ChatListItem.MessageItem -> {
+                                val message = item.message
+                                val bubbleModifier = Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (message.status == MessageStatus.ERROR && message.role == MessageRole.ASSISTANT) {
+                                                viewModel.retrySend(message.id)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            selectedMessageId = message.id
+                                            selectedMessageRole = message.role
+                                            showActionMenu = true
                                         }
-                                    },
-                                    modifier = bubbleModifier
-                                )
+                                    )
+
+                                when (message.role) {
+                                    MessageRole.USER -> {
+                                        UserMessageBubble(
+                                            message = message,
+                                            modifier = bubbleModifier,
+                                            isLastInGroup = item.isLastInGroup
+                                        )
+                                    }
+                                    MessageRole.ASSISTANT -> {
+                                        AiMessageBubble(
+                                            message = message,
+                                            isGenerating = isGenerating,
+                                            isLastInGroup = item.isLastInGroup,
+                                            avatar = agent?.avatar,
+                                            onRetryClick = {
+                                                if (message.status == MessageStatus.ERROR) {
+                                                    viewModel.retrySend(message.id)
+                                                }
+                                            },
+                                            modifier = bubbleModifier
+                                        )
+                                    }
+                                    MessageRole.SYSTEM -> {}
+                                }
                             }
-                            MessageRole.SYSTEM -> {}
                         }
                     }
                 }
@@ -304,8 +327,72 @@ fun ChatScreen(
     }
 }
 
+/**
+ * 聊天列表项：日期分隔符或消息
+ */
+private sealed class ChatListItem {
+    data class DateSeparator(
+        val id: String,
+        val timestamp: Long
+    ) : ChatListItem()
+
+    data class MessageItem(
+        val message: Message,
+        val isLastInGroup: Boolean
+    ) : ChatListItem()
+}
+
+/**
+ * 构建聊天列表项：在每天首条消息前插入日期分隔符（Google Messages 风格）
+ * 同时计算每条消息是否为同发送者组内的最后一条（用于气泡尾巴样式）
+ */
+private fun buildChatItems(messages: List<Message>): List<ChatListItem> {
+    if (messages.isEmpty()) return emptyList()
+
+    val items = mutableListOf<ChatListItem>()
+    var lastDay: Long? = null
+
+    messages.forEachIndexed { index, message ->
+        // 日期分隔符
+        if (lastDay == null || !DateTimeUtils.isSameDay(lastDay!!, message.timestamp)) {
+            items.add(ChatListItem.DateSeparator(id = message.id, timestamp = message.timestamp))
+            lastDay = message.timestamp
+        }
+        // 是否为组内最后一条：下一条不存在或角色不同
+        val isLastInGroup = index == messages.lastIndex ||
+            messages[index + 1].role != message.role
+        items.add(ChatListItem.MessageItem(message = message, isLastInGroup = isLastInGroup))
+    }
+
+    return items
+}
+
 @Composable
-private fun EmptyChatState(modifier: Modifier = Modifier) {
+private fun DateSeparator(timestamp: Long, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = DateTimeUtils.formatDateSeparator(timestamp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f))
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun EmptyChatState(
+    avatar: String?,
+    agentName: String?,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -313,23 +400,12 @@ private fun EmptyChatState(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "💬",
-                fontSize = 36.sp
-            )
-        }
+        AgentAvatar(avatar = avatar, size = 72.dp)
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "开始对话吧",
+            text = agentName?.takeIf { it.isNotBlank() } ?: "开始对话吧",
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
