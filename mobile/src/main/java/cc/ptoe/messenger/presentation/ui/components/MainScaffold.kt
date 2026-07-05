@@ -6,8 +6,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -47,18 +45,9 @@ fun MainScaffold(
             }
         }
     ) { innerPadding ->
-        val layoutDirection = LocalLayoutDirection.current
-        val startPadding = innerPadding.calculateLeftPadding(layoutDirection)
-        val endPadding = innerPadding.calculateRightPadding(layoutDirection)
-        val topPadding = innerPadding.calculateTopPadding()
-        val bottomPadding = innerPadding.calculateBottomPadding()
-
         Box(
             modifier = Modifier.padding(
-                start = startPadding,
-                top = topPadding,
-                end = endPadding,
-                bottom = bottomPadding
+                bottom = innerPadding.calculateBottomPadding()
             )
         ) {
             NavGraph(navController = navController)
