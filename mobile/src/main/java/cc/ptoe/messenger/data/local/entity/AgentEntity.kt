@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 data class AgentEntity(
     @PrimaryKey val id: String,
     val name: String,
+    val avatar: String? = null,
     val systemPrompt: String,
     val defaultModelId: String?,
     val temperature: Float,

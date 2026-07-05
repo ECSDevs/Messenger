@@ -7,6 +7,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -52,6 +54,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cc.ptoe.messenger.MessengerApplication
 import cc.ptoe.messenger.domain.model.MessageRole
 import cc.ptoe.messenger.domain.model.MessageStatus
+import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
 import cc.ptoe.messenger.presentation.viewmodel.ChatViewModel
 import kotlinx.coroutines.launch
 
@@ -116,17 +119,24 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            text = conversation?.title ?: "对话",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 18.sp
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AgentAvatar(
+                            avatar = agent?.avatar,
+                            size = 36.dp
                         )
-                        Text(
-                            text = agent?.name ?: "",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = conversation?.title ?: "对话",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 18.sp
+                            )
+                            Text(
+                                text = agent?.name ?: "",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 navigationIcon = {

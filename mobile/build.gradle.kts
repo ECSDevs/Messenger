@@ -121,6 +121,9 @@ dependencies {
 
     implementation(libs.androidx.security.crypto)
 
+    implementation(libs.androidx.appcompat)
+    implementation(libs.ucrop)
+
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

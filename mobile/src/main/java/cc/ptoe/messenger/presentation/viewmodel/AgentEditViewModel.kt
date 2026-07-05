@@ -25,6 +25,7 @@ import java.util.UUID
 
 data class AgentEditUiState(
     val name: String = "",
+    val avatar: String? = null,
     val systemPrompt: String = "",
     val defaultModelId: String? = null,
     val selectedProviderId: String? = null,
@@ -99,6 +100,7 @@ class AgentEditViewModel(
                     }
                     _uiState.value = _uiState.value.copy(
                         name = agent.name,
+                        avatar = agent.avatar,
                         systemPrompt = agent.systemPrompt,
                         defaultModelId = agent.defaultModelId,
                         selectedProviderId = providerId,
@@ -123,6 +125,10 @@ class AgentEditViewModel(
             name = name,
             nameError = null
         )
+    }
+
+    fun onAvatarChange(avatar: String?) {
+        _uiState.value = _uiState.value.copy(avatar = avatar)
     }
 
     fun onSystemPromptChange(systemPrompt: String) {
@@ -202,6 +208,7 @@ class AgentEditViewModel(
                 if (existing != null) {
                     val updatedAgent = existing.copy(
                         name = currentState.name.trim(),
+                        avatar = currentState.avatar,
                         systemPrompt = currentState.systemPrompt.trim(),
                         defaultModelId = currentState.defaultModelId,
                         temperature = currentState.temperature,
@@ -221,6 +228,7 @@ class AgentEditViewModel(
                 val newAgent = Agent(
                     id = UUID.randomUUID().toString(),
                     name = currentState.name.trim(),
+                    avatar = currentState.avatar,
                     systemPrompt = currentState.systemPrompt.trim(),
                     defaultModelId = currentState.defaultModelId,
                     temperature = currentState.temperature,

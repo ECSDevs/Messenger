@@ -1,6 +1,12 @@
 package cc.ptoe.messenger.presentation.ui.agents
 
+import android.app.Activity
+import android.content.Context
+import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,11 +14,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -32,17 +41,30 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.yalantis.ucrop.UCrop
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Locale
 import cc.ptoe.messenger.MessengerApplication
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Provider
+import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
 import cc.ptoe.messenger.presentation.ui.components.SectionHeader
 import cc.ptoe.messenger.presentation.viewmodel.AgentEditViewModel
 
@@ -67,6 +89,44 @@ fun AgentEditScreen(
 
     // 非默认 Agent 才显示"跟随默认 Agent"开关
     val showFollowToggles = !uiState.isDefault
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    // 裁剪结果：uCrop 输出到缓存 URI，再复制到内部存储持久化
+    val cropLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val croppedUri = UCrop.getOutput(result.data!!) ?: return@rememberLauncherForActivityResult
+            val previousAvatar = uiState.avatar
+            coroutineScope.launch {
+                val path = withContext(Dispatchers.IO) {
+                    copyAvatarToInternal(context, croppedUri)
+                }
+                if (path != null) {
+                    previousAvatar?.let { File(it).takeIf { f -> f.exists() }?.delete() }
+                    viewModel.onAvatarChange(path)
+                }
+            }
+        }
+    }
+
+    // 选图后启动 uCrop 进行 1:1 裁剪
+    val pickMediaLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            val destinationUri = Uri.fromFile(
+                File(context.cacheDir, "crop_${UUID.randomUUID()}.jpg")
+            )
+            val cropIntent = UCrop.of(uri, destinationUri)
+                .withAspectRatio(1f, 1f)
+                .withMaxResultSize(512, 512)
+                .getIntent(context)
+            cropLauncher.launch(cropIntent)
+        }
+    }
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
@@ -113,6 +173,61 @@ fun AgentEditScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
+            // 头像
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .clip(CircleShape)
+                        .clickable {
+                            pickMediaLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    AgentAvatar(
+                        avatar = uiState.avatar,
+                        size = 96.dp
+                    )
+                    // 右下角相机徽标，提示可点击更换
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AddAPhoto,
+                            contentDescription = "更换头像",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                }
+            }
+
+            if (uiState.avatar != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    onClick = {
+                        uiState.avatar?.let { File(it).takeIf { f -> f.exists() }?.delete() }
+                        viewModel.onAvatarChange(null)
+                    },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Text("移除头像")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = uiState.name,
                 onValueChange = { viewModel.onNameChange(it) },
@@ -431,5 +546,20 @@ private fun ModelDropdown(
                 }
             }
         }
+    }
+}
+
+private fun copyAvatarToInternal(context: Context, uri: Uri): String? {
+    return try {
+        val dir = File(context.filesDir, "agent_avatars").apply { mkdirs() }
+        val dest = File(dir, "${UUID.randomUUID()}.jpg")
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            dest.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        } ?: return null
+        dest.absolutePath
+    } catch (e: Exception) {
+        null
     }
 }

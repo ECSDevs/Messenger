@@ -3,6 +3,7 @@ package cc.ptoe.messenger.domain.model
 data class Agent(
     val id: String,
     val name: String,
+    val avatar: String? = null,
     val systemPrompt: String,
     val defaultModelId: String?,
     val temperature: Float,

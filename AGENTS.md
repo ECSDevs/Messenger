@@ -101,7 +101,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
   - `AgentEntity` - AI agent configurations
   - `ConversationEntity` - Chat conversations
   - `MessageEntity` - Chat messages
-- Database version: 4 (with `fallbackToDestructiveMigration`)
+- Database version: 5 (with `fallbackToDestructiveMigration`)
 
 ### Navigation
 

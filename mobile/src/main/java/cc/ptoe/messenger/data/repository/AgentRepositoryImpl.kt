@@ -43,6 +43,7 @@ class AgentRepositoryImpl(
         return Agent(
             id = id,
             name = name,
+            avatar = avatar,
             systemPrompt = systemPrompt,
             defaultModelId = defaultModelId,
             temperature = temperature,
@@ -63,6 +64,7 @@ class AgentRepositoryImpl(
         return AgentEntity(
             id = id,
             name = name,
+            avatar = avatar,
             systemPrompt = systemPrompt,
             defaultModelId = defaultModelId,
             temperature = temperature,
