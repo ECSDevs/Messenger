@@ -211,6 +211,7 @@ class ChatViewModel(
         currentGenerationJob = viewModelScope.launch {
             try {
                 var currentContent = ""
+                var hasFinished = false
                 apiRepository.streamChatCompletion(
                     provider = provider,
                     modelId = model.modelId,
@@ -229,6 +230,7 @@ class ChatViewModel(
                             updateConversationLastMessage(conversationId, currentContent, System.currentTimeMillis())
                         }
                         is ChatStreamEvent.Done -> {
+                            hasFinished = true
                             messageRepository.update(
                                 aiMessage.copy(
                                     content = currentContent,
@@ -239,6 +241,7 @@ class ChatViewModel(
                             _isGenerating.value = false
                         }
                         is ChatStreamEvent.Error -> {
+                            hasFinished = true
                             messageRepository.update(
                                 aiMessage.copy(
                                     content = currentContent,
@@ -250,6 +253,17 @@ class ChatViewModel(
                             _isGenerating.value = false
                         }
                     }
+                }
+                if (!hasFinished) {
+                    messageRepository.update(
+                        aiMessage.copy(
+                            content = currentContent,
+                            status = MessageStatus.ERROR,
+                            errorMessage = "API 未返回有效响应"
+                        )
+                    )
+                    setError("API 未返回有效响应，请检查 API 配置和参数")
+                    _isGenerating.value = false
                 }
             } catch (e: Exception) {
                 val currentContent = messages.value.find { it.id == aiMessageId }?.content ?: ""
@@ -326,6 +340,7 @@ class ChatViewModel(
             currentGenerationJob = launch {
                 try {
                     var currentContent = ""
+                    var hasFinished = false
                     apiRepository.streamChatCompletion(
                         provider = provider,
                         modelId = model.modelId,
@@ -348,6 +363,7 @@ class ChatViewModel(
                                 )
                             }
                             is ChatStreamEvent.Done -> {
+                                hasFinished = true
                                 messageRepository.update(
                                     message.copy(
                                         content = currentContent,
@@ -363,6 +379,7 @@ class ChatViewModel(
                                 _isGenerating.value = false
                             }
                             is ChatStreamEvent.Error -> {
+                                hasFinished = true
                                 messageRepository.update(
                                     message.copy(
                                         content = currentContent,
@@ -374,6 +391,17 @@ class ChatViewModel(
                                 _isGenerating.value = false
                             }
                         }
+                    }
+                    if (!hasFinished) {
+                        messageRepository.update(
+                            message.copy(
+                                content = currentContent,
+                                status = MessageStatus.ERROR,
+                                errorMessage = "API 未返回有效响应"
+                            )
+                        )
+                        setError("API 未返回有效响应，请检查 API 配置和参数")
+                        _isGenerating.value = false
                     }
                 } catch (e: Exception) {
                     val currentContent = messages.value.find { it.id == messageId }?.content ?: ""

@@ -13,6 +13,8 @@ import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.domain.repository.ApiRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import org.json.JSONObject
+import retrofit2.HttpException
 import java.util.UUID
 
 class ApiRepositoryImpl : ApiRepository {
@@ -59,9 +61,19 @@ class ApiRepositoryImpl : ApiRepository {
             val responseBody = api.createChatCompletionStream(request)
             val sseFlow = SSEParser.parse(responseBody)
             val eventFlow = ChatStreamParser.parseToEvents(sseFlow)
+            var hasFinished = false
             eventFlow.collect { event ->
+                if (event is ChatStreamEvent.Done || event is ChatStreamEvent.Error) {
+                    hasFinished = true
+                }
                 emit(event)
             }
+            if (!hasFinished) {
+                emit(ChatStreamEvent.Error("API 未返回有效数据，请检查 API 配置和参数"))
+            }
+        } catch (e: HttpException) {
+            val errorMessage = extractHttpErrorMessage(e)
+            emit(ChatStreamEvent.Error(errorMessage))
         } catch (e: Exception) {
             emit(ChatStreamEvent.Error(e.message ?: "Unknown error"))
         }
@@ -122,6 +134,26 @@ class ApiRepositoryImpl : ApiRepository {
             )
         })
         return result
+    }
+
+    private fun extractHttpErrorMessage(e: HttpException): String {
+        val code = e.code()
+        val rawBody = try {
+            e.response()?.errorBody()?.string()
+        } catch (_: Exception) {
+            null
+        }
+        if (rawBody.isNullOrEmpty()) {
+            return "HTTP $code: ${e.message()}"
+        }
+        return try {
+            val json = JSONObject(rawBody)
+            json.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
+                ?: json.optString("message")?.takeIf { it.isNotBlank() }
+                ?: rawBody
+        } catch (_: Exception) {
+            "HTTP $code: $rawBody"
+        }
     }
 }
 

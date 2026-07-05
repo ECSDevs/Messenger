@@ -68,6 +68,7 @@ class ConversationsViewModel(
     fun createNewConversation(title: String = "新对话", onCreated: (String) -> Unit = {}) {
         viewModelScope.launch {
             val agent = currentAgentRepository.currentAgent.first() ?: return@launch
+            _showAllAgents.value = false
             val now = System.currentTimeMillis()
             val providerId = determineProviderId(agent)
             val conversation = Conversation(
