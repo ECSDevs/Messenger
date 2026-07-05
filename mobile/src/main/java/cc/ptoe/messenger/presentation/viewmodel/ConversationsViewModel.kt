@@ -65,9 +65,18 @@ class ConversationsViewModel(
             initialValue = emptyList()
         )
 
-    fun createNewConversation(title: String = "新对话", onCreated: (String) -> Unit = {}) {
+    fun createNewConversation(
+        title: String = "新对话",
+        agentId: String? = null,
+        onCreated: (String) -> Unit = {}
+    ) {
         viewModelScope.launch {
-            val agent = currentAgentRepository.currentAgent.first() ?: return@launch
+            val agent = if (agentId != null) {
+                agentRepository.getById(agentId).first()
+            } else {
+                currentAgentRepository.currentAgent.first()
+            } ?: return@launch
+            currentAgentRepository.setCurrentAgentId(agent.id)
             _showAllAgents.value = false
             val now = System.currentTimeMillis()
             val providerId = determineProviderId(agent)

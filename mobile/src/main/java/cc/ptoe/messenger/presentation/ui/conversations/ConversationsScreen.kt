@@ -44,6 +44,7 @@ import cc.ptoe.messenger.domain.model.Conversation
 import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
 import cc.ptoe.messenger.presentation.ui.components.EmptyState
 import cc.ptoe.messenger.presentation.ui.components.InputDialog
+import cc.ptoe.messenger.presentation.ui.components.SingleChoiceDialog
 import cc.ptoe.messenger.presentation.utils.DateTimeUtils
 import cc.ptoe.messenger.presentation.viewmodel.ConversationsViewModel
 
@@ -69,6 +70,7 @@ fun ConversationsScreen(
     var renameConversationId by remember { mutableStateOf<String?>(null) }
     var deleteConversationId by remember { mutableStateOf<String?>(null) }
     var renameInitialTitle by remember { mutableStateOf("") }
+    var showAgentPicker by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -117,8 +119,12 @@ fun ConversationsScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    viewModel.createNewConversation { conversationId ->
-                        onConversationClick(conversationId)
+                    if (showAllAgents) {
+                        showAgentPicker = true
+                    } else {
+                        viewModel.createNewConversation { conversationId ->
+                            onConversationClick(conversationId)
+                        }
                     }
                 }
             ) {
@@ -187,6 +193,27 @@ fun ConversationsScreen(
                     deleteConversationId = null
                 },
                 onDismiss = { deleteConversationId = null }
+            )
+        }
+
+        if (showAgentPicker) {
+            SingleChoiceDialog(
+                title = "选择 Agent",
+                items = allAgents,
+                initialSelectedId = currentAgent?.id ?: allAgents.firstOrNull()?.id,
+                itemId = { it.id },
+                itemLabel = { it.name },
+                confirmButtonText = "确定",
+                dismissButtonText = "取消",
+                onConfirm = { agent ->
+                    showAgentPicker = false
+                    if (agent != null) {
+                        viewModel.createNewConversation(agentId = agent.id) { conversationId ->
+                            onConversationClick(conversationId)
+                        }
+                    }
+                },
+                onDismiss = { showAgentPicker = false }
             )
         }
     }
