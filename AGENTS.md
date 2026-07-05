@@ -183,6 +183,20 @@ These constraints MUST be followed at all times:
 4. Implement in `ApiRepositoryImpl`
 5. Handle `HttpException` and extract error messages properly
 
+### Updating AGENTS.md
+
+**AGENTS.md MUST be updated whenever structural changes are made to the project**, including but not limited to:
+
+- Adding new modules or directories
+- Adding new architectural layers or patterns
+- Changing navigation structure significantly
+- Adding new database entities or repositories
+- Adding new features that affect the project structure
+- Changing hard constraints or engineering conventions
+- Updating build configuration or CI/CD pipelines
+
+If a change makes any section of AGENTS.md outdated or incomplete, update it in the same commit as the structural change.
+
 ### Code Style
 
 - Use Kotlin idiomatic patterns
