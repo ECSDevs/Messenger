@@ -17,8 +17,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    kotlin("android")
-    kotlin("kapt")
+    alias(libs.plugins.legacy.kapt)
 }
 
 android {
@@ -72,9 +71,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-    kotlinOptions {
-        jvmTarget = "11"
     }
     buildFeatures {
         compose = true

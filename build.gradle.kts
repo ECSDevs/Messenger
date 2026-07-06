@@ -17,6 +17,7 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
     alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.legacy.kapt) apply false
     alias(libs.plugins.kotlin.compose) apply false
 }
 
@@ -57,11 +58,10 @@ fun computeVersionCode(): Int {
     if (envValue != null) {
         return envValue.toIntOrNull() ?: 1
     }
-    val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
-        .directory(rootDir)
-        .redirectErrorStream(true)
-        .start()
-    val output = process.inputStream.bufferedReader().readText().trim()
+    val output = providers.exec {
+        commandLine("git", "rev-list", "--count", "HEAD")
+        workingDir = rootDir
+    }.standardOutput.asText.get().trim()
     return output.toIntOrNull() ?: 1
 }
 
