@@ -118,6 +118,7 @@ dependencies {
     implementation(libs.androidx.security.crypto)
 
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.transition)
     implementation(libs.ucrop)
 
     testImplementation(libs.junit)
