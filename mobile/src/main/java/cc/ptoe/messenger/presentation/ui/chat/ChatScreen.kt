@@ -354,7 +354,7 @@ private fun buildChatItems(messages: List<Message>): List<ChatListItem> {
 
     messages.forEachIndexed { index, message ->
         // 日期分隔符
-        if (lastDay == null || !DateTimeUtils.isSameDay(lastDay!!, message.timestamp)) {
+        if (lastDay == null || !DateTimeUtils.isSameDay(lastDay, message.timestamp)) {
             items.add(ChatListItem.DateSeparator(id = message.id, timestamp = message.timestamp))
             lastDay = message.timestamp
         }
