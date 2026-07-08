@@ -65,20 +65,19 @@ fun AiMessageBubble(
         bottomEnd = 18.dp
     )
 
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 8.dp, end = 64.dp, top = 2.dp, bottom = 2.dp),
-        verticalAlignment = Alignment.Top
+            .padding(start = 8.dp, end = 64.dp, top = 2.dp, bottom = 2.dp)
     ) {
-        // 头像占位：仅在组内最后一条消息显示头像，其余保留相同宽度避免气泡跳动
-        if (isLastInGroup) {
-            AgentAvatar(avatar = avatar, size = 32.dp)
-        } else {
-            Spacer(modifier = Modifier.width(32.dp))
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Column {
+        Row(verticalAlignment = Alignment.Bottom) {
+            // 头像占位：仅在组内最后一条消息显示头像，其余保留相同宽度避免气泡跳动
+            if (isLastInGroup) {
+                AgentAvatar(avatar = avatar, size = 32.dp)
+            } else {
+                Spacer(modifier = Modifier.width(32.dp))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
             Row(
                 modifier = Modifier
                     .clip(bubbleShape)
@@ -108,15 +107,16 @@ fun AiMessageBubble(
                     TypingIndicator()
                 }
             }
-            if (isLastInGroup) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = DateTimeUtils.formatMessageTime(message.timestamp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
-            }
+        }
+
+        if (isLastInGroup) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = DateTimeUtils.formatMessageTime(message.timestamp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 44.dp)
+            )
         }
     }
 }

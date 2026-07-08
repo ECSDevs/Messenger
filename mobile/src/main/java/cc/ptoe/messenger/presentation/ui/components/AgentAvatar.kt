@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -23,7 +24,8 @@ import java.io.File
 fun AgentAvatar(
     avatar: String?,
     modifier: Modifier = Modifier,
-    size: Dp = 40.dp
+    size: Dp = 40.dp,
+    fallbackIcon: ImageVector = Icons.Default.SmartToy
 ) {
     val avatarFile = remember(avatar) { avatar?.takeIf { it.isNotBlank() }?.let { File(it) } }
     val isValid = avatarFile != null && avatarFile.exists()
@@ -44,7 +46,7 @@ fun AgentAvatar(
             )
         } else {
             Icon(
-                imageVector = Icons.Default.SmartToy,
+                imageVector = fallbackIcon,
                 contentDescription = null,
                 modifier = Modifier.size(size * 0.6f),
                 tint = MaterialTheme.colorScheme.onPrimaryContainer

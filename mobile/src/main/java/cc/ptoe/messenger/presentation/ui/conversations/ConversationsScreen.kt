@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,7 +16,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,10 +38,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.model.Conversation
 import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
 import cc.ptoe.messenger.presentation.ui.components.EmptyState
 import cc.ptoe.messenger.presentation.ui.components.InputDialog
+import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
 import cc.ptoe.messenger.presentation.ui.components.SingleChoiceDialog
 import cc.ptoe.messenger.presentation.utils.DateTimeUtils
 import cc.ptoe.messenger.presentation.viewmodel.ConversationsViewModel
@@ -65,6 +65,7 @@ fun ConversationsScreen(
     val currentAgent by viewModel.currentAgent.collectAsStateWithLifecycle()
     val allAgents by viewModel.allAgents.collectAsStateWithLifecycle()
     val showAllAgents by viewModel.showAllAgents.collectAsStateWithLifecycle()
+    val agentsById = remember(allAgents) { allAgents.associateBy(Agent::id) }
 
     var showAgentDropdown by remember { mutableStateOf(false) }
     var renameConversationId by remember { mutableStateOf<String?>(null) }
@@ -150,6 +151,7 @@ fun ConversationsScreen(
                 items(conversations, key = { it.id }) { conversation ->
                     ConversationListItem(
                         conversation = conversation,
+                        avatar = agentsById[conversation.agentId]?.avatar,
                         onClick = { onConversationClick(conversation.id) },
                         onRenameClick = {
                             renameInitialTitle = conversation.title
@@ -222,6 +224,7 @@ fun ConversationsScreen(
 @Composable
 private fun ConversationListItem(
     conversation: Conversation,
+    avatar: String?,
     onClick: () -> Unit,
     onRenameClick: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -236,11 +239,9 @@ private fun ConversationListItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = Icons.Default.SmartToy,
-            contentDescription = null,
-            modifier = Modifier.size(40.dp),
-            tint = MaterialTheme.colorScheme.primary
+        AgentAvatar(
+            avatar = avatar,
+            size = 40.dp
         )
         Spacer(modifier = Modifier.width(16.dp))
         Column(

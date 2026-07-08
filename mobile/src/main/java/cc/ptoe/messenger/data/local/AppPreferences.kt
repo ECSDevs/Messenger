@@ -12,6 +12,7 @@ class AppPreferences(private val context: Context) {
     private object PreferencesKeys {
         val DEFAULT_AGENT_INITIALIZED = booleanPreferencesKey("default_agent_initialized")
         val CURRENT_AGENT_ID = stringPreferencesKey("current_agent_id")
+        val USER_AVATAR = stringPreferencesKey("user_avatar")
     }
 
     val defaultAgentInitialized: Flow<Boolean> = context.dataStore.data
@@ -36,6 +37,21 @@ class AppPreferences(private val context: Context) {
                 preferences[PreferencesKeys.CURRENT_AGENT_ID] = agentId
             } else {
                 preferences.remove(PreferencesKeys.CURRENT_AGENT_ID)
+            }
+        }
+    }
+
+    val userAvatar: Flow<String?> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.USER_AVATAR]
+        }
+
+    suspend fun setUserAvatar(avatar: String?) {
+        context.dataStore.edit { preferences ->
+            if (avatar != null) {
+                preferences[PreferencesKeys.USER_AVATAR] = avatar
+            } else {
+                preferences.remove(PreferencesKeys.USER_AVATAR)
             }
         }
     }

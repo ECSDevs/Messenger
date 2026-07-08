@@ -84,6 +84,7 @@ fun ChatScreen(
     val isGenerating by viewModel.isGenerating.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val needsModelSetup by viewModel.needsModelSetup.collectAsStateWithLifecycle()
+    val userAvatar by MessengerApplication.instance.appPreferences.userAvatar.collectAsStateWithLifecycle(initialValue = null)
 
     var inputText by remember { mutableStateOf("") }
     var selectedMessageId by remember { mutableStateOf<String?>(null) }
@@ -252,7 +253,8 @@ fun ChatScreen(
                                         UserMessageBubble(
                                             message = message,
                                             modifier = bubbleModifier,
-                                            isLastInGroup = item.isLastInGroup
+                                            isLastInGroup = item.isLastInGroup,
+                                            avatar = userAvatar
                                         )
                                     }
                                     MessageRole.ASSISTANT -> {

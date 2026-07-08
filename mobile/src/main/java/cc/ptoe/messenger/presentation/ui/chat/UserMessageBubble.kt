@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Schedule
@@ -27,13 +28,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cc.ptoe.messenger.domain.model.Message
 import cc.ptoe.messenger.domain.model.MessageStatus
+import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
 import cc.ptoe.messenger.presentation.utils.DateTimeUtils
 
 @Composable
 fun UserMessageBubble(
     message: Message,
     modifier: Modifier = Modifier,
-    isLastInGroup: Boolean = true
+    isLastInGroup: Boolean = true,
+    avatar: String? = null
 ) {
     val isError = message.status == MessageStatus.ERROR
     val bubbleColor = if (isError) {
@@ -57,30 +60,45 @@ fun UserMessageBubble(
         horizontalAlignment = Alignment.End
     ) {
         Row(
-            modifier = Modifier
-                .clip(bubbleShape)
-                .background(bubbleColor)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.Bottom
         ) {
-            Text(
-                text = message.content,
-                color = Color.White,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            // 行内状态指示（Google Messages 风格：放气泡右下角，半透明）
-            Spacer(modifier = Modifier.width(8.dp))
-            MessageStatusIndicator(message = message, tint = Color.White.copy(alpha = 0.75f))
+            Row(
+                modifier = Modifier
+                    .clip(bubbleShape)
+                    .background(bubbleColor)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text(
+                    text = message.content,
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                // 行内状态指示（Google Messages 风格：放气泡右下角，半透明）
+                Spacer(modifier = Modifier.width(8.dp))
+                MessageStatusIndicator(message = message, tint = Color.White.copy(alpha = 0.75f))
+            }
+            if (isLastInGroup) {
+                Spacer(modifier = Modifier.width(8.dp))
+                AgentAvatar(
+                    avatar = avatar,
+                    size = 32.dp,
+                    fallbackIcon = Icons.Default.AccountCircle
+                )
+            } else {
+                Spacer(modifier = Modifier.width(40.dp))
+            }
         }
-        // 仅在组内最后一条消息下方显示时间戳（更克制，避免视觉噪音）
+
         if (isLastInGroup) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = DateTimeUtils.formatMessageTime(message.timestamp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 fontSize = 11.sp,
-                modifier = Modifier.padding(end = 4.dp)
+                modifier = Modifier.padding(end = 36.dp)
             )
         }
     }

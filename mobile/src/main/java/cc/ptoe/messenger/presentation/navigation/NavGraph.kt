@@ -10,8 +10,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.remember
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -27,7 +28,7 @@ import cc.ptoe.messenger.presentation.ui.providers.ProviderEditScreen
 import cc.ptoe.messenger.presentation.ui.providers.ProvidersScreen
 import cc.ptoe.messenger.presentation.ui.settings.LicensesScreen
 import cc.ptoe.messenger.presentation.ui.settings.SettingsScreen
-import kotlinx.coroutines.launch
+import cc.ptoe.messenger.presentation.viewmodel.ConversationsViewModel
 
 @Composable
 fun NavGraph(
@@ -62,7 +63,18 @@ fun NavGraph(
             )
         }
         composable(Screen.Agents.route) {
-            val coroutineScope = rememberCoroutineScope()
+            val conversationsBackStackEntry = remember(navController) {
+                navController.getBackStackEntry(Screen.Conversations.route)
+            }
+            val conversationsViewModel: ConversationsViewModel = viewModel(
+                conversationsBackStackEntry,
+                factory = ConversationsViewModel.provideFactory(
+                    conversationRepository = MessengerApplication.instance.conversationRepository,
+                    currentAgentRepository = MessengerApplication.instance.currentAgentRepository,
+                    agentRepository = MessengerApplication.instance.agentRepository,
+                    modelRepository = MessengerApplication.instance.modelRepository
+                )
+            )
             AgentsScreen(
                 onAddClick = {
                     navController.navigate(Screen.AgentEdit.createRoute())
@@ -71,9 +83,7 @@ fun NavGraph(
                     navController.navigate(Screen.AgentEdit.createRoute(agentId))
                 },
                 onAgentClick = { agentId ->
-                    coroutineScope.launch {
-                        MessengerApplication.instance.currentAgentRepository.setCurrentAgentId(agentId)
-                    }
+                    conversationsViewModel.switchAgent(agentId)
                     navController.popBackStack(Screen.Conversations.route, inclusive = false)
                 }
             )

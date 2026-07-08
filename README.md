@@ -1,5 +1,7 @@
 # Messenger
 
+![logo](./logo.svg)
+
 A beautifully designed AI chat app, built for your phone and soon your wrist.
 
 Chat with your favorite AI models on your phone or tablet — with a clean, modern interface that feels great to use. Wear OS support is coming soon!
