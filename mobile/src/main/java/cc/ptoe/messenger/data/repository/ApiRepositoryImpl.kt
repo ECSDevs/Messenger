@@ -110,6 +110,8 @@ class ApiRepositoryImpl : ApiRepository {
                 timestamp = System.currentTimeMillis(),
                 status = cc.ptoe.messenger.domain.model.MessageStatus.SENT
             )
+        } catch (e: HttpException) {
+            throw ApiException(extractHttpErrorMessage(e), e)
         } catch (e: Exception) {
             throw ApiException("Failed to create chat completion: ${e.message}", e)
         }
@@ -149,7 +151,7 @@ class ApiRepositoryImpl : ApiRepository {
         return try {
             val json = JSONObject(rawBody)
             json.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
-                ?: json.optString("message")?.takeIf { it.isNotBlank() }
+                ?: json.optString("message").takeIf { it.isNotBlank() }
                 ?: rawBody
         } catch (_: Exception) {
             "HTTP $code: $rawBody"

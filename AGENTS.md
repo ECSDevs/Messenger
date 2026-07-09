@@ -7,9 +7,9 @@ Messenger is a Material 3 designed LLM chat application for Android, focused on 
 - **Package name**: `cc.ptoe.messenger`
 - **Min SDK**: 30 (Android 11)
 - **Target SDK**: 36
-- **Compile SDK**: 36
+- **Compile SDK**: 37
 - **Language**: Kotlin
-- **UI**: Jetpack Compose (Material 3)
+- **UI**: Jetpack Compose (Material 3) + Wear Compose
 - **Architecture**: Clean Architecture (data/domain/presentation layers)
 - **Modules**: `mobile` (phone/tablet), `wear` (Wear OS)
 
@@ -58,7 +58,12 @@ Messenger/
 │       │   └── viewmodel/    # ViewModels
 │       ├── MainActivity.kt
 │       └── MessengerApplication.kt
-├── wear/                     # Wear OS module
+├── wear/                     # Wear OS companion module
+│   └── src/main/java/cc/ptoe/messenger/
+│       ├── data/             # Wear DataStore + phone bridge
+│       ├── presentation/     # Wear Compose activity
+│       ├── presentation/viewmodel/
+│       └── WearMessengerApplication.kt
 ├── build.gradle.kts          # Root build file
 ├── settings.gradle.kts       # Project settings
 ├── gradle.properties         # Gradle configuration
@@ -87,11 +92,19 @@ The project follows Clean Architecture with three main layers:
    - MVVM pattern with ViewModels
    - Navigation Compose for routing
 
+### Wear Companion Architecture
+
+- The `wear` module is a phone-backed companion experience with no settings UI
+- Wear syncs lightweight agent metadata from `mobile` through the Google Play Services wearable message layer
+- Wear sends chat requests back to `mobile`, and the phone resolves models/providers plus performs the API call using the existing repositories
+- Wear persists synced agents, selected agent, and per-agent message history locally with DataStore for a fast resume path
+
 ### Dependency Injection
 
 The project uses a manual dependency injection approach via `MessengerApplication`:
 - All repositories and data sources are initialized in `MessengerApplication.onCreate()`
 - Access via `MessengerApplication.instance` singleton pattern
+- The `wear` module mirrors this approach with `WearMessengerApplication`
 
 ### Database
 
@@ -117,6 +130,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - SSE (Server-Sent Events) streaming for chat completions
 - Auth header interceptor for API keys
 - Gson converter for JSON serialization
+- Wear chat requests are forwarded to the phone over the wearable message layer instead of calling providers directly from the watch
 
 ## Hard Constraints
 
@@ -142,6 +156,8 @@ These constraints MUST be followed at all times:
    - `MainScaffold.kt` only applies bottom padding (for bottom nav), letting each screen handle top/left/right insets via its own Scaffold+TopAppBar
 
 7. **Built-in Kotlin migration**: AGP 9 built-in Kotlin is enabled. Do not apply `org.jetbrains.kotlin.android` or `kotlin("android")` in Android modules. Prefer `com.google.devtools.ksp` for supported processors like Room; use `com.android.legacy-kapt` only if annotation processors cannot yet move to KSP.
+
+8. **Wear companion scope**: The Wear app MUST stay focused on chat only. Agents are synced from mobile, and provider/model/settings management stays on mobile.
 
 ## Engineering Conventions
 

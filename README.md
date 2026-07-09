@@ -2,15 +2,15 @@
 
 ![logo](./logo.svg)
 
-A beautifully designed AI chat app, built for your phone and soon your wrist.
+A beautifully designed AI chat app, built for your phone and your wrist.
 
-Chat with your favorite AI models on your phone or tablet — with a clean, modern interface that feels great to use. Wear OS support is coming soon!
+Chat with your favorite AI models on your phone or tablet — with a clean, modern interface that feels great to use. The Wear OS companion keeps chat simple by syncing your agents from mobile and using your phone as the configured AI backend.
 
 ---
 
 ## ✨ Features
 
-- **Chat anywhere** — Works on your phone and tablet (Wear OS coming soon)
+- **Chat anywhere** — Works on your phone, tablet, and Wear OS
 - **Bring your own key** — Use API keys from your preferred AI providers
 - **Custom AI agents** — Create and switch between different AI personas and assistants
 - **Multiple providers** — Connect to various AI model providers in one app
@@ -32,7 +32,7 @@ Chat with your favorite AI models on your phone or tablet — with a clean, mode
 ## 📱 Supported Devices
 
 - **Mobile** ✅ — Phones and tablets running Android 11 or newer
-- **Wear OS** 🚧 — Under development, coming soon
+- **Wear OS** ✅ — Simple companion chat with mobile-synced agents
 
 ---
 
