@@ -4,10 +4,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 class WearChatRepository(
     private val preferences: WearChatPreferences,
@@ -46,6 +49,16 @@ class WearChatRepository(
         selectedId?.let { history[it].orEmpty() } ?: emptyList()
     }
 
+    /**
+     * Conversations that currently have a streaming chat in flight, keyed by
+     * conversationId -> requestId. Used by the sync collector to avoid
+     * clobbering the local optimistic messages with a stale phone snapshot
+     * while the phone is still generating the reply. See [sendMessage].
+     */
+    private val inFlightChats = ConcurrentHashMap<String, String>()
+
+    private val streamTimeoutMs: Long = 180_000L
+
     init {
         bridgeClient.start()
         bridgeClient.loadExistingState()
@@ -59,10 +72,38 @@ class WearChatRepository(
                     currentSelection != null && currentSelection in conversationIds -> currentSelection
                     else -> snapshot.conversations.firstOrNull()?.id
                 }
+                // While a chat is streaming for a conversation, the phone's
+                // sync snapshot lags behind the local optimistic messages
+                // (local user message + streaming assistant placeholder).
+                // Wholesale-replacing messages here would make the just-sent
+                // message vanish until the phone's next sync catches up — the
+                // "send -> message disappears" bug. So for in-flight
+                // conversations we keep the local messages AND conversations
+                // (the conversation's lastMessage/updatedAt may also be ahead
+                // locally) and only let the sync overwrite the rest.
+                val mergedMessages = snapshot.messages.toMutableMap()
+                var mergedConversations = snapshot.conversations
+                if (inFlightChats.isNotEmpty()) {
+                    val localHistory = preferences.messageHistory.first()
+                    val localConversations = preferences.conversations.first()
+                    for (convId in inFlightChats.keys) {
+                        // Preserve local messages (includes optimistic user msg + placeholder)
+                        localHistory[convId]?.let { localMsgs ->
+                            mergedMessages[convId] = localMsgs
+                        }
+                        // Preserve local conversation (includes updated lastMessage/updatedAt)
+                        val localConv = localConversations.firstOrNull { it.id == convId }
+                        if (localConv != null) {
+                            mergedConversations = mergedConversations.map { sc ->
+                                if (sc.id == convId) localConv else sc
+                            }
+                        }
+                    }
+                }
                 preferences.applySnapshot(
                     agents = snapshot.agents,
-                    conversations = snapshot.conversations,
-                    messages = snapshot.messages,
+                    conversations = mergedConversations,
+                    messages = mergedMessages,
                     userAvatarPath = snapshot.userAvatarPath,
                     selectedConversationId = nextSelection
                 )
@@ -132,6 +173,15 @@ class WearChatRepository(
             isPending = true
         )
 
+        // Mark in-flight BEFORE writing to DataStore so the sync collector
+        // (which reads inFlightChats + local messageHistory together) can
+        // never observe a state where messages are written but the guard is
+        // missing — that window is exactly what let sync clobber the just-sent
+        // message in the previous version.
+        inFlightChats[conversation.id] = requestId
+
+        // Insert the optimistic user message + pending assistant placeholder
+        // before sending so the user sees their message immediately.
         saveMessages(
             conversation.id,
             existingMessages + userMessage + assistantPlaceholder
@@ -145,45 +195,112 @@ class WearChatRepository(
         )
 
         if (sendResult.isFailure) {
+            inFlightChats.remove(conversation.id)
             val error = sendResult.exceptionOrNull()?.message ?: "Phone is not connected."
             replacePendingWithError(conversation.id, requestId, error)
             return Result.failure(IllegalStateException(error))
         }
 
-        val response = try {
-            withTimeout(60000) {
-                bridgeClient.chatResponses.first { it.requestId == requestId }
+        // Collect streaming frames for this request: accumulate deltas into
+        // the placeholder content (so the bubble streams on the watch), until
+        // a terminal Done / Error frame arrives. onEach updates the bubble on
+        // every delta; `first` returns the terminal frame and cancels collection.
+        val currentContent = StringBuilder()
+        val terminal = try {
+            withTimeout(streamTimeoutMs) {
+                bridgeClient.chatFrames
+                    .filter { it.requestId == requestId }
+                    .onEach { frame ->
+                        if (frame is WearChatFrame.Delta) {
+                            currentContent.append(frame.delta)
+                            updatePlaceholderContent(
+                                conversation.id,
+                                requestId,
+                                currentContent.toString()
+                            )
+                        }
+                    }
+                    .first { it is WearChatFrame.Done || it is WearChatFrame.Error }
             }
         } catch (_: Exception) {
+            inFlightChats.remove(conversation.id)
             val error = "Timed out waiting for your phone."
             replacePendingWithError(conversation.id, requestId, error)
             return Result.failure(IllegalStateException(error))
         }
 
-        return if (!response.error.isNullOrBlank()) {
-            replacePendingWithError(conversation.id, requestId, response.error)
-            Result.failure(IllegalStateException(response.error))
-        } else {
-            val content = response.content.orEmpty()
-            val current = preferences.messageHistory.first()[conversation.id].orEmpty()
-            val updated = current.map { message ->
-                when (message.id) {
-                    "local-user-$requestId" -> message.copy(
-                        id = response.userMessageId ?: message.id
-                    )
-                    "local-assistant-$requestId" -> message.copy(
-                        id = response.assistantMessageId ?: message.id,
-                        content = content,
-                        isPending = false,
-                        isError = false
-                    )
-                    else -> message
-                }
+        inFlightChats.remove(conversation.id)
+
+        return when (terminal) {
+            is WearChatFrame.Error -> {
+                replacePendingWithError(conversation.id, requestId, terminal.message)
+                Result.failure(IllegalStateException(terminal.message))
             }
-            saveMessages(conversation.id, updated)
-            updateConversationPreview(conversation.id, content, System.currentTimeMillis())
-            Result.success(Unit)
+            is WearChatFrame.Done -> {
+                val content = terminal.content.ifEmpty { currentContent.toString() }
+                finalizePlaceholder(
+                    conversationId = conversation.id,
+                    requestId = requestId,
+                    content = content,
+                    userMessageId = terminal.userMessageId,
+                    assistantMessageId = terminal.assistantMessageId
+                )
+                updateConversationPreview(
+                    conversation.id,
+                    content.ifBlank { text },
+                    System.currentTimeMillis()
+                )
+                Result.success(Unit)
+            }
+            is WearChatFrame.Delta -> error("unreachable: delta is not terminal")
         }
+    }
+
+    /**
+     * Updates only the assistant placeholder's content while streaming,
+     * leaving [WearChatMessage.isPending] true so the bubble keeps its
+     * "streaming" styling but now renders real text instead of "Thinking...".
+     */
+    private suspend fun updatePlaceholderContent(
+        conversationId: String,
+        requestId: String,
+        content: String
+    ) {
+        val current = preferences.messageHistory.first()[conversationId].orEmpty()
+        val updated = current.map { message ->
+            if (message.id == "local-assistant-$requestId") {
+                message.copy(content = content)
+            } else {
+                message
+            }
+        }
+        saveMessages(conversationId, updated)
+        updateConversationPreview(conversationId, content, System.currentTimeMillis())
+    }
+
+    private suspend fun finalizePlaceholder(
+        conversationId: String,
+        requestId: String,
+        content: String,
+        userMessageId: String?,
+        assistantMessageId: String?
+    ) {
+        val current = preferences.messageHistory.first()[conversationId].orEmpty()
+        val updated = current.map { message ->
+            when (message.id) {
+                "local-user-$requestId" -> message.copy(
+                    id = userMessageId ?: message.id
+                )
+                "local-assistant-$requestId" -> message.copy(
+                    id = assistantMessageId ?: message.id,
+                    content = content,
+                    isPending = false,
+                    isError = false
+                )
+                else -> message
+            }
+        }
+        saveMessages(conversationId, updated)
     }
 
     private suspend fun replacePendingWithError(

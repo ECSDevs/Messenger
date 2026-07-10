@@ -59,13 +59,32 @@ data class WearSyncSnapshot(
     val updatedAt: Long
 )
 
-data class WearChatResponse(
-    val requestId: String,
-    val content: String?,
-    val error: String?,
-    val userMessageId: String? = null,
-    val assistantMessageId: String? = null
-)
+/**
+ * One frame of a streaming wear chat response. The phone emits zero or more
+ * [Delta] frames (incremental text), then exactly one terminal frame
+ * ([Done] on success, [Error] on failure). All frames share the originating
+ * chat request's `requestId` so the watch can correlate them.
+ */
+sealed interface WearChatFrame {
+    val requestId: String
+
+    data class Delta(
+        override val requestId: String,
+        val delta: String
+    ) : WearChatFrame
+
+    data class Done(
+        override val requestId: String,
+        val content: String,
+        val userMessageId: String?,
+        val assistantMessageId: String?
+    ) : WearChatFrame
+
+    data class Error(
+        override val requestId: String,
+        val message: String
+    ) : WearChatFrame
+}
 
 data class WearNewChatResponse(
     val requestId: String,

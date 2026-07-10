@@ -169,7 +169,10 @@ fun MessageBubble(
         ) {
             Text(
                 text = when {
-                    message.isPending -> "Thinking..."
+                    // Pending with no content yet → still thinking. Once the
+                    // first delta lands, isPending stays true but content
+                    // becomes non-blank and we render the streaming text.
+                    message.isPending && message.content.isBlank() -> "Thinking..."
                     message.content.isBlank() -> "No response."
                     else -> message.content
                 },

@@ -1,6 +1,7 @@
 package cc.ptoe.messenger.data
 
 import android.content.Context
+import android.util.Base64
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -13,7 +14,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.util.UUID
 
 /**
  * Watch-side bridge to the phone. Replaces the previous DataLayer-based
@@ -26,9 +30,10 @@ import org.json.JSONObject
  * opens a WebSocket, and both sides speak the same line-delimited JSON
  * protocol as before.
  *
- * Public surface (the [syncUpdates] / [chatResponses] / [newChatResponses]
- * flows and the [requestChat] / [requestNewConversation] methods) is identical
- * to the previous version, so [WearChatRepository] is unchanged.
+ * Public surface: [syncUpdates] / [chatFrames] / [newChatResponses] flows
+ * and the [requestChat] / [requestNewConversation] methods. Chat is now
+ * streaming (see [chatFrames]); the other request types are still
+ * single request / single response.
  */
 class WearBridgeClient(
     context: Context,
@@ -44,19 +49,15 @@ class WearBridgeClient(
     )
     val syncUpdates: SharedFlow<WearSyncSnapshot> = _syncUpdates.asSharedFlow()
 
-    private val _chatResponses = MutableSharedFlow<WearChatResponse>(
-        // replay = 1 so the immediate post-send subscriber in
-        // WearChatRepository still sees the just-emitted response.
-        // Without this, requestChat emits before the repository subscribes
-        // to chatResponses, and the response is lost to the flow's history.
-        replay = 1,
-        extraBufferCapacity = 8,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    val chatResponses: SharedFlow<WearChatResponse> = _chatResponses.asSharedFlow()
+    /**
+     * Streaming chat frames from the phone. The repository subscribes to this
+     * (filtered by requestId) and accumulates deltas until a terminal Done /
+     * Error frame arrives. See [WearNetworkBridge.chatFrames].
+     */
+    val chatFrames: SharedFlow<WearChatFrame> = networkBridge.chatFrames
 
     private val _newChatResponses = MutableSharedFlow<WearNewChatResponse>(
-        // Same reasoning as [_chatResponses]: requestNewConversation emits
+        // Same reasoning as the old chatResponses: requestNewConversation emits
         // before the repository subscribes, and a replay of 0 would drop it
         // and leave the UI stuck on "Creating...".
         replay = 1,
@@ -77,6 +78,17 @@ class WearBridgeClient(
 
     private var syncJob: Job? = null
     private var lastUpdatedAt: Long = 0L
+
+    /**
+     * In-memory cache of the avatar version we have on disk for each agent
+     * (and "user" for the user's own avatar). Keyed by agent id. A version
+     * of 0 means "no avatar on the phone" — the watch deletes any locally
+     * cached file in that case so the UI falls back to the initial letter.
+     */
+    private val cachedAvatarVersions = mutableMapOf<String, Long>()
+
+    private val avatarDir = File(appContext.filesDir, "agent_avatars").apply { mkdirs() }
+    private val userAvatarFile = File(appContext.filesDir, "user_avatar.jpg")
 
     fun start() {
         if (syncJob != null) return
@@ -148,11 +160,20 @@ class WearBridgeClient(
         lastUpdatedAt = updatedAt
 
         runCatching {
-            val agentsJson = response.optJSONArray("agents")?.toString() ?: "[]"
+            val agentsArray = response.optJSONArray("agents") ?: JSONArray()
             val conversationsJson = response.optJSONArray("conversations")?.toString() ?: "[]"
             val messagesJson = response.optJSONObject("messages")?.toString() ?: "{}"
 
-            val agents = WearChatJsonCodec.decodeAgentsFromSync(agentsJson, emptyMap())
+            // Pull avatar bytes only for agents whose version actually
+            // changed since the last sync — keeps the (potentially large)
+            // image transfer off the WebSocket on every 3s poll.
+            val avatarPaths = fetchAgentAvatars(agentsArray)
+            val userAvatarPath = fetchUserAvatar(response.optLong("userAvatarVersion", 0L))
+
+            val agents = WearChatJsonCodec.decodeAgentsFromSync(
+                agentsArray.toString(),
+                avatarPaths
+            )
             val conversations = WearChatJsonCodec.decodeConversationsFromSync(conversationsJson)
             val messages = WearChatJsonCodec.decodeMessagesFromSync(messagesJson)
 
@@ -161,7 +182,7 @@ class WearBridgeClient(
                     agents = agents,
                     conversations = conversations,
                     messages = messages,
-                    userAvatarPath = null,
+                    userAvatarPath = userAvatarPath,
                     updatedAt = updatedAt
                 )
             )
@@ -170,37 +191,101 @@ class WearBridgeClient(
         }
     }
 
+    /**
+     * Walks the agents array from a sync_response and, for each agent whose
+     * `avatarVersion` differs from the locally cached value, requests the
+     * avatar bytes over the WebSocket and writes them to a local file. The
+     * returned map points each agent id at the local file path (or null if
+     * the agent has no avatar on the phone).
+     */
+    private suspend fun fetchAgentAvatars(agents: JSONArray): Map<String, String?> {
+        if (agents.length() == 0) return emptyMap()
+        val result = mutableMapOf<String, String?>()
+        for (index in 0 until agents.length()) {
+            val agent = agents.optJSONObject(index) ?: continue
+            val id = agent.optString("id")
+            if (id.isBlank()) continue
+            val version = agent.optLong("avatarVersion", 0L)
+            val path = syncAvatarForKey(id, version) { networkBridge.requestAvatar(it, agentId = id) }
+            result[id] = path
+        }
+        return result
+    }
+
+    private suspend fun fetchUserAvatar(version: Long): String? =
+        syncAvatarForKey(USER_AVATAR_KEY, version) { requestId ->
+            networkBridge.requestAvatar(requestId, userScope = true)
+        }
+
+    /**
+     * Core cache-and-fetch routine shared by agent and user avatars.
+     *
+     * - If [version] is 0 the phone reports no avatar; delete any cached
+     *   file and return null.
+     * - If [version] matches [cachedAvatarVersions] for [key] AND a cached
+     *   file exists, return its path without hitting the network.
+     * - Otherwise call [request] to fetch the base64 payload, decode it,
+     *   write it to the cache file, and remember the new version.
+     */
+    private suspend fun syncAvatarForKey(
+        key: String,
+        version: Long,
+        request: suspend (String) -> JSONObject?
+    ): String? {
+        if (version == 0L) {
+            cachedAvatarVersions.remove(key)
+            cachedAvatarFile(key)?.let { runCatching { it.delete() } }
+            return null
+        }
+        val cachedFile = cachedAvatarFile(key)
+        if (cachedAvatarVersions[key] == version && cachedFile != null && cachedFile.exists()) {
+            return cachedFile.absolutePath
+        }
+        val requestId = "avatar-$key-${UUID.randomUUID()}"
+        val response = runCatching { request(requestId) }.getOrNull() ?: return null
+        if (response.optLong("version", 0L) == 0L) {
+            // Phone now reports no avatar; clean up.
+            cachedAvatarVersions.remove(key)
+            cachedFile?.let { runCatching { it.delete() } }
+            return null
+        }
+        val base64 = response.optString("base64").takeIf { it.isNotBlank() } ?: return null
+        val bytes = runCatching { Base64.decode(base64, Base64.NO_WRAP) }.getOrNull() ?: return null
+        val target = cachedAvatarFile(key) ?: return null
+        return runCatching {
+            target.parentFile?.mkdirs()
+            target.writeBytes(bytes)
+            cachedAvatarVersions[key] = version
+            target.absolutePath
+        }.onFailure { Log.w(TAG, "Failed to persist avatar for $key", it) }
+            .getOrNull()
+    }
+
+    private fun cachedAvatarFile(key: String): File? = when (key) {
+        USER_AVATAR_KEY -> userAvatarFile
+        else -> File(avatarDir, "$key.jpg")
+    }
+
+    /**
+     * Sends a chat request to the phone. The phone then streams the reply back
+     * as [chatFrames] (chat_delta* -> chat_done | chat_error), which the
+     * caller is expected to subscribe to *before* calling this so no early
+     * deltas are missed (the bridge buffers up to 128 recent frames anyway).
+     *
+     * Returns success once the request frame is queued; a failure means the
+     * socket is not connected and the caller should surface a banner.
+     */
     suspend fun requestChat(
         requestId: String,
         conversationId: String,
         text: String
     ): Result<Unit> {
-        val response = networkBridge.requestChat(requestId, conversationId, text)
-            ?: return Result.failure(IllegalStateException("Phone is not connected."))
-        val error = response.optString("error").takeIf { it.isNotBlank() }
-        if (error != null) {
-            _chatResponses.tryEmit(
-                WearChatResponse(
-                    requestId = requestId,
-                    content = null,
-                    error = error,
-                    userMessageId = null,
-                    assistantMessageId = null
-                )
-            )
-            return Result.failure(IllegalStateException(error))
+        val sent = networkBridge.requestChat(requestId, conversationId, text)
+        return if (sent) {
+            Result.success(Unit)
+        } else {
+            Result.failure(IllegalStateException("Phone is not connected."))
         }
-        val content = response.optString("content")
-        _chatResponses.tryEmit(
-            WearChatResponse(
-                requestId = requestId,
-                content = content.takeIf { it.isNotBlank() },
-                error = null,
-                userMessageId = response.optString("userMessageId").takeIf { it.isNotBlank() },
-                assistantMessageId = response.optString("assistantMessageId").takeIf { it.isNotBlank() }
-            )
-        )
-        return Result.success(Unit)
     }
 
     suspend fun requestNewConversation(
@@ -238,5 +323,6 @@ class WearBridgeClient(
         private const val TAG = "WearBridgeClient"
         private const val POLL_INTERVAL_MS = 3000L
         private const val RECONNECT_DELAY_MS = 5000L
+        private const val USER_AVATAR_KEY = "user"
     }
 }

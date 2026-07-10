@@ -24,9 +24,13 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -97,6 +101,25 @@ class WearNetworkBridge(
     val connectionState: StateFlow<WearConnectionState> = _connectionState.asStateFlow()
 
     private val pendingRequests = ConcurrentHashMap<String, CompletableDeferred<String>>()
+
+    /**
+     * Streaming chat frames from the phone. A chat request produces zero or
+     * more [WearChatFrame.Delta] frames, then exactly one terminal
+     * [WearChatFrame.Done] or [WearChatFrame.Error]. All share the
+     * originating request's id.
+     *
+     * `extraBufferCapacity` is large so that deltas emitted in the brief window
+     * between sending the chat request and the repository subscribing (and
+     * during any read pause) are not lost — SharedFlow with replay=0 still
+     * buffers up to `extraBufferCapacity` recent emissions for a slow/late
+     * subscriber.
+     */
+    private val _chatFrames = MutableSharedFlow<WearChatFrame>(
+        replay = 0,
+        extraBufferCapacity = 128,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val chatFrames: SharedFlow<WearChatFrame> = _chatFrames.asSharedFlow()
 
     suspend fun connect(): Boolean = mutex.withLock {
         if (_isConnected.value) return@withLock true
@@ -276,16 +299,36 @@ class WearNetworkBridge(
         }
     }
 
+    /**
+     * Sends a chat request to the phone. Returns true once the request frame
+     * has been queued onto the socket; the actual streaming response arrives
+     * asynchronously as [chatFrames] (chat_delta* -> chat_done | chat_error).
+     *
+     * Unlike [requestSync] / [requestNewConversation] / [requestAvatar] this
+     * does NOT wait for a response — there are many response frames per
+     * request, so the repository subscribes to [chatFrames] and accumulates
+     * deltas itself.
+     */
     suspend fun requestChat(
         requestId: String,
         conversationId: String,
         text: String
-    ): JSONObject? = withRequest {
-        JSONObject().apply {
+    ): Boolean = mutex.withLock {
+        val socket = webSocket
+        if (socket == null || !_isConnected.value) {
+            return@withLock false
+        }
+        val request = JSONObject().apply {
             put("type", "chat")
             put("requestId", requestId)
             put("conversationId", conversationId)
             put("text", text)
+        }
+        try {
+            socket.send(request.toString())
+        } catch (e: Exception) {
+            Log.w(TAG, "WebSocket chat send failed", e)
+            false
         }
     }
 
@@ -296,6 +339,26 @@ class WearNetworkBridge(
         JSONObject().apply {
             put("type", "new_conversation")
             put("requestId", requestId)
+            if (!agentId.isNullOrBlank()) put("agentId", agentId)
+        }
+    }
+
+    /**
+     * Fetches the base64-encoded avatar image bytes for either an agent
+     * (`agentId` non-null) or the user (`scope = "user"`). The bytes are
+     * large, so this is only called when the watch detects that the
+     * `avatarVersion` reported by the phone's sync_response differs from
+     * the locally cached version.
+     */
+    suspend fun requestAvatar(
+        requestId: String,
+        agentId: String? = null,
+        userScope: Boolean = false
+    ): JSONObject? = withRequest {
+        JSONObject().apply {
+            put("type", "get_avatar")
+            put("requestId", requestId)
+            if (userScope) put("scope", "user")
             if (!agentId.isNullOrBlank()) put("agentId", agentId)
         }
     }
@@ -352,8 +415,38 @@ class WearNetworkBridge(
             // today, but kept as a hook for future push-style messages.
             return
         }
-        val deferred = pendingRequests.remove(requestId) ?: return
-        deferred.complete(text)
+        // Streaming chat frames are multiplexed onto chatFrames (many per
+        // requestId) instead of the single-response pendingRequests map.
+        when (response.optString("type")) {
+            "chat_delta" -> {
+                val delta = response.optString("delta")
+                if (delta.isNotEmpty()) {
+                    _chatFrames.tryEmit(WearChatFrame.Delta(requestId, delta))
+                }
+            }
+            "chat_done" -> {
+                _chatFrames.tryEmit(
+                    WearChatFrame.Done(
+                        requestId = requestId,
+                        content = response.optString("content"),
+                        userMessageId = response.optString("userMessageId")
+                            .takeIf { it.isNotBlank() },
+                        assistantMessageId = response.optString("assistantMessageId")
+                            .takeIf { it.isNotBlank() }
+                    )
+                )
+            }
+            "chat_error" -> {
+                val message = response.optString("error").ifBlank { "Unknown error" }
+                _chatFrames.tryEmit(WearChatFrame.Error(requestId, message))
+            }
+            else -> {
+                // Single-response types (sync_response, new_conversation_response,
+                // avatar_response). Resolve the waiting deferred and drop it.
+                val deferred = pendingRequests.remove(requestId) ?: return
+                deferred.complete(text)
+            }
+        }
     }
 
     private fun failAllPending(reason: String) {

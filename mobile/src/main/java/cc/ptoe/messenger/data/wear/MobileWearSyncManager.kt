@@ -17,6 +17,7 @@
 package cc.ptoe.messenger.data.wear
 
 import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.data.remote.sse.ChatStreamEvent
 import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Conversation
@@ -36,10 +37,40 @@ import java.util.UUID
  */
 class MobileWearChatHandler(private val app: MessengerApplication) {
 
-    suspend fun handleChatRequest(payloadBytes: ByteArray): ByteArray {
+    /**
+     * Streaming wear chat handler. Instead of buffering the whole reply into
+     * a single frame, it:
+     *
+     *  1. Inserts the user message and a SENDING assistant placeholder into
+     *     Room immediately (so the phone's own chat UI shows a pending bubble).
+     *  2. Drives [ApiRepository.streamChatCompletion], updating the assistant
+     *     message content on every delta (so the phone streams too).
+     *  3. Pushes incremental frames to the watch via [sendFrame]:
+     *
+     *       chat_delta  {"requestId","delta"}      (zero or more)
+     *       chat_done   {"requestId","content","userMessageId","assistantMessageId"}
+     *       chat_error   {"requestId","error"}
+     *
+     *     Exactly one terminal frame (chat_done / chat_error) is always sent.
+     *
+     * Replaces the previous single-shot [createChatCompletion] path, which
+     * meant the watch sat on a "Thinking..." bubble for the whole duration
+     * and neither side saw streaming.
+     */
+    suspend fun handleChatRequestStreaming(
+        payloadBytes: ByteArray,
+        sendFrame: (JSONObject) -> Unit
+    ) {
         val request = JSONObject(payloadBytes.decodeToString())
         val requestId = request.optString("requestId")
-        val response = JSONObject().apply { put("requestId", requestId) }
+
+        fun frame(type: String, block: JSONObject.() -> Unit) {
+            sendFrame(JSONObject().apply {
+                put("requestId", requestId)
+                put("type", type)
+                block()
+            })
+        }
 
         try {
             val conversationId = request.optString("conversationId")
@@ -73,6 +104,17 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
             )
             app.messageRepository.insert(userMessage)
 
+            val assistantMessageId = UUID.randomUUID().toString()
+            val assistantMessage = Message(
+                id = assistantMessageId,
+                conversationId = conversationId,
+                role = MessageRole.ASSISTANT,
+                content = "",
+                timestamp = System.currentTimeMillis(),
+                status = MessageStatus.SENDING
+            )
+            app.messageRepository.insert(assistantMessage)
+
             val history = app.messageRepository.getByConversationId(conversationId).first()
                 .filter {
                     it.role != MessageRole.SYSTEM &&
@@ -80,7 +122,9 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
                         it.status != MessageStatus.SENDING
                 }
 
-            val reply = app.apiRepository.createChatCompletion(
+            var currentContent = ""
+            var hasFinished = false
+            app.apiRepository.streamChatCompletion(
                 provider = activeModel.first,
                 modelId = activeModel.second.modelId,
                 messages = history,
@@ -88,32 +132,68 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
                 temperature = resolvedAgent.temperature,
                 topP = resolvedAgent.topP,
                 maxTokens = resolvedAgent.maxTokens
-            )
-
-            val assistantMessage = Message(
-                id = UUID.randomUUID().toString(),
-                conversationId = conversationId,
-                role = MessageRole.ASSISTANT,
-                content = reply.content,
-                timestamp = System.currentTimeMillis(),
-                status = MessageStatus.SENT
-            )
-            app.messageRepository.insert(assistantMessage)
-            app.conversationRepository.update(
-                conversation.copy(
-                    lastMessage = reply.content,
-                    updatedAt = assistantMessage.timestamp
+            ).collect { event ->
+                when (event) {
+                    is ChatStreamEvent.Content -> {
+                        currentContent += event.text
+                        app.messageRepository.update(
+                            assistantMessage.copy(content = currentContent)
+                        )
+                        frame("chat_delta") { put("delta", event.text) }
+                    }
+                    is ChatStreamEvent.Done -> {
+                        hasFinished = true
+                        app.messageRepository.update(
+                            assistantMessage.copy(
+                                content = currentContent,
+                                status = MessageStatus.SENT
+                            )
+                        )
+                        app.conversationRepository.update(
+                            conversation.copy(
+                                lastMessage = currentContent,
+                                updatedAt = System.currentTimeMillis()
+                            )
+                        )
+                        frame("chat_done") {
+                            put("content", currentContent)
+                            put("userMessageId", userMessage.id)
+                            put("assistantMessageId", assistantMessage.id)
+                        }
+                    }
+                    is ChatStreamEvent.Error -> {
+                        hasFinished = true
+                        app.messageRepository.update(
+                            assistantMessage.copy(
+                                content = currentContent,
+                                status = MessageStatus.ERROR,
+                                errorMessage = event.message
+                            )
+                        )
+                        app.conversationRepository.update(
+                            conversation.copy(
+                                lastMessage = currentContent.ifBlank { text },
+                                updatedAt = System.currentTimeMillis()
+                            )
+                        )
+                        frame("chat_error") { put("error", event.message) }
+                    }
+                }
+            }
+            if (!hasFinished) {
+                val msg = "API 未返回有效数据，请检查 API 配置和参数"
+                app.messageRepository.update(
+                    assistantMessage.copy(
+                        content = currentContent,
+                        status = MessageStatus.ERROR,
+                        errorMessage = msg
+                    )
                 )
-            )
-
-            response.put("content", reply.content)
-            response.put("userMessageId", userMessage.id)
-            response.put("assistantMessageId", assistantMessage.id)
+                frame("chat_error") { put("error", msg) }
+            }
         } catch (e: Exception) {
-            response.put("error", e.message ?: "Unknown error")
+            frame("chat_error") { put("error", e.message ?: "Unknown error") }
         }
-
-        return response.toString().encodeToByteArray()
     }
 
     suspend fun handleNewConversation(payloadBytes: ByteArray): ByteArray {

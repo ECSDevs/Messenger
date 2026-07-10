@@ -27,6 +27,7 @@ import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
+import android.util.Base64
 import android.util.Log
 import cc.ptoe.messenger.MessengerApplication
 import cc.ptoe.messenger.domain.model.Agent
@@ -43,6 +44,7 @@ import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.net.InetSocketAddress
 
 /**
@@ -63,9 +65,15 @@ import java.net.InetSocketAddress
  *   <- {"type":"sync", "requestId":"..."}
  *   -> {"type":"sync_response", "requestId":"...", "agents":[...], ...}
  *   <- {"type":"chat",  "requestId":"...", "conversationId":"...", "text":"..."}
- *   -> {"type":"chat_response", "requestId":"...", "content":"...", ...}
+ *   -> {"type":"chat_delta", "requestId":"...", "delta":"..."}   (zero or more)
+ *   -> {"type":"chat_done",  "requestId":"...", "content":"...", "userMessageId":"...", "assistantMessageId":"..."}
+ *      — or chat_error if the request fails before streaming starts
  *   <- {"type":"new_conversation", "requestId":"...", "agentId":"..."}
  *   -> {"type":"new_conversation_response", "requestId":"...", "conversationId":"..."}
+ *
+ * The chat path streams (many chat_delta frames followed by one terminal
+ * chat_done / chat_error), so onMessage dispatches it directly to a streaming
+ * handler instead of the single-response handleRequest path used by the others.
  *
  * The chat and new_conversation paths reuse [MobileWearChatHandler] so the
  * business logic stays identical to the previous transport.
@@ -167,6 +175,26 @@ class MobileHttpServer : Service() {
                         } catch (_: Exception) {}
                         return
                     }
+                    // chat streams (chat_delta* -> chat_done | chat_error), so it
+                    // bypasses the single-response handleRequest path and pushes
+                    // frames directly onto the connection as deltas arrive.
+                    if (request.optString("type") == "chat") {
+                        serviceScope.launch {
+                            val payload = request.toString().encodeToByteArray()
+                            try {
+                                MobileWearChatHandler(app).handleChatRequestStreaming(payload) { frame ->
+                                    try {
+                                        conn.send(frame.toString())
+                                    } catch (e: Exception) {
+                                        Log.w(TAG, "Failed to send chat frame", e)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Failed to handle chat message: $message", e)
+                            }
+                        }
+                        return
+                    }
                     serviceScope.launch {
                         val response = try {
                             handleRequest(request)
@@ -255,19 +283,21 @@ class MobileHttpServer : Service() {
                 if (requestId.isNotBlank()) response.put("requestId", requestId)
                 response
             }
-            "chat" -> {
-                val payload = request.toString().encodeToByteArray()
-                val responseBytes = MobileWearChatHandler(app).handleChatRequest(payload)
-                val responseJson = JSONObject(responseBytes.decodeToString())
-                responseJson.put("type", "chat_response")
-                responseJson
-            }
+            // "chat" is handled inline in onMessage (streaming) and never reaches here.
             "new_conversation" -> {
                 val payload = request.toString().encodeToByteArray()
                 val responseBytes = MobileWearChatHandler(app).handleNewConversation(payload)
                 val responseJson = JSONObject(responseBytes.decodeToString())
                 responseJson.put("type", "new_conversation_response")
                 responseJson
+            }
+            "get_avatar" -> {
+                val scope = request.optString("scope").ifBlank { null }
+                val agentId = request.optString("agentId").ifBlank { null }
+                val response = handleGetAvatarRequest(scope, agentId)
+                response.put("type", "avatar_response")
+                if (requestId.isNotBlank()) response.put("requestId", requestId)
+                response
             }
             else -> JSONObject().apply {
                 put("type", "error")
@@ -291,6 +321,9 @@ class MobileHttpServer : Service() {
                     put("name", agent.name)
                     put("isDefault", agent.isDefault)
                     put("isReady", isAgentReady(agent))
+                    // avatarVersion lets the watch decide whether it needs to
+                    // fetch the bytes via get_avatar. 0 = no avatar on the phone.
+                    put("avatarVersion", avatarVersionOf(agent.avatar))
                 })
             }
         }
@@ -331,12 +364,65 @@ class MobileHttpServer : Service() {
             })
         }
 
+        val userAvatarPath = app.appPreferences.userAvatar.first()
         return JSONObject().apply {
             put("type", "sync_response")
             put("agents", agentsJson)
             put("conversations", conversationsJson)
             put("messages", messagesJson)
+            put("userAvatarVersion", avatarVersionOf(userAvatarPath))
             put("updatedAt", System.currentTimeMillis())
+        }
+    }
+
+    /**
+     * Returns the avatar file's [File.lastModified] (or 0 if missing). Used
+     * as a cheap cache key so the watch only pulls the (potentially large)
+     * image bytes over WebSocket when the avatar has actually changed.
+     */
+    private fun avatarVersionOf(avatarPath: String?): Long {
+        if (avatarPath.isNullOrBlank()) return 0L
+        val file = File(avatarPath)
+        if (!file.exists() || !file.isFile) return 0L
+        return file.lastModified()
+    }
+
+    /**
+     * Reads the requested avatar file, base64-encodes it, and returns the
+     * payload for an `avatar_response`. The watch persists the bytes to disk
+     * and uses the local path as the agent's avatar.
+     *
+     * `scope` may be "user" for the user's own avatar, or null/blank with
+     * `agentId` set for an agent avatar. Returns version 0 and no base64 if
+     * the avatar is missing or unreadable.
+     */
+    private suspend fun handleGetAvatarRequest(scope: String?, agentId: String?): JSONObject {
+        val path = when (scope) {
+            "user" -> app.appPreferences.userAvatar.first()
+            else -> {
+                if (agentId.isNullOrBlank()) null
+                else app.agentRepository.getById(agentId).first()?.avatar
+            }
+        }
+        val version = avatarVersionOf(path)
+        val response = JSONObject().apply {
+            put("version", version)
+            if (scope == "user") put("scope", "user")
+            if (!agentId.isNullOrBlank()) put("agentId", agentId)
+        }
+        if (version == 0L || path.isNullOrBlank()) {
+            response.put("base64", JSONObject.NULL)
+            return response
+        }
+        return runCatching {
+            val bytes = File(path).readBytes()
+            response.put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP))
+            response
+        }.getOrElse { e ->
+            Log.w(TAG, "Failed to read avatar at $path", e)
+            response.put("version", 0L)
+            response.put("base64", JSONObject.NULL)
+            response
         }
     }
 
