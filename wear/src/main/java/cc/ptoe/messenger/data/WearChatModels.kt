@@ -70,6 +70,9 @@ object WearSyncProtocol {
     const val NEW_CHAT_REQUEST_PATH = "/messenger/wear/chat/new"
     const val NEW_CHAT_RESPONSE_PATH = "/messenger/wear/chat/new_response"
 
+    // Bluetooth RFCOMM service UUID — must match MobileBluetoothServer on the phone.
+    val SERVICE_UUID: java.util.UUID = java.util.UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
     fun agentAvatarKey(agentId: String): String = "agent_avatar_$agentId"
 
     fun encodeChatRequest(

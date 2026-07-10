@@ -92,7 +92,6 @@ dependencies {
     implementation(libs.compose.ui.tooling)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.play.services.wearable)
     implementation(libs.coil.compose)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

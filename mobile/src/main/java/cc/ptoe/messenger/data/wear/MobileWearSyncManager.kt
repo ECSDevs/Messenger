@@ -1,6 +1,5 @@
 package cc.ptoe.messenger.data.wear
 
-import android.util.Log
 import cc.ptoe.messenger.MessengerApplication
 import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.model.ChatModel
@@ -9,237 +8,9 @@ import cc.ptoe.messenger.domain.model.Message
 import cc.ptoe.messenger.domain.model.MessageRole
 import cc.ptoe.messenger.domain.model.MessageStatus
 import cc.ptoe.messenger.domain.model.Provider
-import com.google.android.gms.wearable.Asset
-import com.google.android.gms.wearable.PutDataMapRequest
-import com.google.android.gms.wearable.Wearable
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 import java.util.UUID
-import com.google.android.gms.tasks.Task
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-
-class MobileWearSyncManager(
-    private val app: MessengerApplication,
-    private val scope: CoroutineScope
-) {
-    private val dataClient = Wearable.getDataClient(app)
-    private var syncJob: Job? = null
-
-    fun start() {
-        if (syncJob != null) return
-        syncJob = scope.launch {
-            combine(
-                app.agentRepository.getAll(),
-                app.conversationRepository.getAll(),
-                app.appPreferences.userAvatar,
-                app.modelRepository.getAll(),
-                app.providerRepository.getAll()
-            ) { agents, conversations, userAvatar, _, _ ->
-                SyncSnapshotInput(agents, conversations, userAvatar)
-            }.collectLatest { input ->
-                delay(350)
-                runCatching { pushSnapshot(input) }
-                    .onFailure { Log.w(TAG, "Wear DataLayer sync failed", it) }
-            }
-        }
-    }
-
-    suspend fun pushNow() {
-        val input = SyncSnapshotInput(
-            agents = app.agentRepository.getAll().first(),
-            conversations = app.conversationRepository.getAll().first(),
-            userAvatarPath = app.appPreferences.userAvatar.first()
-        )
-        pushSnapshot(input)
-    }
-
-    private suspend fun pushSnapshot(input: SyncSnapshotInput) {
-        val agents = input.agents
-            .sortedWith(compareByDescending<Agent> { it.isDefault }.thenBy { it.name.lowercase() })
-        val conversations = input.conversations
-            .sortedByDescending { it.updatedAt }
-            .take(MAX_CONVERSATIONS)
-
-        val agentsJson = JSONArray().apply {
-            agents.forEach { agent ->
-                put(
-                    JSONObject().apply {
-                        put("id", agent.id)
-                        put("name", agent.name)
-                        put("isDefault", agent.isDefault)
-                        put(
-                            "isReady",
-                            resolveAgent(agent)?.let { resolveModelAndProvider(it) != null } ?: false
-                        )
-                        put("hasAvatar", !agent.avatar.isNullOrBlank() && File(agent.avatar).exists())
-                    }
-                )
-            }
-        }
-
-        val conversationsJson = JSONArray().apply {
-            conversations.forEach { conversation ->
-                put(
-                    JSONObject().apply {
-                        put("id", conversation.id)
-                        put("title", conversation.title)
-                        put("agentId", conversation.agentId)
-                        put("lastMessage", conversation.lastMessage)
-                        put("updatedAt", conversation.updatedAt)
-                        put("createdAt", conversation.createdAt)
-                    }
-                )
-            }
-        }
-
-        val messagesJson = JSONObject()
-        conversations.forEach { conversation ->
-            val messages = app.messageRepository.getByConversationId(conversation.id).first()
-                .filter { it.role != MessageRole.SYSTEM }
-                .takeLast(MAX_MESSAGES_PER_CONVERSATION)
-            messagesJson.put(
-                conversation.id,
-                JSONArray().apply {
-                    messages.forEach { message ->
-                        put(
-                            JSONObject().apply {
-                                put("id", message.id)
-                                put("conversationId", message.conversationId)
-                                put(
-                                    "role",
-                                    when (message.role) {
-                                        MessageRole.ASSISTANT -> "assistant"
-                                        else -> "user"
-                                    }
-                                )
-                                put("content", message.content)
-                                put("timestamp", message.timestamp)
-                                put(
-                                    "isError",
-                                    message.status == MessageStatus.ERROR
-                                )
-                                put(
-                                    "isPending",
-                                    message.status == MessageStatus.SENDING
-                                )
-                            }
-                        )
-                    }
-                }
-            )
-        }
-
-        val request = PutDataMapRequest.create(WearSyncProtocol.STATE_PATH).apply {
-            dataMap.putString(WearSyncProtocol.KEY_AGENTS, agentsJson.toString())
-            dataMap.putString(WearSyncProtocol.KEY_CONVERSATIONS, conversationsJson.toString())
-            dataMap.putString(WearSyncProtocol.KEY_MESSAGES, messagesJson.toString())
-            dataMap.putLong(WearSyncProtocol.KEY_UPDATED_AT, System.currentTimeMillis())
-
-            val userAvatarFile = input.userAvatarPath
-                ?.takeIf { it.isNotBlank() }
-                ?.let(::File)
-                ?.takeIf { it.exists() }
-            if (userAvatarFile != null) {
-                dataMap.putAsset(
-                    WearSyncProtocol.KEY_USER_AVATAR,
-                    Asset.createFromBytes(userAvatarFile.readBytes())
-                )
-            }
-
-            agents.forEach { agent ->
-                val assetKey = WearSyncProtocol.agentAvatarKey(agent.id)
-                val avatarFile = agent.avatar
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let(::File)
-                    ?.takeIf { it.exists() }
-                if (avatarFile != null) {
-                    dataMap.putAsset(assetKey, Asset.createFromBytes(avatarFile.readBytes()))
-                }
-            }
-        }
-
-        dataClient.putDataItem(request.asPutDataRequest().setUrgent()).awaitTask()
-    }
-
-    private suspend fun resolveAgent(agent: Agent): Agent? {
-        if (agent.isDefault) return agent
-        val defaultAgent = app.agentRepository.getAll().first().firstOrNull { it.isDefault }
-            ?: return agent
-        return agent.copy(
-            systemPrompt = if (agent.followDefaultSystemPrompt) {
-                defaultAgent.systemPrompt
-            } else {
-                agent.systemPrompt
-            },
-            defaultModelId = if (agent.followDefaultModel) {
-                defaultAgent.defaultModelId
-            } else {
-                agent.defaultModelId
-            },
-            temperature = if (agent.followDefaultTemperature) {
-                defaultAgent.temperature
-            } else {
-                agent.temperature
-            },
-            topP = if (agent.followDefaultTopP) {
-                defaultAgent.topP
-            } else {
-                agent.topP
-            },
-            maxTokens = if (agent.followDefaultMaxTokens) {
-                defaultAgent.maxTokens
-            } else {
-                agent.maxTokens
-            }
-        )
-    }
-
-    private suspend fun resolveModelAndProvider(agent: Agent): Pair<Provider, ChatModel>? {
-        val enabledModels = app.modelRepository.getAll().first().filter { it.isEnabled }
-        if (enabledModels.isEmpty()) return null
-        val model = agent.defaultModelId?.let { modelId ->
-            enabledModels.firstOrNull { it.id == modelId }
-        } ?: enabledModels.firstOrNull() ?: return null
-        val provider = app.providerRepository.getById(model.providerId).first() ?: return null
-        return provider to model
-    }
-
-    private data class SyncSnapshotInput(
-        val agents: List<Agent>,
-        val conversations: List<Conversation>,
-        val userAvatarPath: String?
-    )
-
-    companion object {
-        private const val TAG = "MobileWearSync"
-        private const val MAX_CONVERSATIONS = 30
-        private const val MAX_MESSAGES_PER_CONVERSATION = 40
-    }
-}
-
-private suspend fun <T> Task<T>.awaitTask(): T {
-    return suspendCancellableCoroutine { continuation ->
-        addOnSuccessListener { result ->
-            continuation.resume(result)
-        }
-        addOnFailureListener { error ->
-            continuation.resumeWithException(error)
-        }
-        addOnCanceledListener {
-            continuation.cancel()
-        }
-    }
-}
 
 object WearSyncProtocol {
     const val STATE_PATH = "/messenger/sync/state"
@@ -252,6 +23,10 @@ object WearSyncProtocol {
     const val CHAT_RESPONSE_PATH = "/messenger/wear/chat/response"
     const val NEW_CHAT_REQUEST_PATH = "/messenger/wear/chat/new"
     const val NEW_CHAT_RESPONSE_PATH = "/messenger/wear/chat/new_response"
+
+    // Bluetooth RFCOMM service UUID — used by MobileBluetoothServer and
+    // WearBluetoothBridge. Stock Android API; no GMS required.
+    val SERVICE_UUID: java.util.UUID = java.util.UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
 
     fun agentAvatarKey(agentId: String): String = "agent_avatar_$agentId"
 }

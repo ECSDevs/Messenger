@@ -1,7 +1,5 @@
 package cc.ptoe.messenger.data
 
-import com.google.android.gms.wearable.DataEventBuffer
-import com.google.android.gms.wearable.MessageEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -69,22 +67,6 @@ class WearChatRepository(
 
     suspend fun selectConversation(conversationId: String) {
         preferences.setSelectedConversationId(conversationId)
-    }
-
-    /**
-     * Entry point for [WearableDataListenerService] to forward DataLayer events
-     * emitted by the phone. The buffer is consumed and released by [WearBridgeClient].
-     */
-    fun handleDataEvents(dataEvents: DataEventBuffer) {
-        bridgeClient.onDataChanged(dataEvents)
-    }
-
-    /**
-     * Entry point for [WearableDataListenerService] to forward messages emitted
-     * by the phone (chat responses, new-chat responses).
-     */
-    fun handleMessage(messageEvent: MessageEvent) {
-        bridgeClient.onMessageReceived(messageEvent)
     }
 
     suspend fun createConversation(agentId: String? = null): Result<String> {

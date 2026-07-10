@@ -103,9 +103,8 @@ The project follows Clean Architecture with three main layers:
 - The `wear` module is a phone-backed companion experience with no settings UI (tiny mobile chat-only surface)
 - Wear UI is a two-screen chat flow: **chat list** (mobile conversations with agent avatars + last-message previews) and **chat screen** (messages + input with agent/user avatars)
 - Navigation is state-based (`WearScreen.ChatList` / `WearScreen.Chat`) without Navigation Compose
-- **Automatic DataLayer sync** (phone → watch): agents, conversations, recent messages, agent avatars, and user avatar via `DataClient`/`Asset` at `/messenger/sync/state`
-- DataLayer events are received via `WearableListenerService` (`wear/data/WearableDataListenerService.kt`) so the wear app still receives updates when its process is killed; `WearBridgeClient` no longer registers programmatic listeners because the system delivers events to the service exclusively
-- Chat actions use `MessageClient`: send message and create conversation on the phone; phone persists to Room then re-pushes DataLayer state
+- **Bluetooth RFCOMM sync** (phone → watch): the phone runs a foreground service `MobileBluetoothServer` listening on a custom UUID; the watch polls the phone every 3 s through `WearBluetoothBridge` for fresh agents / conversations / messages. The previous DataLayer / WearableListenerService path was removed because GMS for Wear OS is missing on Samsung China-region Galaxy Watches. The watch and phone must be paired at the system Bluetooth level (typically done via the Samsung Wearable app)
+- Chat actions use the same Bluetooth socket: the watch sends a `chat` or `new_conversation` JSON request and the phone replies inline. The same `MobileWearChatHandler` that used to back the DataLayer path is reused here, so business logic is identical
 - Wear caches the latest synced snapshot in DataStore for a fast resume path
 
 ### Dependency Injection
@@ -139,7 +138,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - SSE (Server-Sent Events) streaming for chat completions
 - Auth header interceptor for API keys
 - Gson converter for JSON serialization
-- Wear chat requests are forwarded to the phone over the wearable message layer instead of calling providers directly from the watch
+- Wear chat requests are forwarded to the phone over a stock Bluetooth RFCOMM socket (`MobileBluetoothServer` / `WearBluetoothBridge`) instead of calling providers directly from the watch
 
 ## Hard Constraints
 

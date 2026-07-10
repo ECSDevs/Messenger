@@ -1,6 +1,11 @@
 package cc.ptoe.messenger
 
+import android.Manifest
 import android.app.Application
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import cc.ptoe.messenger.data.local.AppPreferences
 import cc.ptoe.messenger.data.local.MessengerDatabase
 import cc.ptoe.messenger.data.local.ThemePreferences
@@ -12,7 +17,7 @@ import cc.ptoe.messenger.data.repository.CurrentAgentRepositoryImpl
 import cc.ptoe.messenger.data.repository.MessageRepositoryImpl
 import cc.ptoe.messenger.data.repository.ModelRepositoryImpl
 import cc.ptoe.messenger.data.repository.ProviderRepositoryImpl
-import cc.ptoe.messenger.data.wear.MobileWearSyncManager
+import cc.ptoe.messenger.data.wear.MobileBluetoothServer
 import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.repository.AgentRepository
 import cc.ptoe.messenger.domain.repository.ApiRepository
@@ -65,9 +70,6 @@ class MessengerApplication : Application() {
     lateinit var currentAgentRepository: CurrentAgentRepository
         private set
 
-    lateinit var wearSyncManager: MobileWearSyncManager
-        private set
-
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
@@ -77,7 +79,34 @@ class MessengerApplication : Application() {
         initPreferences()
         initRepositories()
         initDefaultAgent()
-        initWearSync()
+        startBluetoothSync()
+    }
+
+    private fun startBluetoothSync() {
+        // Spin up the Bluetooth RFCOMM server that the watch companion connects
+        // to. This intentionally does not depend on GMS for Wear OS so it works
+        // on Samsung China-region watches where DataLayer is broken.
+        if (!hasBluetoothConnectPermission()) return
+        val intent = Intent(this, MobileBluetoothServer::class.java)
+        runCatching { startForegroundService(intent) }
+    }
+
+    /**
+     * Called by the UI layer (e.g. after the user grants BLUETOOTH_CONNECT
+     * via the system permission dialog) to kick off the Wear sync service.
+     */
+    fun ensureBluetoothSyncRunning() {
+        if (!hasBluetoothConnectPermission()) return
+        val intent = Intent(this, MobileBluetoothServer::class.java)
+        runCatching { startForegroundService(intent) }
+    }
+
+    private fun hasBluetoothConnectPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.BLUETOOTH_CONNECT
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun initDatabase() {
@@ -102,17 +131,12 @@ class MessengerApplication : Application() {
         messageRepository = MessageRepositoryImpl(database.messageDao())
         apiRepository = ApiRepositoryImpl()
         currentAgentRepository = CurrentAgentRepositoryImpl(appPreferences, agentRepository)
-        wearSyncManager = MobileWearSyncManager(this, applicationScope)
     }
 
     private fun initDefaultAgent() {
         applicationScope.launch {
             createDefaultAgentIfNeeded()
         }
-    }
-
-    private fun initWearSync() {
-        wearSyncManager.start()
     }
 
     suspend fun clearAllDataAndReinit() {
