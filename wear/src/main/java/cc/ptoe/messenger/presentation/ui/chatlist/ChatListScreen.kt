@@ -16,10 +16,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,10 +28,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
 import cc.ptoe.messenger.data.WearConnectionState
 import cc.ptoe.messenger.presentation.ui.components.BannerMessage
 import cc.ptoe.messenger.presentation.ui.components.WearAvatar
+import cc.ptoe.messenger.presentation.ui.components.verticalRotaryScroll
 import cc.ptoe.messenger.presentation.viewmodel.WearChatListItem
 import cc.ptoe.messenger.presentation.viewmodel.WearChatUiState
 
@@ -43,61 +45,71 @@ fun ChatListScreen(
     onReconnect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    val listState = rememberLazyListState()
+
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
-        Text(
-            text = "Chats",
-            style = MaterialTheme.typography.titleMedium,
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            textAlign = TextAlign.Center
-        )
-
-        val connectionBanner = remember(uiState.connectionState) {
-            when (val state = uiState.connectionState) {
-                WearConnectionState.Connected -> null
-                WearConnectionState.Disconnected -> "未连手机 — 等待手机端 Messenger"
-                is WearConnectionState.Connecting -> state.detail
-                is WearConnectionState.Error -> state.message
+                .fillMaxSize()
+                .verticalRotaryScroll(listState)
+        ) {
+            item(key = "title") {
+                Text(
+                    text = "Chats",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp, vertical = 4.dp),
+                    textAlign = TextAlign.Center
+                )
             }
-        }
-        if (connectionBanner != null) {
-            Spacer(modifier = Modifier.height(6.dp))
-            BannerMessage(connectionBanner)
-            Spacer(modifier = Modifier.height(4.dp))
-            Button(
-                onClick = onReconnect,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("重试连接")
+
+            uiState.connectionState.let { state ->
+                val banner = when (state) {
+                    WearConnectionState.Connected -> null
+                    WearConnectionState.Disconnected -> "未连手机 — 等待手机端 Messenger"
+                    is WearConnectionState.Connecting -> state.detail
+                    is WearConnectionState.Error -> state.message
+                }
+                if (banner != null) {
+                    item(key = "conn_banner") {
+                        Column {
+                            BannerMessage(banner)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Button(
+                                onClick = onReconnect,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("重试连接")
+                            }
+                        }
+                    }
+                }
             }
-            Spacer(modifier = Modifier.height(6.dp))
-        }
 
-        if (uiState.bannerMessage != null) {
-            Spacer(modifier = Modifier.height(6.dp))
-            BannerMessage(uiState.bannerMessage)
-            Spacer(modifier = Modifier.height(6.dp))
-        }
+            if (uiState.bannerMessage != null) {
+                item(key = "msg_banner") {
+                    BannerMessage(uiState.bannerMessage)
+                }
+            }
 
-        if (uiState.chats.isEmpty()) {
-            EmptyChatList(
-                hasAgents = uiState.agents.isNotEmpty(),
-                isCreatingChat = uiState.isCreatingChat,
-                onNewChat = onNewChat,
-                modifier = Modifier.weight(1f)
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+            if (uiState.chats.isEmpty()) {
+                item(key = "empty") {
+                    EmptyChatList(
+                        hasAgents = uiState.agents.isNotEmpty(),
+                        isCreatingChat = uiState.isCreatingChat,
+                        onNewChat = onNewChat,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            } else {
                 items(uiState.chats, key = { it.conversation.id }) { chat ->
                     ChatListItem(
                         chat = chat,
@@ -115,7 +127,16 @@ fun ChatListScreen(
                     }
                 }
             }
+
+            item(key = "bottom_spacer") {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         }
+
+        ScrollIndicator(
+            state = listState,
+            modifier = Modifier.align(Alignment.CenterEnd)
+        )
     }
 }
 
@@ -197,7 +218,7 @@ private fun EmptyChatList(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

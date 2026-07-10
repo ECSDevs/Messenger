@@ -2,6 +2,7 @@ package cc.ptoe.messenger.presentation.ui.chatlist
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -25,9 +27,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
 import cc.ptoe.messenger.data.WearAgent
 import cc.ptoe.messenger.presentation.ui.components.WearAvatar
+import cc.ptoe.messenger.presentation.ui.components.verticalRotaryScroll
 
 @Composable
 fun NewChatScreen(
@@ -36,26 +40,31 @@ fun NewChatScreen(
     onPickAgent: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    val listState = rememberLazyListState()
+
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
-        Text(
-            text = "New chat",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(6.dp))
         LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(vertical = 4.dp),
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)
+            state = listState,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalRotaryScroll(listState)
         ) {
+            item(key = "title") {
+                Text(
+                    text = "New chat",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp, vertical = 4.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
             items(agents, key = { it.id }) { agent ->
                 AgentPickerItem(
                     agent = agent,
@@ -63,7 +72,15 @@ fun NewChatScreen(
                     onClick = { onPickAgent(agent.id) }
                 )
             }
+            item(key = "bottom_spacer") {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         }
+
+        ScrollIndicator(
+            state = listState,
+            modifier = Modifier.align(Alignment.CenterEnd)
+        )
     }
 }
 

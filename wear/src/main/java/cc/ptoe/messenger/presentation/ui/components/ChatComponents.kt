@@ -2,12 +2,15 @@ package cc.ptoe.messenger.presentation.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -15,21 +18,46 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.foundation.ExperimentalWearFoundationApi
+import androidx.wear.compose.foundation.requestFocusOnHierarchyActive
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import cc.ptoe.messenger.data.WearChatMessage
 import cc.ptoe.messenger.data.WearMessageRole
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import java.io.File
+
+/**
+ * Binds a [LazyListState] to the watch bezel / crown so the user can scroll
+ * lists without swiping. Follows the same pattern as TGwear: focus is grabbed
+ * when the screen is active via [requestFocusOnHierarchyActive], then an
+ * [onRotaryScrollEvent] handler delegates to [LazyListState.scrollBy].
+ */
+@OptIn(ExperimentalWearFoundationApi::class)
+fun Modifier.verticalRotaryScroll(
+    state: LazyListState
+): Modifier = composed {
+    val scope = rememberCoroutineScope()
+    focusable()
+        .requestFocusOnHierarchyActive()
+        .onRotaryScrollEvent { event ->
+            scope.launch { state.scrollBy(event.verticalScrollPixels) }
+            true
+        }
+}
 
 @Composable
 fun WearAvatar(
