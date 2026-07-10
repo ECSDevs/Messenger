@@ -45,14 +45,21 @@ class WearBridgeClient(
     val syncUpdates: SharedFlow<WearSyncSnapshot> = _syncUpdates.asSharedFlow()
 
     private val _chatResponses = MutableSharedFlow<WearChatResponse>(
-        replay = 0,
+        // replay = 1 so the immediate post-send subscriber in
+        // WearChatRepository still sees the just-emitted response.
+        // Without this, requestChat emits before the repository subscribes
+        // to chatResponses, and the response is lost to the flow's history.
+        replay = 1,
         extraBufferCapacity = 8,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val chatResponses: SharedFlow<WearChatResponse> = _chatResponses.asSharedFlow()
 
     private val _newChatResponses = MutableSharedFlow<WearNewChatResponse>(
-        replay = 0,
+        // Same reasoning as [_chatResponses]: requestNewConversation emits
+        // before the repository subscribes, and a replay of 0 would drop it
+        // and leave the UI stuck on "Creating...".
+        replay = 1,
         extraBufferCapacity = 4,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
