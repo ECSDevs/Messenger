@@ -13,7 +13,6 @@ import androidx.wear.compose.material3.AppScaffold
 import cc.ptoe.messenger.WearMessengerApplication
 import cc.ptoe.messenger.presentation.theme.MessengerTheme
 import cc.ptoe.messenger.presentation.ui.chat.ChatScreen
-import cc.ptoe.messenger.presentation.ui.chat.ComposeScreen
 import cc.ptoe.messenger.presentation.ui.chatlist.ChatListScreen
 import cc.ptoe.messenger.presentation.ui.chatlist.NewChatScreen
 import cc.ptoe.messenger.presentation.viewmodel.WearChatViewModel
@@ -55,7 +54,6 @@ private fun WearChatApp(
         when (uiState.screen) {
             WearScreen.Chat -> viewModel.navigateBackToList()
             WearScreen.NewChat -> viewModel.cancelNewChat()
-            WearScreen.Compose -> viewModel.cancelCompose()
             WearScreen.ChatList -> {}
         }
     }
@@ -81,13 +79,6 @@ private fun WearChatApp(
                 ChatScreen(
                     uiState = uiState,
                     onBack = viewModel::navigateBackToList,
-                    onOpenCompose = viewModel::openCompose
-                )
-            }
-            WearScreen.Compose -> {
-                ComposeScreen(
-                    draft = uiState.draft,
-                    enabled = uiState.selectedAgent?.isReady == true && !uiState.isSending,
                     onDraftChange = viewModel::updateDraft,
                     onSend = viewModel::sendDraft
                 )

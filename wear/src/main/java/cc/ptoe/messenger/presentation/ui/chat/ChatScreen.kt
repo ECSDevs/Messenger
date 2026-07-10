@@ -1,34 +1,45 @@
 package cc.ptoe.messenger.presentation.ui.chat
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.wear.compose.foundation.pager.HorizontalPager
+import androidx.wear.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.foundation.BasicSwipeToDismissBox
-import androidx.wear.compose.foundation.ExperimentalWearFoundationApi
-import androidx.wear.compose.foundation.SwipeToDismissValue
-import androidx.wear.compose.foundation.rememberSwipeToDismissBoxState
 import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.HorizontalPageIndicator
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
@@ -38,37 +49,50 @@ import cc.ptoe.messenger.presentation.ui.components.BannerMessage
 import cc.ptoe.messenger.presentation.ui.components.MessageBubble
 import cc.ptoe.messenger.presentation.ui.components.verticalRotaryScroll
 import cc.ptoe.messenger.presentation.viewmodel.WearChatUiState
+import kotlinx.coroutines.launch
 
 /**
- * 聊天页。右滑返回列表（系统级 SwipeToDismiss 手势），底部 Reply 按钮进入输入页。
+ * 聊天页。HorizontalPager 两页：
+ * - page 0: 消息列表
+ * - page 1: 输入框
+ *
+ * 左滑/右滑由原生 HorizontalPager 手势处理，底部 HorizontalPageIndicator 指示当前页。
+ * 系统返回键回到列表。
  */
-@OptIn(ExperimentalWearFoundationApi::class)
 @Composable
 fun ChatScreen(
     uiState: WearChatUiState,
     onBack: () -> Unit,
-    onOpenCompose: () -> Unit,
+    onDraftChange: (String) -> Unit,
+    onSend: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Wear 官方 SwipeToDismiss：右滑返回列表，系统级手势灵敏度
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmStateChange = { value ->
-            if (value == SwipeToDismissValue.Dismissed) {
-                onBack()
-                false
-            } else {
-                false
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    val scope = rememberCoroutineScope()
+
+    Box(modifier = modifier.fillMaxSize()) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            when (page) {
+                0 -> ChatContent(uiState = uiState)
+                1 -> ComposeContent(
+                    draft = uiState.draft,
+                    enabled = uiState.selectedAgent?.isReady == true && !uiState.isSending,
+                    isActive = pagerState.currentPage == 1,
+                    onDraftChange = onDraftChange,
+                    onSend = {
+                        onSend()
+                        scope.launch { pagerState.animateScrollToPage(0) }
+                    }
+                )
             }
         }
-    )
 
-    BasicSwipeToDismissBox(
-        state = dismissState,
-        modifier = modifier.fillMaxSize()
-    ) {
-        ChatContent(
-            uiState = uiState,
-            onOpenCompose = onOpenCompose
+        HorizontalPageIndicator(
+            pagerState = pagerState,
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
 }
@@ -76,7 +100,6 @@ fun ChatScreen(
 @Composable
 private fun ChatContent(
     uiState: WearChatUiState,
-    onOpenCompose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -113,7 +136,7 @@ private fun ChatContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 4.dp)
+                .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 20.dp)
         ) {
             if (uiState.bannerMessage != null) {
                 BannerMessage(uiState.bannerMessage)
@@ -146,31 +169,101 @@ private fun ChatContent(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            // 紧凑的回复按钮 —— 居中圆形图标，不占用太多空间
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Button(
-                    onClick = onOpenCompose,
-                    enabled = selectedConversation != null && selectedAgent?.isReady == true,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Text(
-                        text = ">",
-                        style = MaterialTheme.typography.labelMedium,
-                        maxLines = 1
-                    )
-                }
-            }
         }
 
         ScrollIndicator(
             state = listState,
             modifier = Modifier.align(Alignment.CenterEnd)
+        )
+    }
+}
+
+@Composable
+private fun ComposeContent(
+    draft: String,
+    enabled: Boolean,
+    isActive: Boolean,
+    onDraftChange: (String) -> Unit,
+    onSend: () -> Unit
+) {
+    val focusRequester = remember { FocusRequester() }
+
+    // 当前页为输入页时自动聚焦，弹出输入法
+    LaunchedEffect(isActive) {
+        if (isActive) focusRequester.requestFocus()
+    }
+
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val placeholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.Center
+    ) {
+        BasicTextField(
+            value = draft,
+            onValueChange = onDraftChange,
+            enabled = enabled,
+            singleLine = false,
+            maxLines = 5,
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { onSend() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester),
+            decorationBox = { innerTextField ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    if (draft.isBlank()) {
+                        Text(
+                            text = "Message",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = placeholderColor
+                        )
+                    }
+                    innerTextField()
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Button(
+                onClick = onSend,
+                enabled = enabled && draft.isNotBlank(),
+                modifier = Modifier
+                    .width(72.dp)
+                    .defaultMinSize(minHeight = 40.dp)
+            ) {
+                Text(
+                    text = if (!enabled) "..." else "Send",
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Swipe right to go back",
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -195,7 +288,7 @@ private fun EmptyConversation(
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Tap Reply to start",
+            text = "Swipe left to reply",
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -18,8 +18,7 @@ import kotlinx.coroutines.launch
 enum class WearScreen {
     ChatList,
     NewChat,
-    Chat,
-    Compose
+    Chat
 }
 
 data class WearChatListItem(
@@ -135,14 +134,6 @@ class WearChatViewModel(
         bannerMessage.value = null
     }
 
-    fun openCompose() {
-        screen.value = WearScreen.Compose
-    }
-
-    fun cancelCompose() {
-        screen.value = WearScreen.Chat
-    }
-
     fun updateDraft(text: String) {
         draft.value = text
     }
@@ -151,7 +142,6 @@ class WearChatViewModel(
         val text = draft.value
         if (text.isBlank() || isSending.value) return
         draft.value = ""
-        screen.value = WearScreen.Chat
         viewModelScope.launch {
             isSending.value = true
             val result = repository.sendMessage(text.trim())
