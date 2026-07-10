@@ -38,6 +38,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -95,6 +96,11 @@ fun ChatScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    // 是否已完成初次滚动到底部（切换会话时重置）
+    var hasInitiallyScrolled by remember(conversationId) { mutableStateOf(false) }
+    // 上一次列表项数量，用于区分"新增消息"与"流式内容更新"
+    var previousItemCount by remember(conversationId) { mutableIntStateOf(0) }
+
     LaunchedEffect(conversationId) {
         viewModel.loadConversation(conversationId)
     }
@@ -111,15 +117,30 @@ fun ChatScreen(
     // 预构建列表项（消息 + 日期分隔符），保证 LazyColumn item 索引与列表一致
     val chatItems = remember(messages) { buildChatItems(messages) }
 
-    LaunchedEffect(messages.size, isGenerating) {
-        if (chatItems.isNotEmpty()) {
-            val lastIndex = chatItems.lastIndex
-            val firstVisibleIndex = listState.firstVisibleItemIndex
-            // 用户停留在底部附近时自动跟随到最新消息
-            if (firstVisibleIndex >= lastIndex - 3) {
+    // 进入聊天页时默认滑动到底部
+    LaunchedEffect(chatItems.size) {
+        if (!hasInitiallyScrolled && chatItems.isNotEmpty()) {
+            hasInitiallyScrolled = true
+            listState.scrollToItem(chatItems.lastIndex)
+        }
+    }
+
+    // 自动保持底部：消息更新或生成状态变化时，若用户未主动上滑则跟随到底部
+    LaunchedEffect(messages, isGenerating) {
+        if (!hasInitiallyScrolled || chatItems.isEmpty()) return@LaunchedEffect
+        val lastIndex = chatItems.lastIndex
+        val firstVisibleIndex = listState.firstVisibleItemIndex
+        // 用户停留在底部附近（容差 3 项）时自动跟随到最新消息；
+        // 用户主动上滑远离底部时则停止跟随，便于查看历史消息
+        if (firstVisibleIndex >= lastIndex - 3) {
+            // 新增消息用动画滚动，流式内容更新用瞬时滚动以避免动画堆叠卡顿
+            if (chatItems.size != previousItemCount) {
                 listState.animateScrollToItem(lastIndex)
+            } else {
+                listState.scrollToItem(lastIndex)
             }
         }
+        previousItemCount = chatItems.size
     }
 
     Scaffold(
