@@ -103,7 +103,6 @@ private fun AgentPickerItem(
         Box {
             WearAvatar(
                 avatarPath = agent.avatarPath,
-                fallbackText = agent.name,
                 size = 36.dp
             )
             Box(

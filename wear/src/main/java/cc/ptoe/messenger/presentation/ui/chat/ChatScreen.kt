@@ -3,6 +3,7 @@ package cc.ptoe.messenger.presentation.ui.chat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -48,6 +51,7 @@ import cc.ptoe.messenger.presentation.ui.components.MessageBubble
 import cc.ptoe.messenger.presentation.ui.components.verticalRotaryScroll
 import cc.ptoe.messenger.presentation.viewmodel.WearChatUiState
 import kotlinx.coroutines.launch
+import kotlin.math.sqrt
 
 /**
  * 聊天页。HorizontalPager 两页：
@@ -129,11 +133,14 @@ private fun ChatContent(
         previousItemCount = uiState.messages.size
     }
 
+    // 为底部 HorizontalPageIndicator 预留的高度，同时用于底部弦距补偿
+    val pageIndicatorReservedHeight = 20.dp
+
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 20.dp)
+                .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = pageIndicatorReservedHeight)
         ) {
             if (uiState.bannerMessage != null) {
                 BannerMessage(uiState.bannerMessage)
@@ -145,7 +152,25 @@ private fun ChatContent(
                 Spacer(modifier = Modifier.height(6.dp))
             }
 
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                // 圆表盘：让消息行（宽度 = 屏幕宽 - 28dp 水平 padding）的左右边
+                // 在圆形内完全可见所需的最小留白。
+                // 公式：inset = r - sqrt(r² - (W/2)²)，r 为屏幕半径，W 为行宽。
+                val density = LocalDensity.current
+                val horizontalPaddingPx = with(density) { 14.dp.toPx() }
+                val contentWidthPx = with(density) { maxWidth.toPx() }
+                val screenWidthPx = contentWidthPx + 2f * horizontalPaddingPx
+                val radiusPx = screenWidthPx / 2f
+                val halfWidthPx = contentWidthPx / 2f
+                val chordInsetPx = if (halfWidthPx < radiusPx) {
+                    radiusPx - sqrt(radiusPx * radiusPx - halfWidthPx * halfWidthPx)
+                } else {
+                    0f
+                }
+                val chordInsetDp = with(density) { chordInsetPx.toDp() }
+                // 底部已被 HorizontalPageIndicator 占用一部分，扣除已预留的高度
+                val bottomInsetDp = (chordInsetDp - pageIndicatorReservedHeight).coerceAtLeast(0.dp)
+
                 if (uiState.messages.isEmpty()) {
                     EmptyConversation(
                         conversation = selectedConversation,
@@ -156,6 +181,10 @@ private fun ChatContent(
                         state = listState,
                         reverseLayout = true,
                         verticalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(
+                            top = chordInsetDp,
+                            bottom = bottomInsetDp
+                        ),
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalRotaryScroll(listState)

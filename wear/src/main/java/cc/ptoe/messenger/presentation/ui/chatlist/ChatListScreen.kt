@@ -163,7 +163,6 @@ private fun ChatListItem(
         Box {
             WearAvatar(
                 avatarPath = agent?.avatarPath,
-                fallbackText = agent?.name ?: conversation.title,
                 size = 36.dp
             )
             Box(

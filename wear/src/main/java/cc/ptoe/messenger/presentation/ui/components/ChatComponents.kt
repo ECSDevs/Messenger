@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -20,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
@@ -27,6 +30,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.ExperimentalWearFoundationApi
 import androidx.wear.compose.foundation.requestFocusOnHierarchyActive
+import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import cc.ptoe.messenger.data.WearChatMessage
@@ -57,14 +61,13 @@ fun Modifier.verticalRotaryScroll(
 @Composable
 fun WearAvatar(
     avatarPath: String?,
-    fallbackText: String,
     modifier: Modifier = Modifier,
-    size: Dp = 36.dp
+    size: Dp = 36.dp,
+    fallbackIcon: ImageVector = Icons.Default.SmartToy
 ) {
     val avatarFile = remember(avatarPath) {
         avatarPath?.takeIf { it.isNotBlank() }?.let(::File)?.takeIf { it.exists() }
     }
-    val initial = fallbackText.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
 
     Box(
         modifier = modifier
@@ -81,10 +84,11 @@ fun WearAvatar(
                 modifier = Modifier.size(size)
             )
         } else {
-            Text(
-                text = initial,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+            Icon(
+                imageVector = fallbackIcon,
+                contentDescription = null,
+                modifier = Modifier.size(size * 0.6f),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
     }
