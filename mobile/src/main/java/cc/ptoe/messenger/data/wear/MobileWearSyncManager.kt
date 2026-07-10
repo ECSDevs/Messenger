@@ -1,3 +1,19 @@
+/*
+ * Copyright 2026 ECSDevs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package cc.ptoe.messenger.data.wear
 
 import cc.ptoe.messenger.MessengerApplication
@@ -12,25 +28,12 @@ import kotlinx.coroutines.flow.first
 import org.json.JSONObject
 import java.util.UUID
 
-object WearSyncProtocol {
-    const val STATE_PATH = "/messenger/sync/state"
-    const val KEY_AGENTS = "agents"
-    const val KEY_CONVERSATIONS = "conversations"
-    const val KEY_MESSAGES = "messages"
-    const val KEY_USER_AVATAR = "user_avatar"
-    const val KEY_UPDATED_AT = "updated_at"
-    const val CHAT_REQUEST_PATH = "/messenger/wear/chat/request"
-    const val CHAT_RESPONSE_PATH = "/messenger/wear/chat/response"
-    const val NEW_CHAT_REQUEST_PATH = "/messenger/wear/chat/new"
-    const val NEW_CHAT_RESPONSE_PATH = "/messenger/wear/chat/new_response"
-
-    // Bluetooth RFCOMM service UUID — used by MobileBluetoothServer and
-    // WearBluetoothBridge. Stock Android API; no GMS required.
-    val SERVICE_UUID: java.util.UUID = java.util.UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
-
-    fun agentAvatarKey(agentId: String): String = "agent_avatar_$agentId"
-}
-
+/**
+ * Shared handler for chat and new-conversation requests coming from the
+ * Wear OS companion. Used by the WebSocket server in [MobileHttpServer] —
+ * the transport changed from DataLayer → Bluetooth RFCOMM → WebSocket, but
+ * the request/response business logic is the same.
+ */
 class MobileWearChatHandler(private val app: MessengerApplication) {
 
     suspend fun handleChatRequest(payloadBytes: ByteArray): ByteArray {

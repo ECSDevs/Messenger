@@ -103,8 +103,8 @@ The project follows Clean Architecture with three main layers:
 - The `wear` module is a phone-backed companion experience with no settings UI (tiny mobile chat-only surface)
 - Wear UI is a two-screen chat flow: **chat list** (mobile conversations with agent avatars + last-message previews) and **chat screen** (messages + input with agent/user avatars)
 - Navigation is state-based (`WearScreen.ChatList` / `WearScreen.Chat`) without Navigation Compose
-- **Bluetooth RFCOMM sync** (phone → watch): the phone runs a foreground service `MobileBluetoothServer` listening on a custom UUID; the watch polls the phone every 3 s through `WearBluetoothBridge` for fresh agents / conversations / messages. The previous DataLayer / WearableListenerService path was removed because GMS for Wear OS is missing on Samsung China-region Galaxy Watches. The watch and phone must be paired at the system Bluetooth level (typically done via the Samsung Wearable app)
-- Chat actions use the same Bluetooth socket: the watch sends a `chat` or `new_conversation` JSON request and the phone replies inline. The same `MobileWearChatHandler` that used to back the DataLayer path is reused here, so business logic is identical
+- **WebSocket sync over the watch's tether network** (phone → watch): the phone runs a foreground service `MobileHttpServer` that listens on TCP `18765` and registers an NSD (`_messenger._tcp`) mDNS service; the watch discovers it via `WearNetworkBridge` and opens a WebSocket using OkHttp. Wear OS watches tether their network to the phone via Bluetooth PAN, so the watch and phone are always on the same L2 network — no Bluetooth pairing or runtime permissions are required. The previous DataLayer and Bluetooth RFCOMM paths were abandoned because GMS for Wear OS is missing on Samsung China-region Galaxy Watches *and* the Bluetooth path was unreliable. The same line-delimited JSON protocol (`sync` / `chat` / `new_conversation`, all with `requestId` correlation) is spoken on top of WebSocket text frames
+- Chat actions use the same WebSocket: the watch sends a `chat` or `new_conversation` JSON request and the phone replies inline. The same `MobileWearChatHandler` that used to back the DataLayer path is reused here, so business logic is identical
 - Wear caches the latest synced snapshot in DataStore for a fast resume path
 
 ### Dependency Injection
@@ -138,7 +138,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - SSE (Server-Sent Events) streaming for chat completions
 - Auth header interceptor for API keys
 - Gson converter for JSON serialization
-- Wear chat requests are forwarded to the phone over a stock Bluetooth RFCOMM socket (`MobileBluetoothServer` / `WearBluetoothBridge`) instead of calling providers directly from the watch
+- Wear chat requests are forwarded to the phone over a WebSocket on TCP `18765` (`MobileHttpServer` / `WearNetworkBridge`, discovered via NSD mDNS) instead of calling providers directly from the watch
 
 ## Hard Constraints
 

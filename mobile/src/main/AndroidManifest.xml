@@ -3,18 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Bluetooth transport for the Wear OS companion. Works on Samsung
-         China-region watches where GMS for Wear OS is missing/broken. -->
-    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-
-    <uses-feature
-        android:name="android.hardware.bluetooth"
-        android:required="true" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:name=".MessengerApplication"
@@ -41,9 +34,9 @@
             android:theme="@style/Theme.AppCompat.DayNight.NoActionBar" />
 
         <service
-            android:name=".data.wear.MobileBluetoothServer"
+            android:name=".data.wear.MobileHttpServer"
             android:exported="true"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>

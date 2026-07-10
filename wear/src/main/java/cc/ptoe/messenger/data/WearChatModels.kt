@@ -1,3 +1,19 @@
+/*
+ * Copyright 2026 ECSDevs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package cc.ptoe.messenger.data
 
 import org.json.JSONArray
@@ -57,69 +73,6 @@ data class WearNewChatResponse(
     val agentId: String?,
     val error: String?
 )
-
-object WearSyncProtocol {
-    const val STATE_PATH = "/messenger/sync/state"
-    const val KEY_AGENTS = "agents"
-    const val KEY_CONVERSATIONS = "conversations"
-    const val KEY_MESSAGES = "messages"
-    const val KEY_USER_AVATAR = "user_avatar"
-    const val KEY_UPDATED_AT = "updated_at"
-    const val CHAT_REQUEST_PATH = "/messenger/wear/chat/request"
-    const val CHAT_RESPONSE_PATH = "/messenger/wear/chat/response"
-    const val NEW_CHAT_REQUEST_PATH = "/messenger/wear/chat/new"
-    const val NEW_CHAT_RESPONSE_PATH = "/messenger/wear/chat/new_response"
-
-    // Bluetooth RFCOMM service UUID — must match MobileBluetoothServer on the phone.
-    val SERVICE_UUID: java.util.UUID = java.util.UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
-
-    fun agentAvatarKey(agentId: String): String = "agent_avatar_$agentId"
-
-    fun encodeChatRequest(
-        requestId: String,
-        conversationId: String,
-        text: String
-    ): ByteArray {
-        return JSONObject().apply {
-            put("requestId", requestId)
-            put("conversationId", conversationId)
-            put("text", text)
-        }.toString().encodeToByteArray()
-    }
-
-    fun encodeNewChatRequest(
-        requestId: String,
-        agentId: String?
-    ): ByteArray {
-        return JSONObject().apply {
-            put("requestId", requestId)
-            if (!agentId.isNullOrBlank()) {
-                put("agentId", agentId)
-            }
-        }.toString().encodeToByteArray()
-    }
-
-    fun decodeChatResponse(payload: ByteArray): WearChatResponse {
-        val root = JSONObject(payload.decodeToString())
-        return WearChatResponse(
-            requestId = root.optString("requestId"),
-            content = root.optString("content").takeIf { it.isNotBlank() },
-            error = root.optString("error").takeIf { it.isNotBlank() },
-            userMessageId = root.optString("userMessageId").takeIf { it.isNotBlank() },
-            assistantMessageId = root.optString("assistantMessageId").takeIf { it.isNotBlank() }
-        )
-    }
-
-    fun decodeNewChatResponse(payload: ByteArray): WearNewChatResponse {
-        val root = JSONObject(payload.decodeToString())
-        return WearNewChatResponse(
-            requestId = root.optString("requestId"),
-            conversationId = root.optString("conversationId").takeIf { it.isNotBlank() },
-            agentId = root.optString("agentId").takeIf { it.isNotBlank() },
-            error = root.optString("error").takeIf { it.isNotBlank() }
-        )
-    }
-}
 
 internal object WearChatJsonCodec {
     fun encodeAgents(agents: List<WearAgent>): String {

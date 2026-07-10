@@ -34,6 +34,7 @@ kotlinxCoroutines = "1.11.0"
 room = "2.8.4"
 retrofit = "3.0.0"
 okhttp = "5.4.0"
+javaWebSocket = "1.5.5"
 dataStore = "1.2.1"
 navigationCompose = "2.9.8"
 coil = "2.7.0"
@@ -77,6 +78,7 @@ retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = 
 retrofit-converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
+java-websocket = { group = "org.java-websocket", name = "Java-WebSocket", version.ref = "javaWebSocket" }
 
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "dataStore" }
 

@@ -96,6 +96,7 @@ dependencies {
     implementation(libs.retrofit.converter.gson)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
+    implementation(libs.java.websocket)
 
     implementation(libs.androidx.datastore.preferences)
 

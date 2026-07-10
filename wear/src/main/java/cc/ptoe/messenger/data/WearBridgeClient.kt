@@ -17,9 +17,14 @@ import org.json.JSONObject
 
 /**
  * Watch-side bridge to the phone. Replaces the previous DataLayer-based
- * implementation with a Bluetooth RFCOMM transport (see [WearBluetoothBridge])
- * plus a polling loop, so the watch keeps in sync even on Samsung China-region
+ * implementation with a WebSocket transport (see [WearNetworkBridge]) plus
+ * a polling loop, so the watch keeps in sync even on Samsung China-region
  * watches where Google Play Services for Wear OS is missing.
+ *
+ * The transport uses the watch's existing tether / WiFi network: the phone
+ * advertises a `_messenger._tcp` NSD service, the watch finds it via mDNS,
+ * opens a WebSocket, and both sides speak the same line-delimited JSON
+ * protocol as before.
  *
  * Public surface (the [syncUpdates] / [chatResponses] / [newChatResponses]
  * flows and the [requestChat] / [requestNewConversation] methods) is identical
@@ -30,7 +35,7 @@ class WearBridgeClient(
     private val scope: CoroutineScope
 ) {
     private val appContext = context.applicationContext
-    private val bluetoothBridge = WearBluetoothBridge(context, scope)
+    private val networkBridge = WearNetworkBridge(context, scope)
 
     private val _syncUpdates = MutableSharedFlow<WearSyncSnapshot>(
         replay = 1,
@@ -54,10 +59,10 @@ class WearBridgeClient(
     val newChatResponses: SharedFlow<WearNewChatResponse> = _newChatResponses.asSharedFlow()
 
     /**
-     * Snapshot of the Bluetooth transport's current state, surfaced to the UI
+     * Snapshot of the network transport's current state, surfaced to the UI
      * so the chat list can show a "waiting for phone" banner.
      */
-    val connectionState: StateFlow<WearConnectionState> = bluetoothBridge.connectionState
+    val connectionState: StateFlow<WearConnectionState> = networkBridge.connectionState
 
     /** Bumped each time the user asks for an explicit reconnect from the UI. */
     private val _reconnectRequests = MutableStateFlow(0)
@@ -74,11 +79,11 @@ class WearBridgeClient(
             val reconnectTrigger = _reconnectRequests
             while (true) {
                 val targetTick = reconnectTrigger.value
-                if (bluetoothBridge.connect()) {
+                if (networkBridge.connect()) {
                     // Always do an initial fetch so the UI doesn't sit on the
                     // empty default state while waiting for the next tick.
                     requestSync()
-                    while (bluetoothBridge.isConnected.value) {
+                    while (networkBridge.isConnected.value) {
                         // Bail out of the inner loop early if the user asked
                         // to reconnect — we want to close the socket and try
                         // again straight away.
@@ -88,7 +93,7 @@ class WearBridgeClient(
                         requestSync()
                     }
                 } else {
-                    Log.d(TAG, "Phone not reachable via Bluetooth, will retry")
+                    Log.d(TAG, "Phone not reachable via network, will retry")
                     // Wait either for the next reconnect tick or the normal
                     // backoff, whichever comes first.
                     val deadline = System.currentTimeMillis() + RECONNECT_DELAY_MS
@@ -100,7 +105,7 @@ class WearBridgeClient(
                 }
                 if (reconnectTrigger.value != targetTick) {
                     Log.d(TAG, "Reconnect requested — closing socket and retrying")
-                    runCatching { bluetoothBridge.close() }
+                    runCatching { networkBridge.close() }
                 }
             }
         }
@@ -108,7 +113,7 @@ class WearBridgeClient(
 
     /** Drops the active socket so the next [connect] starts fresh. */
     fun close() {
-        runCatching { bluetoothBridge.close() }
+        runCatching { networkBridge.close() }
     }
 
     fun loadExistingState() {
@@ -123,15 +128,11 @@ class WearBridgeClient(
      * taps a "Reconnect" button.
      */
     fun requestReconnect() {
-        // Reset the bridge's skip list so the user's tap retries every
-        // known device, not just the ones we haven't already failed on
-        // within the last [SKIP_DURATION_MS] window.
-        bluetoothBridge.clearSkipList()
         _reconnectRequests.value = _reconnectRequests.value + 1
     }
 
     private suspend fun requestSync() {
-        val response = bluetoothBridge.requestSync() ?: return
+        val response = networkBridge.requestSync() ?: return
         if (response.optString("type") != "sync_response") return
         val updatedAt = response.optLong("updatedAt", 0L)
         // Always emit on the first poll so the UI has data, then dedupe
@@ -167,7 +168,7 @@ class WearBridgeClient(
         conversationId: String,
         text: String
     ): Result<Unit> {
-        val response = bluetoothBridge.requestChat(requestId, conversationId, text)
+        val response = networkBridge.requestChat(requestId, conversationId, text)
             ?: return Result.failure(IllegalStateException("Phone is not connected."))
         val error = response.optString("error").takeIf { it.isNotBlank() }
         if (error != null) {
@@ -199,7 +200,7 @@ class WearBridgeClient(
         requestId: String,
         agentId: String?
     ): Result<Unit> {
-        val response = bluetoothBridge.requestNewConversation(requestId, agentId)
+        val response = networkBridge.requestNewConversation(requestId, agentId)
             ?: return Result.failure(IllegalStateException("Phone is not connected."))
         val error = response.optString("error").takeIf { it.isNotBlank() }
         if (error != null) {
