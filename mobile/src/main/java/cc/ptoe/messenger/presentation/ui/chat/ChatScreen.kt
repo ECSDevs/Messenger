@@ -114,30 +114,30 @@ fun ChatScreen(
         }
     }
 
-    // 预构建列表项（消息 + 日期分隔符），保证 LazyColumn item 索引与列表一致
+    // 预构建列表项（消息 + 日期分隔符），保持时间正序；
+    // 配合 LazyColumn 的 reverseLayout，展示时反转使最新消息位于底部（index 0）
     val chatItems = remember(messages) { buildChatItems(messages) }
 
-    // 进入聊天页时默认滑动到底部
+    // 进入聊天页时默认滑动到底部（reverseLayout 下 index 0 即底部）
     LaunchedEffect(chatItems.size) {
         if (!hasInitiallyScrolled && chatItems.isNotEmpty()) {
             hasInitiallyScrolled = true
-            listState.scrollToItem(chatItems.lastIndex)
+            listState.scrollToItem(0)
         }
     }
 
     // 自动保持底部：消息更新或生成状态变化时，若用户未主动上滑则跟随到底部
+    // reverseLayout 下 firstVisibleItemIndex 越小越靠近底部；0 表示完全在底部
     LaunchedEffect(messages, isGenerating) {
         if (!hasInitiallyScrolled || chatItems.isEmpty()) return@LaunchedEffect
-        val lastIndex = chatItems.lastIndex
-        val firstVisibleIndex = listState.firstVisibleItemIndex
         // 用户停留在底部附近（容差 3 项）时自动跟随到最新消息；
         // 用户主动上滑远离底部时则停止跟随，便于查看历史消息
-        if (firstVisibleIndex >= lastIndex - 3) {
+        if (listState.firstVisibleItemIndex <= 3) {
             // 新增消息用动画滚动，流式内容更新用瞬时滚动以避免动画堆叠卡顿
             if (chatItems.size != previousItemCount) {
-                listState.animateScrollToItem(lastIndex)
+                listState.animateScrollToItem(0)
             } else {
-                listState.scrollToItem(lastIndex)
+                listState.scrollToItem(0)
             }
         }
         previousItemCount = chatItems.size
@@ -234,13 +234,13 @@ fun ChatScreen(
             } else {
                 LazyColumn(
                     state = listState,
-                    reverseLayout = false,
+                    reverseLayout = true,
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.Top,
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     items(
-                        items = chatItems,
+                        items = chatItems.asReversed(),
                         key = { item ->
                             when (item) {
                                 is ChatListItem.DateSeparator -> "date_${item.id}"
