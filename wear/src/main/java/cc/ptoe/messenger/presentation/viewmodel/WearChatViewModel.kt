@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 
 enum class WearScreen {
     ChatList,
+    NewChat,
     Chat
 }
 
@@ -129,6 +130,17 @@ class WearChatViewModel(
         bannerMessage.value = null
     }
 
+    fun startNewChat() {
+        if (isCreatingChat.value) return
+        screen.value = WearScreen.NewChat
+        bannerMessage.value = null
+    }
+
+    fun cancelNewChat() {
+        screen.value = WearScreen.ChatList
+        bannerMessage.value = null
+    }
+
     fun createChat(agentId: String? = null) {
         if (isCreatingChat.value) return
         viewModelScope.launch {
@@ -142,6 +154,7 @@ class WearChatViewModel(
                 },
                 onFailure = { error ->
                     showBanner(error.message ?: "Failed to create chat.")
+                    screen.value = WearScreen.ChatList
                 }
             )
         }

@@ -14,6 +14,7 @@ import cc.ptoe.messenger.WearMessengerApplication
 import cc.ptoe.messenger.presentation.theme.MessengerTheme
 import cc.ptoe.messenger.presentation.ui.chat.ChatScreen
 import cc.ptoe.messenger.presentation.ui.chatlist.ChatListScreen
+import cc.ptoe.messenger.presentation.ui.chatlist.NewChatScreen
 import cc.ptoe.messenger.presentation.viewmodel.WearChatViewModel
 import cc.ptoe.messenger.presentation.viewmodel.WearScreen
 import kotlinx.coroutines.delay
@@ -49,8 +50,12 @@ private fun WearChatApp(
         }
     }
 
-    BackHandler(enabled = uiState.screen == WearScreen.Chat) {
-        viewModel.navigateBackToList()
+    BackHandler(enabled = uiState.screen != WearScreen.ChatList) {
+        when (uiState.screen) {
+            WearScreen.Chat -> viewModel.navigateBackToList()
+            WearScreen.NewChat -> viewModel.cancelNewChat()
+            WearScreen.ChatList -> {}
+        }
     }
 
     AppScaffold {
@@ -59,8 +64,15 @@ private fun WearChatApp(
                 ChatListScreen(
                     uiState = uiState,
                     onChatOpen = viewModel::openChat,
-                    onNewChat = { viewModel.createChat() },
+                    onNewChat = viewModel::startNewChat,
                     onReconnect = { viewModel.requestReconnect() }
+                )
+            }
+            WearScreen.NewChat -> {
+                NewChatScreen(
+                    agents = uiState.agents,
+                    isCreatingChat = uiState.isCreatingChat,
+                    onPickAgent = { agentId -> viewModel.createChat(agentId) }
                 )
             }
             WearScreen.Chat -> {
