@@ -48,7 +48,7 @@ fun ChatInputBar(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.Bottom
+        verticalAlignment = Alignment.CenterVertically
     ) {
         // 左侧 + 按钮（Google Messages 风格：附件入口占位）
         IconButton(
