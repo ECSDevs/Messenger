@@ -20,7 +20,7 @@ class WearMessengerApplication : Application() {
         instance = this
         wearChatRepository = WearChatRepository(
             preferences = WearChatPreferences(this),
-            bridgeClient = WearBridgeClient(this),
+            bridgeClient = WearBridgeClient(this, applicationScope),
             scope = applicationScope
         )
     }

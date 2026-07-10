@@ -61,8 +61,14 @@ Messenger/
 ├── wear/                     # Wear OS companion module
 │   └── src/main/java/cc/ptoe/messenger/
 │       ├── data/             # Wear DataStore + phone bridge
-│       ├── presentation/     # Wear Compose activity
-│       ├── presentation/viewmodel/
+│       ├── presentation/
+│       │   ├── MainActivity.kt
+│       │   ├── theme/
+│       │   ├── ui/
+│       │   │   ├── chat/         # Chat screen
+│       │   │   ├── chatlist/     # Chat list screen
+│       │   │   └── components/   # Shared bubbles/input
+│       │   └── viewmodel/
 │       └── WearMessengerApplication.kt
 ├── build.gradle.kts          # Root build file
 ├── settings.gradle.kts       # Project settings
@@ -94,10 +100,13 @@ The project follows Clean Architecture with three main layers:
 
 ### Wear Companion Architecture
 
-- The `wear` module is a phone-backed companion experience with no settings UI
-- Wear syncs lightweight agent metadata from `mobile` through the Google Play Services wearable message layer
-- Wear sends chat requests back to `mobile`, and the phone resolves models/providers plus performs the API call using the existing repositories
-- Wear persists synced agents, selected agent, and per-agent message history locally with DataStore for a fast resume path
+- The `wear` module is a phone-backed companion experience with no settings UI (tiny mobile chat-only surface)
+- Wear UI is a two-screen chat flow: **chat list** (mobile conversations with agent avatars + last-message previews) and **chat screen** (messages + input with agent/user avatars)
+- Navigation is state-based (`WearScreen.ChatList` / `WearScreen.Chat`) without Navigation Compose
+- **Automatic DataLayer sync** (phone → watch): agents, conversations, recent messages, agent avatars, and user avatar via `DataClient`/`Asset` at `/messenger/sync/state`
+- DataLayer events are received via `WearableListenerService` (`wear/data/WearableDataListenerService.kt`) so the wear app still receives updates when its process is killed; `WearBridgeClient` no longer registers programmatic listeners because the system delivers events to the service exclusively
+- Chat actions use `MessageClient`: send message and create conversation on the phone; phone persists to Room then re-pushes DataLayer state
+- Wear caches the latest synced snapshot in DataStore for a fast resume path
 
 ### Dependency Injection
 

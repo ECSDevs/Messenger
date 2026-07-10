@@ -12,6 +12,7 @@ import cc.ptoe.messenger.data.repository.CurrentAgentRepositoryImpl
 import cc.ptoe.messenger.data.repository.MessageRepositoryImpl
 import cc.ptoe.messenger.data.repository.ModelRepositoryImpl
 import cc.ptoe.messenger.data.repository.ProviderRepositoryImpl
+import cc.ptoe.messenger.data.wear.MobileWearSyncManager
 import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.repository.AgentRepository
 import cc.ptoe.messenger.domain.repository.ApiRepository
@@ -64,6 +65,9 @@ class MessengerApplication : Application() {
     lateinit var currentAgentRepository: CurrentAgentRepository
         private set
 
+    lateinit var wearSyncManager: MobileWearSyncManager
+        private set
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
@@ -73,6 +77,7 @@ class MessengerApplication : Application() {
         initPreferences()
         initRepositories()
         initDefaultAgent()
+        initWearSync()
     }
 
     private fun initDatabase() {
@@ -97,12 +102,17 @@ class MessengerApplication : Application() {
         messageRepository = MessageRepositoryImpl(database.messageDao())
         apiRepository = ApiRepositoryImpl()
         currentAgentRepository = CurrentAgentRepositoryImpl(appPreferences, agentRepository)
+        wearSyncManager = MobileWearSyncManager(this, applicationScope)
     }
 
     private fun initDefaultAgent() {
         applicationScope.launch {
             createDefaultAgentIfNeeded()
         }
+    }
+
+    private fun initWearSync() {
+        wearSyncManager.start()
     }
 
     suspend fun clearAllDataAndReinit() {
