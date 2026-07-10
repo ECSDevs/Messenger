@@ -1,6 +1,5 @@
 package cc.ptoe.messenger.presentation.ui.chat
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -81,7 +79,6 @@ fun ChatScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier
@@ -150,12 +147,11 @@ fun ChatScreen(
                         draft = ""
                         onSendMessage(message)
                     },
-                    enabled = canSend && draft.isNotBlank(),
-                    modifier = Modifier.size(32.dp)
+                    enabled = canSend && draft.isNotBlank()
                 ) {
                     Text(
                         text = if (uiState.isSending) "..." else ">",
-                        style = MaterialTheme.typography.labelLarge
+                        style = MaterialTheme.typography.labelMedium
                     )
                 }
             }
