@@ -18,7 +18,8 @@ import kotlinx.coroutines.launch
 enum class WearScreen {
     ChatList,
     NewChat,
-    Chat
+    Chat,
+    Compose
 }
 
 data class WearChatListItem(
@@ -37,7 +38,8 @@ data class WearChatUiState(
     val isSending: Boolean = false,
     val isCreatingChat: Boolean = false,
     val bannerMessage: String? = null,
-    val connectionState: WearConnectionState = WearConnectionState.Disconnected
+    val connectionState: WearConnectionState = WearConnectionState.Disconnected,
+    val draft: String = ""
 )
 
 class WearChatViewModel(
@@ -48,6 +50,7 @@ class WearChatViewModel(
     private val isCreatingChat = MutableStateFlow(false)
     private val bannerMessage = MutableStateFlow<String?>(null)
     private val screen = MutableStateFlow(WearScreen.ChatList)
+    private val draft = MutableStateFlow("")
 
     private val listContent = combine(
         repository.agents,
@@ -83,8 +86,9 @@ class WearChatViewModel(
         listContent,
         chatContent,
         transientState,
-        repository.connectionState
-    ) { list, chat, transient, connection ->
+        repository.connectionState,
+        draft
+    ) { list, chat, transient, connection, draftText ->
         val agents = list.first
         val conversations = list.second
         val userAvatarPath = list.third
@@ -105,7 +109,8 @@ class WearChatViewModel(
             isSending = transient.isSending,
             isCreatingChat = transient.isCreatingChat,
             bannerMessage = transient.bannerMessage,
-            connectionState = connection
+            connectionState = connection,
+            draft = draftText
         )
     }.stateIn(
         scope = viewModelScope,
@@ -128,6 +133,31 @@ class WearChatViewModel(
     fun navigateBackToList() {
         screen.value = WearScreen.ChatList
         bannerMessage.value = null
+    }
+
+    fun openCompose() {
+        screen.value = WearScreen.Compose
+    }
+
+    fun cancelCompose() {
+        screen.value = WearScreen.Chat
+    }
+
+    fun updateDraft(text: String) {
+        draft.value = text
+    }
+
+    fun sendDraft() {
+        val text = draft.value
+        if (text.isBlank() || isSending.value) return
+        draft.value = ""
+        screen.value = WearScreen.Chat
+        viewModelScope.launch {
+            isSending.value = true
+            val result = repository.sendMessage(text.trim())
+            isSending.value = false
+            result.exceptionOrNull()?.message?.let { showBanner(it) }
+        }
     }
 
     fun startNewChat() {
@@ -157,16 +187,6 @@ class WearChatViewModel(
                     screen.value = WearScreen.ChatList
                 }
             )
-        }
-    }
-
-    fun sendMessage(text: String) {
-        if (text.isBlank() || isSending.value) return
-        viewModelScope.launch {
-            isSending.value = true
-            val result = repository.sendMessage(text.trim())
-            isSending.value = false
-            result.exceptionOrNull()?.message?.let { showBanner(it) }
         }
     }
 

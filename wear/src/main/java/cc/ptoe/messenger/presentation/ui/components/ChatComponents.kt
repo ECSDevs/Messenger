@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -23,10 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -183,47 +178,4 @@ fun MessageBubble(
             )
         }
     }
-}
-
-@Composable
-fun DraftInput(
-    value: String,
-    enabled: Boolean,
-    onValueChange: (String) -> Unit,
-    onSend: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val textColor = MaterialTheme.colorScheme.onSurface
-    val placeholderColor = MaterialTheme.colorScheme.onSurfaceVariant
-
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
-        enabled = enabled,
-        singleLine = false,
-        maxLines = 2,
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        textStyle = MaterialTheme.typography.bodySmall.copy(color = textColor),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-        keyboardActions = KeyboardActions(
-            onSend = { onSend() }
-        ),
-        modifier = modifier.fillMaxWidth(),
-        decorationBox = { innerTextField ->
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                if (value.isBlank()) {
-                    Text(
-                        text = "Message",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = placeholderColor
-                    )
-                }
-                innerTextField()
-            }
-        }
-    )
 }
