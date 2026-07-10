@@ -32,8 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -80,7 +78,6 @@ fun ChatScreen(
                 1 -> ComposeContent(
                     draft = uiState.draft,
                     enabled = uiState.selectedAgent?.isReady == true && !uiState.isSending,
-                    isActive = pagerState.currentPage == 1,
                     onDraftChange = onDraftChange,
                     onSend = {
                         onSend()
@@ -182,17 +179,9 @@ private fun ChatContent(
 private fun ComposeContent(
     draft: String,
     enabled: Boolean,
-    isActive: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit
 ) {
-    val focusRequester = remember { FocusRequester() }
-
-    // 当前页为输入页时自动聚焦，弹出输入法
-    LaunchedEffect(isActive) {
-        if (isActive) focusRequester.requestFocus()
-    }
-
     val textColor = MaterialTheme.colorScheme.onSurface
     val placeholderColor = MaterialTheme.colorScheme.onSurfaceVariant
 
@@ -212,9 +201,7 @@ private fun ComposeContent(
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { onSend() }),
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester),
+            modifier = Modifier.fillMaxWidth(),
             decorationBox = { innerTextField ->
                 Box(
                     modifier = Modifier
@@ -255,16 +242,6 @@ private fun ComposeContent(
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Swipe right to go back",
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }
 
