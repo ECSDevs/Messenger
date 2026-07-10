@@ -17,7 +17,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,10 +51,31 @@ fun ChatScreen(
     val selectedConversation = uiState.selectedConversation
     val canSend = selectedAgent?.isReady == true && !uiState.isSending
 
-    LaunchedEffect(uiState.messages.size, selectedConversation?.id) {
-        if (uiState.messages.isNotEmpty()) {
-            listState.animateScrollToItem(uiState.messages.lastIndex)
+    // reverseLayout: index 0 = 底部（最新消息）；向上滚动 index 增大 = 更早的历史
+    val conversationId = selectedConversation?.id
+    var hasInitiallyScrolled by remember(conversationId) { mutableStateOf(false) }
+    var previousItemCount by remember(conversationId) { mutableIntStateOf(0) }
+
+    // 进入会话时滚动到底部（reverseLayout 下 index 0）
+    LaunchedEffect(conversationId, uiState.messages.isNotEmpty()) {
+        if (!hasInitiallyScrolled && uiState.messages.isNotEmpty()) {
+            hasInitiallyScrolled = true
+            listState.scrollToItem(0)
         }
+    }
+
+    // 流式跟踪：用户停留在底部附近时跟随最新消息；上滑查看历史时不打扰
+    LaunchedEffect(uiState.messages, uiState.isSending) {
+        if (!hasInitiallyScrolled || uiState.messages.isEmpty()) return@LaunchedEffect
+        if (listState.firstVisibleItemIndex <= 2) {
+            // 新增消息用动画滚动，流式内容更新用瞬时滚动避免动画堆叠
+            if (uiState.messages.size != previousItemCount) {
+                listState.animateScrollToItem(0)
+            } else {
+                listState.scrollToItem(0)
+            }
+        }
+        previousItemCount = uiState.messages.size
     }
 
     Box(
@@ -84,16 +107,17 @@ fun ChatScreen(
                 } else {
                     LazyColumn(
                         state = listState,
+                        reverseLayout = true,
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalRotaryScroll(listState)
                     ) {
-                        item { Spacer(modifier = Modifier.height(12.dp)) }
-                        items(uiState.messages, key = { it.id }) { message ->
+                        // reverseLayout 下传入反转列表，使最新消息位于 index 0（底部）
+                        // LazyColumn 仅组合可见项，向上滚动时才组合更早的历史消息
+                        items(uiState.messages.asReversed(), key = { it.id }) { message ->
                             MessageBubble(message = message)
                         }
-                        item { Spacer(modifier = Modifier.height(12.dp)) }
                     }
                 }
             }
