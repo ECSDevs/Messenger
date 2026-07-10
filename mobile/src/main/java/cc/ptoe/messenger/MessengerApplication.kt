@@ -31,6 +31,9 @@ import androidx.room.Room
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -71,6 +74,23 @@ class MessengerApplication : Application() {
         private set
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Tracks whether the user permanently denied BLUETOOTH_CONNECT (i.e. they
+     * chose "don't ask again" in the system dialog). The UI watches this to
+     * surface a banner with a deep link to app settings.
+     */
+    private val _bluetoothPermissionPermanentlyDenied = MutableStateFlow(false)
+    val bluetoothPermissionPermanentlyDenied: StateFlow<Boolean> =
+        _bluetoothPermissionPermanentlyDenied.asStateFlow()
+
+    fun markBluetoothPermissionPermanentlyDenied() {
+        _bluetoothPermissionPermanentlyDenied.value = true
+    }
+
+    fun markBluetoothPermissionGranted() {
+        _bluetoothPermissionPermanentlyDenied.value = false
+    }
 
     override fun onCreate() {
         super.onCreate()

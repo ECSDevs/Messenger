@@ -7,8 +7,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -50,33 +53,77 @@ class WearBridgeClient(
     )
     val newChatResponses: SharedFlow<WearNewChatResponse> = _newChatResponses.asSharedFlow()
 
+    /**
+     * Snapshot of the Bluetooth transport's current state, surfaced to the UI
+     * so the chat list can show a "waiting for phone" banner.
+     */
+    val connectionState: StateFlow<WearConnectionState> = bluetoothBridge.connectionState
+
+    /** Bumped each time the user asks for an explicit reconnect from the UI. */
+    private val _reconnectRequests = MutableStateFlow(0)
+    val reconnectRequests: StateFlow<Int> = _reconnectRequests.asStateFlow()
+
     private var syncJob: Job? = null
     private var lastUpdatedAt: Long = 0L
 
     fun start() {
         if (syncJob != null) return
         syncJob = scope.launch {
+            // Race the polling loop against user-initiated reconnect requests
+            // so a "Reconnect" tap forces an immediate retry.
+            val reconnectTrigger = _reconnectRequests
             while (true) {
+                val targetTick = reconnectTrigger.value
                 if (bluetoothBridge.connect()) {
                     // Always do an initial fetch so the UI doesn't sit on the
                     // empty default state while waiting for the next tick.
                     requestSync()
                     while (bluetoothBridge.isConnected.value) {
+                        // Bail out of the inner loop early if the user asked
+                        // to reconnect — we want to close the socket and try
+                        // again straight away.
+                        if (reconnectTrigger.value != targetTick) break
                         delay(POLL_INTERVAL_MS)
+                        if (reconnectTrigger.value != targetTick) break
                         requestSync()
                     }
                 } else {
                     Log.d(TAG, "Phone not reachable via Bluetooth, will retry")
-                    delay(RECONNECT_DELAY_MS)
+                    // Wait either for the next reconnect tick or the normal
+                    // backoff, whichever comes first.
+                    val deadline = System.currentTimeMillis() + RECONNECT_DELAY_MS
+                    while (System.currentTimeMillis() < deadline &&
+                        reconnectTrigger.value == targetTick
+                    ) {
+                        delay(250L)
+                    }
+                }
+                if (reconnectTrigger.value != targetTick) {
+                    Log.d(TAG, "Reconnect requested — closing socket and retrying")
+                    runCatching { bluetoothBridge.close() }
                 }
             }
         }
+    }
+
+    /** Drops the active socket so the next [connect] starts fresh. */
+    fun close() {
+        runCatching { bluetoothBridge.close() }
     }
 
     fun loadExistingState() {
         // The polling loop in start() already performs the initial fetch, so
         // this is a no-op kept for API compatibility with [WearChatRepository].
         start()
+    }
+
+    /**
+     * Drops the current connection and asks the polling loop to retry
+     * immediately on its next iteration. Use this from the UI when the user
+     * taps a "Reconnect" button.
+     */
+    fun requestReconnect() {
+        _reconnectRequests.value = _reconnectRequests.value + 1
     }
 
     private suspend fun requestSync() {

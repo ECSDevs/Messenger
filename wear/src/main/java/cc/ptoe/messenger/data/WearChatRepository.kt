@@ -2,6 +2,7 @@ package cc.ptoe.messenger.data
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -19,6 +20,10 @@ class WearChatRepository(
     val selectedConversationId: Flow<String?> = preferences.selectedConversationId
     val messageHistory: Flow<Map<String, List<WearChatMessage>>> = preferences.messageHistory
     val userAvatarPath: Flow<String?> = preferences.userAvatarPath
+
+    val connectionState: StateFlow<WearConnectionState> = bridgeClient.connectionState
+
+    fun requestReconnect() = bridgeClient.requestReconnect()
 
     val selectedConversation: Flow<WearConversation?> = combine(
         preferences.conversations,

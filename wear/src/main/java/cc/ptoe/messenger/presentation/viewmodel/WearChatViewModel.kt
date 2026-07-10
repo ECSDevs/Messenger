@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import cc.ptoe.messenger.data.WearAgent
 import cc.ptoe.messenger.data.WearChatMessage
 import cc.ptoe.messenger.data.WearChatRepository
+import cc.ptoe.messenger.data.WearConnectionState
 import cc.ptoe.messenger.data.WearConversation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,7 +35,8 @@ data class WearChatUiState(
     val screen: WearScreen = WearScreen.ChatList,
     val isSending: Boolean = false,
     val isCreatingChat: Boolean = false,
-    val bannerMessage: String? = null
+    val bannerMessage: String? = null,
+    val connectionState: WearConnectionState = WearConnectionState.Disconnected
 )
 
 class WearChatViewModel(
@@ -79,8 +81,9 @@ class WearChatViewModel(
     val uiState: StateFlow<WearChatUiState> = combine(
         listContent,
         chatContent,
-        transientState
-    ) { list, chat, transient ->
+        transientState,
+        repository.connectionState
+    ) { list, chat, transient, connection ->
         val agents = list.first
         val conversations = list.second
         val userAvatarPath = list.third
@@ -100,13 +103,18 @@ class WearChatViewModel(
             screen = transient.screen,
             isSending = transient.isSending,
             isCreatingChat = transient.isCreatingChat,
-            bannerMessage = transient.bannerMessage
+            bannerMessage = transient.bannerMessage,
+            connectionState = connection
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = WearChatUiState()
     )
+
+    fun requestReconnect() {
+        repository.requestReconnect()
+    }
 
     fun openChat(conversationId: String) {
         viewModelScope.launch {

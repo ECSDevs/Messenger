@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
+import cc.ptoe.messenger.data.WearConnectionState
 import cc.ptoe.messenger.presentation.ui.components.BannerMessage
 import cc.ptoe.messenger.presentation.ui.components.WearAvatar
 import cc.ptoe.messenger.presentation.viewmodel.WearChatListItem
@@ -38,6 +40,7 @@ fun ChatListScreen(
     uiState: WearChatUiState,
     onChatOpen: (String) -> Unit,
     onNewChat: () -> Unit,
+    onReconnect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -54,6 +57,27 @@ fun ChatListScreen(
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             textAlign = TextAlign.Center
         )
+
+        val connectionBanner = remember(uiState.connectionState) {
+            when (val state = uiState.connectionState) {
+                WearConnectionState.Connected -> null
+                WearConnectionState.Disconnected -> "未连手机 — 等待手机端 Messenger"
+                is WearConnectionState.Connecting -> state.detail
+                is WearConnectionState.Error -> state.message
+            }
+        }
+        if (connectionBanner != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            BannerMessage(connectionBanner)
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = onReconnect,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("重试连接")
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+        }
 
         if (uiState.bannerMessage != null) {
             Spacer(modifier = Modifier.height(6.dp))
