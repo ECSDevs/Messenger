@@ -3,11 +3,13 @@ package cc.ptoe.messenger.presentation.ui.chat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -145,21 +147,24 @@ private fun ChatContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
-            // 显式 Reply 按钮 —— 替代难触发的左滑手势
-            Button(
-                onClick = onOpenCompose,
-                enabled = selectedConversation != null && selectedAgent?.isReady == true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
+            // 紧凑的回复按钮 —— 居中圆形图标，不占用太多空间
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
             ) {
-                Text(
-                    text = "Reply",
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1
-                )
+                Button(
+                    onClick = onOpenCompose,
+                    enabled = selectedConversation != null && selectedAgent?.isReady == true,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Text(
+                        text = ">",
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1
+                    )
+                }
             }
         }
 
