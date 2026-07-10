@@ -63,7 +63,7 @@ fun ChatScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 14.dp, vertical = 4.dp)
+                .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 28.dp)
         ) {
             if (uiState.bannerMessage != null) {
                 BannerMessage(uiState.bannerMessage)
@@ -91,12 +91,7 @@ fun ChatScreen(
                     ) {
                         item { Spacer(modifier = Modifier.height(12.dp)) }
                         items(uiState.messages, key = { it.id }) { message ->
-                            MessageBubble(
-                                message = message,
-                                agentAvatarPath = selectedAgent?.avatarPath,
-                                userAvatarPath = uiState.userAvatarPath,
-                                agentName = selectedAgent?.name ?: "AI"
-                            )
+                            MessageBubble(message = message)
                         }
                         item { Spacer(modifier = Modifier.height(12.dp)) }
                     }
@@ -106,7 +101,9 @@ fun ChatScreen(
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {

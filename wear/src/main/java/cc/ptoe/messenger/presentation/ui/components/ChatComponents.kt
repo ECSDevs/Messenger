@@ -120,9 +120,6 @@ fun BannerMessage(
 @Composable
 fun MessageBubble(
     message: WearChatMessage,
-    agentAvatarPath: String?,
-    userAvatarPath: String?,
-    agentName: String,
     modifier: Modifier = Modifier
 ) {
     val isUser = message.role == WearMessageRole.USER
@@ -136,7 +133,6 @@ fun MessageBubble(
         message.isError -> MaterialTheme.colorScheme.onErrorContainer
         else -> MaterialTheme.colorScheme.onSurface
     }
-    val alignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
     val shape = if (isUser) {
         RoundedCornerShape(
             topStart = 16.dp,
@@ -153,57 +149,38 @@ fun MessageBubble(
         )
     }
 
-    Box(
+    Row(
         modifier = modifier.fillMaxWidth(),
-        contentAlignment = alignment
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
-        Row(
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.fillMaxWidth(0.96f)
+        Box(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .clip(shape)
+                .background(background)
+                .then(
+                    if (message.isPending) {
+                        Modifier.border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                            shape = shape
+                        )
+                    } else {
+                        Modifier
+                    }
+                )
+                .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
-            if (!isUser) {
-                WearAvatar(
-                    avatarPath = agentAvatarPath,
-                    fallbackText = agentName,
-                    size = 22.dp
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    .clip(shape)
-                    .background(background)
-                    .then(
-                        if (message.isPending) {
-                            Modifier.border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                shape = shape
-                            )
-                        } else {
-                            Modifier
-                        }
-                    )
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = when {
-                        message.isPending -> "Thinking..."
-                        message.content.isBlank() -> "No response."
-                        else -> message.content
-                    },
-                    color = contentColor,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-            if (isUser) {
-                WearAvatar(
-                    avatarPath = userAvatarPath,
-                    fallbackText = "You",
-                    size = 22.dp
-                )
-            }
+            Text(
+                text = when {
+                    message.isPending -> "Thinking..."
+                    message.content.isBlank() -> "No response."
+                    else -> message.content
+                },
+                color = contentColor,
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
