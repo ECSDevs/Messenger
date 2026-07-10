@@ -123,6 +123,10 @@ class WearBridgeClient(
      * taps a "Reconnect" button.
      */
     fun requestReconnect() {
+        // Reset the bridge's skip list so the user's tap retries every
+        // known device, not just the ones we haven't already failed on
+        // within the last [SKIP_DURATION_MS] window.
+        bluetoothBridge.clearSkipList()
         _reconnectRequests.value = _reconnectRequests.value + 1
     }
 

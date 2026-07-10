@@ -2,12 +2,12 @@ package cc.ptoe.messenger.data
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,6 +64,14 @@ class WearBluetoothBridge(
     )
     val connectionState: StateFlow<WearConnectionState> = _connectionState.asStateFlow()
 
+    /**
+     * MAC addresses of devices that just failed to connect — we skip them
+     * for a while so the polling loop doesn't hammer a non-phone (e.g. a
+     * Bluetooth headset) every 3 s. Entries auto-expire after
+     * [SKIP_DURATION_MS].
+     */
+    private val recentlyFailed = mutableMapOf<String, Long>()
+
     @SuppressLint("MissingPermission")
     suspend fun connect(): Boolean = mutex.withLock {
         if (_isConnected.value) return@withLock true
@@ -76,63 +84,147 @@ class WearBluetoothBridge(
             return@withLock false
         }
 
-        val pairedDevices = try {
+        val rawPaired = try {
             adapter.bondedDevices ?: emptySet()
         } catch (e: SecurityException) {
             Log.w(TAG, "Missing BLUETOOTH_CONNECT permission", e)
             _connectionState.value = WearConnectionState.Error("缺少 BLUETOOTH_CONNECT 权限")
             return@withLock false
         }
+        // Drop devices we just failed on, so we don't immediately retry the
+        // same broken pair.
+        val pairedDevices = rawPaired.filterNot { isRecentlyFailed(it) }
+        val phoneLike = pairedDevices.filter { isProbablyPhoneOrComputer(it) }
+        logPairedDevices(rawPaired, phoneLike)
 
-        // Phase 1: try already-paired devices.
-        if (pairedDevices.isNotEmpty()) {
-            _connectionState.value = WearConnectionState.Connecting(
-                "尝试 ${pairedDevices.size} 个已配对设备…"
-            )
-            for (device in pairedDevices) {
+        // Phase 1: try phone-like paired devices first. Most Galaxy Watch
+        // setups fall here because the watch IS paired with the phone at
+        // the system Bluetooth level.
+        if (phoneLike.isNotEmpty()) {
+            for ((index, device) in phoneLike.withIndex()) {
+                _connectionState.value = WearConnectionState.Connecting(
+                    "尝试 ${index + 1}/${phoneLike.size}: ${device.name ?: device.address}"
+                )
                 if (tryConnect(device)) {
                     _isConnected.value = true
                     _connectionState.value = WearConnectionState.Connected
+                    // Successful connection — drop the skip list so the
+                    // next disconnect/reconnect attempt doesn't
+                    // accidentally skip a now-healthy device.
+                    recentlyFailed.clear()
                     return@withLock true
                 }
+                markFailed(device)
             }
-        } else {
-            Log.w(TAG, "No paired Bluetooth devices")
         }
 
-        // Phase 2: fall back to active discovery — Samsung Galaxy Watches
-        // paired only through the Galaxy Wearable app often don't list the
-        // phone in `bondedDevices`, but the phone IS discoverable over
-        // standard Bluetooth.
-        val discovered = discoverNearbyPhones(adapter)
-        if (discovered.isNotEmpty()) {
-            _connectionState.value = WearConnectionState.Connecting(
-                "尝试 ${discovered.size} 个扫描到的设备…"
-            )
-            for (device in discovered) {
+        // Phase 2: any remaining paired devices (e.g. a Bluetooth headset
+        // that also happened to be bonded).
+        val otherPaired = pairedDevices - phoneLike.toSet()
+        if (otherPaired.isNotEmpty()) {
+            for ((index, device) in otherPaired.withIndex()) {
+                _connectionState.value = WearConnectionState.Connecting(
+                    "尝试 ${index + 1}/${otherPaired.size}: ${device.name ?: device.address} (非手机)"
+                )
                 if (tryConnect(device)) {
                     _isConnected.value = true
                     _connectionState.value = WearConnectionState.Connected
                     return@withLock true
                 }
+                markFailed(device)
+            }
+        }
+
+        // Phase 3: discovery as a last resort — covers the case where the
+        // phone wasn't in bondedDevices at all.
+        val discovered = discoverNearbyDevices(adapter)
+            .filterNot { isRecentlyFailed(it) }
+        if (discovered.isNotEmpty()) {
+            for ((index, device) in discovered.withIndex()) {
+                _connectionState.value = WearConnectionState.Connecting(
+                    "扫描 ${index + 1}/${discovered.size}: ${device.name ?: device.address}"
+                )
+                if (tryConnect(device)) {
+                    _isConnected.value = true
+                    _connectionState.value = WearConnectionState.Connected
+                    return@withLock true
+                }
+                markFailed(device)
             }
         }
 
         val reason = when {
-            pairedDevices.isEmpty() && discovered.isEmpty() ->
-                "找不到手机 — 请先在系统蓝牙设置里把手表和手机配对"
-            pairedDevices.isEmpty() ->
-                "已配对但连不上 — 检查手机 Messenger 是否在前台运行"
+            rawPaired.isEmpty() && discovered.isEmpty() ->
+                "找不到手机 — 请在手表系统设置 > 蓝牙里把手机和手表互相配对（不是 Samsung Wearable）"
+            rawPaired.isNotEmpty() && phoneLike.isEmpty() ->
+                "已配对的 ${rawPaired.size} 个设备都不是手机 — 请在手表系统设置 > 蓝牙里把手机和手表配对"
+            phoneLike.isNotEmpty() && discovered.isEmpty() ->
+                "手机 ${phoneLike.first().name ?: phoneLike.first().address} 连不上 — 检查手机端是否给了 Messenger 「附近设备」权限，并且 Messenger 正在前台运行"
             else ->
-                "找不到 Messenger Wear 同步服务 — 检查手机端是否给了「附近设备」权限"
+                "所有设备都连不上 — 检查手机 Messenger 是否在前台运行"
         }
         Log.w(TAG, reason)
         _connectionState.value = WearConnectionState.Error(reason)
         false
     }
 
+    private fun isRecentlyFailed(device: BluetoothDevice): Boolean {
+        val failedAt = recentlyFailed[device.address] ?: return false
+        if (System.currentTimeMillis() - failedAt > SKIP_DURATION_MS) {
+            recentlyFailed.remove(device.address)
+            return false
+        }
+        return true
+    }
+
+    private fun markFailed(device: BluetoothDevice) {
+        recentlyFailed[device.address] = System.currentTimeMillis()
+    }
+
     @SuppressLint("MissingPermission")
-    private fun discoverNearbyPhones(adapter: BluetoothAdapter): List<BluetoothDevice> {
+    private fun isProbablyPhoneOrComputer(device: BluetoothDevice): Boolean {
+        val major = try {
+            device.bluetoothClass?.majorDeviceClass
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Cannot read CoD for ${device.address}", e)
+            return nameLooksLikePhone(device)
+        }
+        return major == BluetoothClass.Device.Major.COMPUTER ||
+            major == BluetoothClass.Device.Major.PHONE ||
+            (major == null && nameLooksLikePhone(device))
+    }
+
+    private fun nameLooksLikePhone(device: BluetoothDevice): Boolean {
+        val name = device.name?.lowercase().orEmpty()
+        return name.contains("phone") ||
+            name.contains("galaxy") ||
+            name.contains("iphone") ||
+            name.contains("pixel") ||
+            name.contains("huawei") ||
+            name.contains("xiaomi") ||
+            name.contains("oppo") ||
+            name.contains("vivo") ||
+            name.contains("oneplus")
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun logPairedDevices(all: Set<BluetoothDevice>, phoneLike: List<BluetoothDevice>) {
+        if (all.isEmpty()) {
+            Log.d(TAG, "No paired Bluetooth devices at all")
+            return
+        }
+        Log.d(TAG, "Paired devices: ${all.size} total, ${phoneLike.size} phone-like")
+        for (device in all) {
+            val name = device.name ?: "<unnamed>"
+            val klass = try {
+                device.bluetoothClass?.majorDeviceClass
+            } catch (_: SecurityException) { "?" }
+            Log.d(TAG, "  - $name (${device.address}) class=$klass")
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun discoverNearbyDevices(adapter: BluetoothAdapter): List<BluetoothDevice> {
         val receiver = DiscoveryReceiver()
         return try {
             val filter = android.content.IntentFilter(BluetoothDevice.ACTION_FOUND)
@@ -254,6 +346,14 @@ class WearBluetoothBridge(
         _connectionState.value = WearConnectionState.Disconnected
     }
 
+    /**
+     * Clear the "recently failed" device list. Called when the user taps
+     * the "重试连接" button so they don't have to wait out the skip window.
+     */
+    fun clearSkipList() {
+        recentlyFailed.clear()
+    }
+
     private class DiscoveryReceiver : android.content.BroadcastReceiver() {
         val found = mutableListOf<BluetoothDevice>()
         override fun onReceive(context: Context?, intent: android.content.Intent?) {
@@ -276,5 +376,11 @@ class WearBluetoothBridge(
 
     companion object {
         private const val TAG = "WearBluetoothBridge"
+        /**
+         * How long a device stays in the "skip" set after a failed connect
+         * attempt. Long enough to avoid an infinite flash loop, short enough
+         * that we eventually retry.
+         */
+        private const val SKIP_DURATION_MS = 60_000L
     }
 }
