@@ -201,9 +201,9 @@ fun DraftInput(
         onValueChange = onValueChange,
         enabled = enabled,
         singleLine = false,
-        maxLines = 3,
+        maxLines = 2,
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+        textStyle = MaterialTheme.typography.bodySmall.copy(color = textColor),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
         keyboardActions = KeyboardActions(
             onSend = { onSend() }
@@ -213,14 +213,14 @@ fun DraftInput(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
                 if (value.isBlank()) {
                     Text(
                         text = "Message",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = placeholderColor
                     )
                 }

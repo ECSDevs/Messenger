@@ -127,7 +127,7 @@ fun ChatScreen(
                         onSendMessage(message)
                     },
                     enabled = canSend && draft.isNotBlank(),
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
                     Text(
                         text = if (uiState.isSending) "..." else ">",
