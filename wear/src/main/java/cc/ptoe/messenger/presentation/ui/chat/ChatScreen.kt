@@ -1,6 +1,5 @@
 package cc.ptoe.messenger.presentation.ui.chat
 
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,9 +20,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.foundation.BasicSwipeToDismissBox
+import androidx.wear.compose.foundation.ExperimentalWearFoundationApi
+import androidx.wear.compose.foundation.SwipeToDismissValue
+import androidx.wear.compose.foundation.rememberSwipeToDismissBoxState
+import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
@@ -34,10 +37,43 @@ import cc.ptoe.messenger.presentation.ui.components.MessageBubble
 import cc.ptoe.messenger.presentation.ui.components.verticalRotaryScroll
 import cc.ptoe.messenger.presentation.viewmodel.WearChatUiState
 
+/**
+ * 聊天页。右滑返回列表（系统级 SwipeToDismiss 手势），底部 Reply 按钮进入输入页。
+ */
+@OptIn(ExperimentalWearFoundationApi::class)
 @Composable
 fun ChatScreen(
     uiState: WearChatUiState,
     onBack: () -> Unit,
+    onOpenCompose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // Wear 官方 SwipeToDismiss：右滑返回列表，系统级手势灵敏度
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmStateChange = { value ->
+            if (value == SwipeToDismissValue.Dismissed) {
+                onBack()
+                false
+            } else {
+                false
+            }
+        }
+    )
+
+    BasicSwipeToDismissBox(
+        state = dismissState,
+        modifier = modifier.fillMaxSize()
+    ) {
+        ChatContent(
+            uiState = uiState,
+            onOpenCompose = onOpenCompose
+        )
+    }
+}
+
+@Composable
+private fun ChatContent(
+    uiState: WearChatUiState,
     onOpenCompose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -62,7 +98,6 @@ fun ChatScreen(
     LaunchedEffect(uiState.messages, uiState.isSending) {
         if (!hasInitiallyScrolled || uiState.messages.isEmpty()) return@LaunchedEffect
         if (listState.firstVisibleItemIndex <= 2) {
-            // 新增消息用动画滚动，流式内容更新用瞬时滚动避免动画堆叠
             if (uiState.messages.size != previousItemCount) {
                 listState.animateScrollToItem(0)
             } else {
@@ -72,21 +107,7 @@ fun ChatScreen(
         previousItemCount = uiState.messages.size
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                // 左滑进入输入页
-                detectHorizontalDragGestures(
-                    onDragEnd = {},
-                    onDragCancel = {}
-                ) { _, dragAmount ->
-                    if (dragAmount < -80f) {
-                        onOpenCompose()
-                    }
-                }
-            }
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -117,13 +138,28 @@ fun ChatScreen(
                             .fillMaxSize()
                             .verticalRotaryScroll(listState)
                     ) {
-                        // reverseLayout 下传入反转列表，使最新消息位于 index 0（底部）
-                        // LazyColumn 仅组合可见项，向上滚动时才组合更早的历史消息
                         items(uiState.messages.asReversed(), key = { it.id }) { message ->
                             MessageBubble(message = message)
                         }
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 显式 Reply 按钮 —— 替代难触发的左滑手势
+            Button(
+                onClick = onOpenCompose,
+                enabled = selectedConversation != null && selectedAgent?.isReady == true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+            ) {
+                Text(
+                    text = "Reply",
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1
+                )
             }
         }
 
@@ -154,7 +190,7 @@ private fun EmptyConversation(
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Swipe left to reply",
+            text = "Tap Reply to start",
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
