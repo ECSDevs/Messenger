@@ -64,7 +64,7 @@ class ConversationSettingsViewModel(
     val modelsForSelectedProvider: StateFlow<List<ChatModel>> = _uiState
         .flatMapLatest { state ->
             state.selectedProviderId?.let { providerId ->
-                modelRepository.getByProviderId(providerId)
+                modelRepository.getEnabledByProviderId(providerId)
             } ?: flowOf(emptyList())
         }
         .stateIn(

@@ -69,7 +69,7 @@ class AgentEditViewModel(
             if (providerId == null) {
                 flowOf(emptyList())
             } else {
-                modelRepository.getByProviderId(providerId)
+                modelRepository.getEnabledByProviderId(providerId)
             }
         }
         .stateIn(
