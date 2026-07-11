@@ -1,21 +1,98 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ---------------------------------------------------------------------------
+# Messenger (wear) R8/ProGuard rules
+# Full R8 minification is enabled for release builds. The wear module has no
+# Room / Retrofit / Gson / Java-WebSocket / CommonMark / ucrop — the only
+# reflection-heavy surfaces are OkHttp (WebSocket client) and the anonymous
+# NsdManager / WebSocketListener inner classes inside WearNetworkBridge.
+# ---------------------------------------------------------------------------
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# --- Debuggability: keep line numbers for crash reports --------------------
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# --- Annotations / signatures / inner-class metadata -----------------------
+-keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations
+-keepattributes RuntimeVisibleParameterAnnotations,RuntimeParameterAnnotation
+-keepattributes Signature,InnerClasses,EnclosingMethod
+-keepattributes AnnotationDefault
+-keepattributes Exceptions,Deprecated
+-keepattributes KotlinModule
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ===========================================================================
+# App manifest-declared components
+# ===========================================================================
+-keep class cc.ptoe.messenger.WearMessengerApplication { *; }
+-keep class cc.ptoe.messenger.presentation.MainActivity { *; }
+
+# ===========================================================================
+# Wear network bridge (OkHttp WebSocket + NSD mDNS discovery)
+# ===========================================================================
+# WearNetworkBridge instantiates anonymous NsdManager.DiscoveryListener and
+# WebSocketListener subclasses; keep the bridge and all of its inner classes.
+-keep class cc.ptoe.messenger.data.WearNetworkBridge { *; }
+-keep class cc.ptoe.messenger.data.WearNetworkBridge$* { *; }
+-keep class cc.ptoe.messenger.data.WearBridgeClient { *; }
+-keep class cc.ptoe.messenger.data.WearBridgeClient$* { *; }
+
+# Connection-state sealed hierarchy + chat-frame sealed hierarchy used across
+# StateFlow / SharedFlow boundaries.
+-keep class cc.ptoe.messenger.data.WearConnectionState* { *; }
+-keep class cc.ptoe.messenger.data.WearChatFrame* { *; }
+
+# Wear data models + JSON codec (manual JSONObject serialization).
+-keep class cc.ptoe.messenger.data.WearChatModels { *; }
+-keep class cc.ptoe.messenger.data.WearChatModels$* { *; }
+-keep class cc.ptoe.messenger.data.WearChatJsonCodec { *; }
+
+# ===========================================================================
+# OkHttp / Okio (WebSocket client + logging)
+# ===========================================================================
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-keep class okio.** { *; }
+-keep interface okio.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
+
+# OkHttp platform detection uses reflection on platform-specific classes.
+-keep,allowobfuscation,allowshrinking class org.conscrypt.** { *; }
+-keep,allowobfuscation,allowshrinking class org.bouncycastle.** { *; }
+-keep,allowobfuscation,allowshrinking class org.openjsse.** { *; }
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**
+
+# ===========================================================================
+# Coil (image loading in chat bubbles)
+# ===========================================================================
+-keep class coil.** { *; }
+-dontwarn coil.**
+
+# ===========================================================================
+# Kotlin / Coroutines
+# ===========================================================================
+-keep class kotlin.coroutines.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+-keepclassmembers class kotlinx.coroutines.** {
+    volatile <fields>;
+}
+-dontwarn kotlinx.coroutines.**
+-keep class kotlin.Metadata { *; }
+-keepclassmembers class **$Companion { *; }
+
+# ===========================================================================
+# AndroidX / Compose (defensive)
+# ===========================================================================
+-keep class androidx.compose.** { *; }
+-keep class androidx.lifecycle.** { *; }
+-keep class androidx.datastore.** { *; }
+-dontwarn androidx.compose.**
+-dontwarn androidx.lifecycle.**
+
+# ViewModel factories instantiated by reflection in viewmodel-compose.
+-keepclassmembers class * extends androidx.lifecycle.ViewModel {
+    <init>(...);
+}
+-keepclassmembers class * extends androidx.lifecycle.AndroidViewModel {
+    <init>(...);
+}
