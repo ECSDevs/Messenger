@@ -8,32 +8,9 @@ import java.util.Locale
 object DateTimeUtils {
 
     fun formatMessageTime(timestamp: Long): String {
-        val now = Calendar.getInstance()
-        val target = Calendar.getInstance().apply {
-            timeInMillis = timestamp
-        }
-
-        if (isSameDay(now, target)) {
-            val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-            return sdf.format(Date(timestamp))
-        }
-
-        val yesterday = Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_YEAR, -1)
-        }
-        if (isSameDay(yesterday, target)) {
-            return "昨天"
-        }
-
-        val isThisYear = now.get(Calendar.YEAR) == target.get(Calendar.YEAR)
-
-        return if (isThisYear) {
-            val sdf = SimpleDateFormat("MM/dd", Locale.getDefault())
-            sdf.format(Date(timestamp))
-        } else {
-            val sdf = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
-            sdf.format(Date(timestamp))
-        }
+        // 消息气泡左下角始终显示时间（HH:mm），具体日期由日期分隔符横幅展示
+        val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+        return sdf.format(Date(timestamp))
     }
 
     fun isSameDay(a: Long, b: Long): Boolean {
