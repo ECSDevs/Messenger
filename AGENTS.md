@@ -177,7 +177,7 @@ These constraints MUST be followed at all times:
 
 4. **Nested Scaffold caution**: Avoid nested Scaffold double-inset issues. The outer `MainScaffold` only applies bottom padding for the bottom navigation bar.
 
-5. **Versioning**: Version code is derived from git commit count (or `VERSION_CODE` env var). Version name is `v{versionCode}`. Release tags follow `v*` pattern.
+5. **Versioning**: Version code is derived from git commit count (or `VERSION_CODE` env var). Version name is `v{yyyyMMdd}` from the build date (or `VERSION_NAME` env var). Release tags follow `v*` pattern.
 
 6. **Dependency management**: Use version catalog (`gradle/libs.versions.toml`) for all dependency versions.
 
@@ -263,14 +263,14 @@ If a change makes any section of AGENTS.md outdated or incomplete, update it in 
 1. Create a `local.properties` file with `sdk.dir=/path/to/android/sdk`
 2. For release builds, set up keystore in `keyring/messenger-release.jks`
 3. Environment variables for signing: `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
-4. Version code can be overridden with `VERSION_CODE` env var
+4. Version code can be overridden with `VERSION_CODE` env var; version name with `VERSION_NAME` env var
 
 ## CI/CD
 
 GitHub Actions workflow (`.github/workflows/android.yml`):
 
 - **Trigger**: Push to main, PRs to main, tags matching `v*`
-- **Build job**: Compiles mobile and wear release APKs
+- **Build job**: Compiles mobile and wear release APKs; computes `VERSION_CODE` from `git rev-list --count HEAD` (full checkout via `fetch-depth: 0`)
 - **Release job**: Creates GitHub release with APK artifacts on tag push
 - **Caching**: Gradle User Home cache + Kotlin/Native compiler cache
 - **Signing**: Uses GitHub secrets for keystore and passwords
@@ -278,8 +278,9 @@ GitHub Actions workflow (`.github/workflows/android.yml`):
 ## Git Workflow
 
 - Main branch: `main`
-- Release tags: `v*` (e.g., `v123`)
+- Release tags: `v*` (e.g., `v123`, named after version code = commit count)
 - Version code = number of commits (auto-calculated in CI)
+- Version name = `v{yyyyMMdd}` build date (e.g., `v20260711`)
 - Each completed task should be committed and pushed
 
 ### Commit & Push After Each Task

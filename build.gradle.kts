@@ -47,7 +47,7 @@ loadDotEnv()
 /**
  * 从环境变量或 Git 自动计算版本信息：
  * - versionCode: 优先读取 VERSION_CODE 环境变量，否则 git commit 总数
- * - versionName: "v" + versionCode（与 release tag 保持一致）
+ * - versionName: "v" + 当前日期（yyyyMMdd），例如 v20260711
  */
 fun getEnv(key: String): String? {
     return System.getenv(key) ?: System.getProperty(key)
@@ -65,13 +65,17 @@ fun computeVersionCode(): Int {
     return output.toIntOrNull() ?: 1
 }
 
-fun computeVersionName(code: Int): String {
-    return "v$code"
+fun computeVersionName(): String {
+    // 用构建日期作为 versionName（vyyyyMMdd），可被 VERSION_NAME 环境变量覆盖
+    val envValue = getEnv("VERSION_NAME")
+    if (envValue != null) return envValue
+    val date = java.time.LocalDate.now()
+    return "v" + date.toString().replace("-", "")
 }
 
 val verCode = computeVersionCode()
 ext["versionCode"] = verCode
-ext["versionName"] = computeVersionName(verCode)
+ext["versionName"] = computeVersionName()
 ext["keystoreFile"] = rootDir.resolve("keyring/messenger-release.jks")
 ext["keystorePassword"] = getEnv("KEYSTORE_PASSWORD") ?: ""
 ext["keyAlias"] = getEnv("KEY_ALIAS") ?: "messenger"

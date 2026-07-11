@@ -17,11 +17,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Get version info via GitHub API
+      - name: Compute version code from commit count
         run: |
-          COMMIT_COUNT=$(curl -s "https://api.github.com/repos/${{ github.repository }}/commits" | jq 'length')
-          echo "VERSION_CODE=${COMMIT_COUNT:-1}" >> $GITHUB_ENV
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          echo "VERSION_CODE=${COMMIT_COUNT}" >> $GITHUB_ENV
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
