@@ -177,7 +177,7 @@ These constraints MUST be followed at all times:
 
 4. **Nested Scaffold caution**: Avoid nested Scaffold double-inset issues. The outer `MainScaffold` only applies bottom padding for the bottom navigation bar.
 
-5. **Versioning**: Version code is derived from git commit count (or `VERSION_CODE` env var). Version name is `v{yyyyMMdd}` from the build date (or `VERSION_NAME` env var). Release tags follow `v*` pattern.
+5. **Versioning**: Version code is derived from git commit count (or `VERSION_CODE` env var). Version name is `v{yyyyMMdd}` from the latest commit's date for reproducibility (or `VERSION_NAME` env var). Release tags follow `v*` pattern.
 
 6. **Dependency management**: Use version catalog (`gradle/libs.versions.toml`) for all dependency versions.
 
@@ -280,7 +280,7 @@ GitHub Actions workflow (`.github/workflows/android.yml`):
 - Main branch: `main`
 - Release tags: `v*` (e.g., `v123`, named after version code = commit count)
 - Version code = number of commits (auto-calculated in CI)
-- Version name = `v{yyyyMMdd}` build date (e.g., `v20260711`)
+- Version name = `v{yyyyMMdd}` from latest commit's date for reproducibility (e.g., `v20260711`)
 - Each completed task should be committed and pushed
 
 ### Commit & Push After Each Task

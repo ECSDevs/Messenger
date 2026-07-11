@@ -47,7 +47,7 @@ loadDotEnv()
 /**
  * 从环境变量或 Git 自动计算版本信息：
  * - versionCode: 优先读取 VERSION_CODE 环境变量，否则 git commit 总数
- * - versionName: "v" + 当前日期（yyyyMMdd），例如 v20260711
+ * - versionName: "v" + 最新提交日期（yyyyMMdd），保证可复现；可被 VERSION_NAME 环境变量覆盖
  */
 fun getEnv(key: String): String? {
     return System.getenv(key) ?: System.getProperty(key)
@@ -66,11 +66,15 @@ fun computeVersionCode(): Int {
 }
 
 fun computeVersionName(): String {
-    // 用构建日期作为 versionName（vyyyyMMdd），可被 VERSION_NAME 环境变量覆盖
+    // 用最新一次提交的日期作为 versionName（vyyyyMMdd），保证同一提交的构建产物可复现。
+    // 可被 VERSION_NAME 环境变量覆盖。
     val envValue = getEnv("VERSION_NAME")
     if (envValue != null) return envValue
-    val date = java.time.LocalDate.now()
-    return "v" + date.toString().replace("-", "")
+    val output = providers.exec {
+        commandLine("git", "log", "-1", "--format=%cd", "--date=format:%Y%m%d")
+        workingDir = rootDir
+    }.standardOutput.asText.get().trim()
+    return "v$output"
 }
 
 val verCode = computeVersionCode()
