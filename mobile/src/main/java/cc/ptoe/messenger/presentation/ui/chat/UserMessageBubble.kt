@@ -1,7 +1,7 @@
 package cc.ptoe.messenger.presentation.ui.chat
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -60,25 +60,34 @@ fun UserMessageBubble(
         horizontalAlignment = Alignment.End
     ) {
         Row(
-            horizontalArrangement = Arrangement.End,
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Bottom
         ) {
-            Row(
-                modifier = Modifier
-                    .clip(bubbleShape)
-                    .background(bubbleColor)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.Bottom
+            // The bubble is wrapped in a weighted Box so the avatar (non-weighted)
+            // is measured first and always gets its full 32dp. Without this, a long
+            // message consumes all the row width during the bubble's measurement and
+            // squeezes the avatar down to nothing. The Box aligns the bubble to its
+            // end so it stays flush against the avatar on the right.
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterEnd
             ) {
-                Text(
-                    text = message.content,
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                // 行内状态指示（Google Messages 风格：放气泡右下角，半透明）
-                Spacer(modifier = Modifier.width(8.dp))
-                MessageStatusIndicator(message = message, tint = Color.White.copy(alpha = 0.75f))
+                Row(
+                    modifier = Modifier
+                        .clip(bubbleShape)
+                        .background(bubbleColor)
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Text(
+                        text = message.content,
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    // 行内状态指示（Google Messages 风格：放气泡右下角，半透明）
+                    Spacer(modifier = Modifier.width(8.dp))
+                    MessageStatusIndicator(message = message, tint = Color.White.copy(alpha = 0.75f))
+                }
             }
             if (isLastInGroup) {
                 Spacer(modifier = Modifier.width(8.dp))

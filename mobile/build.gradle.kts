@@ -76,6 +76,15 @@ android {
     }
 }
 
+// guava (transitive via llm-typewriter / AndroidMath) bundles ListenableFuture,
+// which collides with the standalone listenablefuture-1.0 artifact. Exclude the
+// standalone one so checkDebugDuplicateClasses passes.
+configurations {
+    all {
+        exclude(group = "com.google.guava", module = "listenablefuture")
+    }
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
@@ -119,6 +128,8 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.transition)
     implementation(libs.ucrop)
+
+    implementation(libs.llm.typewriter)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

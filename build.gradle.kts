@@ -58,11 +58,16 @@ fun computeVersionCode(): Int {
     if (envValue != null) {
         return envValue.toIntOrNull() ?: 1
     }
-    val output = providers.exec {
-        commandLine("git", "rev-list", "--count", "HEAD")
-        workingDir = rootDir
-    }.standardOutput.asText.get().trim()
-    return output.toIntOrNull() ?: 1
+    return try {
+        val output = providers.exec {
+            commandLine("git", "rev-list", "--count", "HEAD")
+            workingDir = rootDir
+            isIgnoreExitValue = true
+        }.standardOutput.asText.get().trim()
+        output.toIntOrNull() ?: 1
+    } catch (e: Exception) {
+        1
+    }
 }
 
 fun computeVersionName(): String {
@@ -70,11 +75,16 @@ fun computeVersionName(): String {
     // 可被 VERSION_NAME 环境变量覆盖。
     val envValue = getEnv("VERSION_NAME")
     if (envValue != null) return envValue
-    val output = providers.exec {
-        commandLine("git", "log", "-1", "--format=%cd", "--date=format:%Y%m%d")
-        workingDir = rootDir
-    }.standardOutput.asText.get().trim()
-    return "v$output"
+    return try {
+        val output = providers.exec {
+            commandLine("git", "log", "-1", "--format=%cd", "--date=format:%Y%m%d")
+            workingDir = rootDir
+            isIgnoreExitValue = true
+        }.standardOutput.asText.get().trim()
+        if (output.isBlank()) "vunknown" else "v$output"
+    } catch (e: Exception) {
+        "vunknown"
+    }
 }
 
 val verCode = computeVersionCode()

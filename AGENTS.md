@@ -140,6 +140,13 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - Gson converter for JSON serialization
 - Wear chat requests are forwarded to the phone over a WebSocket on TCP `18765` (`MobileHttpServer` / `WearNetworkBridge`, discovered via NSD mDNS) instead of calling providers directly from the watch
 
+### Chat bubble rendering (mobile)
+
+- AI message bubbles use [`llm-typewriter`](https://github.com/ECSDevs/llm-typewriter) (`cc.ptoe:llm-typewriter`) for both the streaming reveal and the static rendering of completed messages.
+- The library ships progressive Markdown (bold, code fences with syntax highlighting, links) and inline / display LaTeX math, so the AI bubble is rendered via `StreamingTypewriter` + `rememberMarkdownTypewriterRenderer`.
+- `ChatViewModel` owns a single `StreamingTypewriterState` and a `streamingMessageId: StateFlow<String?>`. Each SSE `Content` event calls `typewriterState.appendToken(...)`; on `Done` the view model calls `completeSource()`; on `Error` / stop it calls `stop()` (and `skipToEnd()` on stop so the partial content stays visible). The `streamingMessageId` is cleared at the same point so the bubble switches to the static (`baseDelayMs = 0` + `skipToEnd()`) path.
+- The dependency pulls in [AndroidMath](https://github.com/gregcockroft/AndroidMath) transitively for LaTeX typography, which is hosted on JitPack. `settings.gradle.kts` already declares the `https://jitpack.io` repo.
+
 ## Hard Constraints
 
 These constraints MUST be followed at all times:

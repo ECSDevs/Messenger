@@ -85,6 +85,7 @@ fun ChatScreen(
     val isGenerating by viewModel.isGenerating.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val needsModelSetup by viewModel.needsModelSetup.collectAsStateWithLifecycle()
+    val streamingMessageId by viewModel.streamingMessageId.collectAsStateWithLifecycle()
     val userAvatar by MessengerApplication.instance.appPreferences.userAvatar.collectAsStateWithLifecycle(initialValue = null)
 
     var inputText by remember { mutableStateOf("") }
@@ -289,6 +290,8 @@ fun ChatScreen(
                                                     viewModel.retrySend(message.id)
                                                 }
                                             },
+                                            typewriterState = viewModel.typewriterState,
+                                            streamingMessageId = streamingMessageId,
                                             modifier = bubbleModifier
                                         )
                                     }

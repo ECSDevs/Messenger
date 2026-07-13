@@ -25,16 +25,26 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import cc.ptoe.llmtypewriter.SpeedCurve
+import cc.ptoe.llmtypewriter.StreamingTypewriter
+import cc.ptoe.llmtypewriter.StreamingTypewriterState
+import cc.ptoe.llmtypewriter.TypewriterPhase
+import cc.ptoe.llmtypewriter.rememberMarkdownTypewriterRenderer
 import cc.ptoe.messenger.domain.model.Message
 import cc.ptoe.messenger.domain.model.MessageStatus
 import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
 import cc.ptoe.messenger.presentation.utils.DateTimeUtils
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
 
 @Composable
 fun AiMessageBubble(
@@ -43,7 +53,14 @@ fun AiMessageBubble(
     isGenerating: Boolean = false,
     isLastInGroup: Boolean = true,
     avatar: String? = null,
-    onRetryClick: (() -> Unit)? = null
+    onRetryClick: (() -> Unit)? = null,
+    /**
+     * The shared typewriter state owned by the chat view model. When non-null
+     * and [message]'s id matches [streamingMessageId], the bubble animates
+     * progressively as the SSE stream feeds tokens into it.
+     */
+    typewriterState: StreamingTypewriterState? = null,
+    streamingMessageId: String? = null
 ) {
     val isError = message.status == MessageStatus.ERROR
     val bubbleColor = if (isError) {
@@ -64,6 +81,10 @@ fun AiMessageBubble(
         bottomStart = if (isLastInGroup) 4.dp else 18.dp,
         bottomEnd = 18.dp
     )
+
+    val isLiveStream = typewriterState != null &&
+        streamingMessageId != null &&
+        message.id == streamingMessageId
 
     Column(
         modifier = modifier
@@ -91,17 +112,68 @@ fun AiMessageBubble(
                         textColor = textColor,
                         onRetryClick = onRetryClick
                     )
-                } else if (message.content.isNotEmpty()) {
-                    Column {
-                        Text(
-                            text = message.content,
-                            color = textColor,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        if (message.status == MessageStatus.SENDING && isGenerating) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            TypingIndicator()
+                } else if (message.content.isNotEmpty() || isLiveStream) {
+                    // Live stream OR a non-empty rendered message: use the
+                    // typewriter. The renderer is the markdown one so bold,
+                    // code fences and LaTeX render progressively (and instantly
+                    // for already-completed messages via baseDelayMs = 0).
+                    val state: StreamingTypewriterState
+                    val tokens: Flow<String>
+                    val baseDelayMs: Long
+                    val speedCurve: SpeedCurve
+                    val tapToSkip: Boolean
+                    if (isLiveStream) {
+                        // Drive the shared state from the view model; pass a
+                        // never-completing flow so the composable does not
+                        // call completeSource() and freeze the phase to Done
+                        // before all tokens have arrived.
+                        state = typewriterState
+                        tokens = remember { flow { awaitCancellation() } }
+                        baseDelayMs = 18L
+                        speedCurve = SpeedCurve.Natural
+                        tapToSkip = true
+                    } else {
+                        // Static (already-streamed) message: per-message state
+                        // seeded SYNCHRONOUSLY with the persisted content and
+                        // skipped to the end. Seeding in `remember` (rather
+                        // than a LaunchedEffect) avoids a one-frame empty
+                        // render when the bubble switches from the live
+                        // typewriter to the static path — that empty frame is
+                        // the visible flicker on stream completion.
+                        state = remember(message.id, message.content) {
+                            StreamingTypewriterState().apply {
+                                if (message.content.isNotEmpty()) {
+                                    appendToken(message.content)
+                                    completeSource()
+                                    skipToEnd()
+                                }
+                            }
                         }
+                        tokens = emptyFlow()
+                        baseDelayMs = 0L
+                        speedCurve = SpeedCurve.Linear
+                        tapToSkip = false
+                    }
+                    // Before the live stream reveals its first character, show
+                    // the three-dot typing indicator instead of an empty bubble.
+                    // The check uses `phase` (flipped by appendToken from the
+                    // view model) so the placeholder disappears the moment the
+                    // first token arrives — no need for the typewriter's reveal
+                    // loop to be composing.
+                    val showTypingPlaceholder = isLiveStream &&
+                        state.phase == TypewriterPhase.Idle
+                    if (showTypingPlaceholder) {
+                        TypingIndicator()
+                    } else {
+                        val renderer = rememberMarkdownTypewriterRenderer(state)
+                        StreamingTypewriter(
+                            tokens = tokens,
+                            state = state,
+                            renderer = renderer,
+                            baseDelayMs = baseDelayMs,
+                            speedCurve = speedCurve,
+                            tapToSkip = tapToSkip
+                        )
                     }
                 } else {
                     TypingIndicator()

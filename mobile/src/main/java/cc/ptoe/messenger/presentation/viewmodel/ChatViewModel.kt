@@ -3,9 +3,12 @@ package cc.ptoe.messenger.presentation.viewmodel
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import cc.ptoe.llmtypewriter.StreamingTypewriterState
+import cc.ptoe.llmtypewriter.TypewriterPhase
 import cc.ptoe.messenger.data.remote.sse.ChatStreamEvent
 import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.model.ChatModel
@@ -20,6 +23,7 @@ import cc.ptoe.messenger.domain.repository.ConversationRepository
 import cc.ptoe.messenger.domain.repository.MessageRepository
 import cc.ptoe.messenger.domain.repository.ModelRepository
 import cc.ptoe.messenger.domain.repository.ProviderRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +35,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -95,6 +100,21 @@ class ChatViewModel(
 
     private val _needsModelSetup = MutableStateFlow(false)
     val needsModelSetup: StateFlow<Boolean> = _needsModelSetup.asStateFlow()
+
+    /**
+     * The shared typewriter state driving the currently-streaming AI message bubble.
+     * Fed externally from SSE events in [generateResponse] / [retrySend]. Each
+     * new stream calls [StreamingTypewriterState.reset] before tokens start flowing.
+     */
+    val typewriterState: StreamingTypewriterState = StreamingTypewriterState()
+
+    /**
+     * The id of the AI message that is currently being streamed. The chat bubble
+     * whose message id matches this value binds to [typewriterState] for live
+     * rendering; other bubbles render their [Message.content] statically.
+     */
+    private val _streamingMessageId = MutableStateFlow<String?>(null)
+    val streamingMessageId: StateFlow<String?> = _streamingMessageId.asStateFlow()
 
     private var currentGenerationJob: Job? = null
 
@@ -202,6 +222,10 @@ class ChatViewModel(
         )
         messageRepository.insert(aiMessage)
 
+        // Bind the shared typewriter state to this message and reset the buffer
+        // so the new stream starts from a clean slate.
+        typewriterState.reset()
+        _streamingMessageId.value = aiMessageId
         _isGenerating.value = true
 
         val historyMessages = messages.value
@@ -209,9 +233,9 @@ class ChatViewModel(
             .takeLast(20)
 
         currentGenerationJob = viewModelScope.launch {
+            var hasFinished = false
             try {
                 var currentContent = ""
-                var hasFinished = false
                 apiRepository.streamChatCompletion(
                     provider = provider,
                     modelId = model.modelId,
@@ -224,6 +248,10 @@ class ChatViewModel(
                     when (event) {
                         is ChatStreamEvent.Content -> {
                             currentContent += event.text
+                            // Drive the shared typewriter state so the bubble
+                            // animates progressively; the DB write below keeps
+                            // the persisted content in sync for re-entry.
+                            typewriterState.appendToken(event.text)
                             messageRepository.update(
                                 aiMessage.copy(content = currentContent)
                             )
@@ -231,6 +259,7 @@ class ChatViewModel(
                         }
                         is ChatStreamEvent.Done -> {
                             hasFinished = true
+                            typewriterState.completeSource()
                             messageRepository.update(
                                 aiMessage.copy(
                                     content = currentContent,
@@ -238,10 +267,18 @@ class ChatViewModel(
                                 )
                             )
                             updateConversationLastMessage(conversationId, currentContent, System.currentTimeMillis())
+                            // Let the typewriter finish revealing its buffer before
+                            // unbinding so the bubble doesn't jump from partial text
+                            // to the full static content (flicker). _isGenerating stays
+                            // true so a new send can't reset the shared state; tap Stop
+                            // to skip the tail.
+                            awaitTypewriterDone()
+                            _streamingMessageId.value = null
                             _isGenerating.value = false
                         }
                         is ChatStreamEvent.Error -> {
                             hasFinished = true
+                            typewriterState.stop()
                             messageRepository.update(
                                 aiMessage.copy(
                                     content = currentContent,
@@ -250,11 +287,13 @@ class ChatViewModel(
                                 )
                             )
                             setError(event.message)
+                            _streamingMessageId.value = null
                             _isGenerating.value = false
                         }
                     }
                 }
                 if (!hasFinished) {
+                    typewriterState.stop()
                     messageRepository.update(
                         aiMessage.copy(
                             content = currentContent,
@@ -263,10 +302,19 @@ class ChatViewModel(
                         )
                     )
                     setError("API 未返回有效响应，请检查 API 配置和参数")
+                    _streamingMessageId.value = null
                     _isGenerating.value = false
                 }
             } catch (e: Exception) {
+                if (hasFinished) {
+                    // Done already processed — don't overwrite SENT with ERROR.
+                    // Rethrow cancellation so it propagates cleanly; swallow the
+                    // (unlikely) rest to avoid crashing the scope.
+                    if (e is CancellationException) throw e
+                    return@launch
+                }
                 val currentContent = messages.value.find { it.id == aiMessageId }?.content ?: ""
+                typewriterState.stop()
                 messageRepository.update(
                     aiMessage.copy(
                         content = currentContent,
@@ -275,8 +323,28 @@ class ChatViewModel(
                     )
                 )
                 setError(e.message ?: "Unknown error")
+                _streamingMessageId.value = null
                 _isGenerating.value = false
             }
+        }
+    }
+
+    /**
+     * Waits for the shared typewriter to finish revealing its buffer (phase == Done)
+     * before the host unbinds [streamingMessageId] — otherwise the bubble jumps from
+     * partially-revealed text to the full static content (visible flicker). Bounded by
+     * a timeout in case the bubble is no longer composing (reveal loop cancelled) or
+     * the buffer is too large to flush in a reasonable window.
+     */
+    private suspend fun awaitTypewriterDone(timeoutMs: Long = 3000L) {
+        val flushed = withTimeoutOrNull(timeoutMs) {
+            snapshotFlow { typewriterState.phase }
+                .first { it == TypewriterPhase.Done || it == TypewriterPhase.Stopped }
+        }
+        if (flushed == null) {
+            // Reveal loop isn't running (bubble disposed) or buffer too large —
+            // force-flush so the subsequent static render matches the live view.
+            typewriterState.skipToEnd()
         }
     }
 
@@ -286,6 +354,12 @@ class ChatViewModel(
         _isGenerating.value = false
 
         viewModelScope.launch {
+            // Flush any pending typewriter buffer so the partial content is
+            // visible after the bubble switches to static rendering.
+            typewriterState.skipToEnd()
+            typewriterState.stop()
+            _streamingMessageId.value = null
+
             val lastAiMessage = messages.value.lastOrNull { it.role == MessageRole.ASSISTANT }
             if (lastAiMessage != null && lastAiMessage.status == MessageStatus.SENDING) {
                 messageRepository.update(
@@ -335,12 +409,16 @@ class ChatViewModel(
                 .filter { it.status == MessageStatus.SENT && it.id != messageId }
                 .takeLast(20)
 
+            // Bind the shared typewriter state to this message id and reset
+            // the buffer so the retry stream starts from a clean slate.
+            typewriterState.reset()
+            _streamingMessageId.value = messageId
             _isGenerating.value = true
 
             currentGenerationJob = launch {
+                var hasFinished = false
                 try {
                     var currentContent = ""
-                    var hasFinished = false
                     apiRepository.streamChatCompletion(
                         provider = provider,
                         modelId = model.modelId,
@@ -353,6 +431,7 @@ class ChatViewModel(
                         when (event) {
                             is ChatStreamEvent.Content -> {
                                 currentContent += event.text
+                                typewriterState.appendToken(event.text)
                                 messageRepository.update(
                                     message.copy(content = currentContent)
                                 )
@@ -364,6 +443,7 @@ class ChatViewModel(
                             }
                             is ChatStreamEvent.Done -> {
                                 hasFinished = true
+                                typewriterState.completeSource()
                                 messageRepository.update(
                                     message.copy(
                                         content = currentContent,
@@ -376,10 +456,13 @@ class ChatViewModel(
                                     currentContent,
                                     System.currentTimeMillis()
                                 )
+                                awaitTypewriterDone()
+                                _streamingMessageId.value = null
                                 _isGenerating.value = false
                             }
                             is ChatStreamEvent.Error -> {
                                 hasFinished = true
+                                typewriterState.stop()
                                 messageRepository.update(
                                     message.copy(
                                         content = currentContent,
@@ -388,11 +471,13 @@ class ChatViewModel(
                                     )
                                 )
                                 setError(event.message)
+                                _streamingMessageId.value = null
                                 _isGenerating.value = false
                             }
                         }
                     }
                     if (!hasFinished) {
+                        typewriterState.stop()
                         messageRepository.update(
                             message.copy(
                                 content = currentContent,
@@ -401,10 +486,16 @@ class ChatViewModel(
                             )
                         )
                         setError("API 未返回有效响应，请检查 API 配置和参数")
+                        _streamingMessageId.value = null
                         _isGenerating.value = false
                     }
                 } catch (e: Exception) {
+                    if (hasFinished) {
+                        if (e is CancellationException) throw e
+                        return@launch
+                    }
                     val currentContent = messages.value.find { it.id == messageId }?.content ?: ""
+                    typewriterState.stop()
                     messageRepository.update(
                         message.copy(
                             content = currentContent,
@@ -413,6 +504,7 @@ class ChatViewModel(
                         )
                     )
                     setError(e.message ?: "Unknown error")
+                    _streamingMessageId.value = null
                     _isGenerating.value = false
                 }
             }
