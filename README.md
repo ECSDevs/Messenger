@@ -18,16 +18,7 @@
   <p align="center">
     A beautifully designed AI chat app, built for your phone and your wrist.
     <br />
-    Chat with your favorite AI models on your phone, tablet, or Wear OS watch — Material 3 design, Bring Your Own Key, fully open-source and offline-capable.
-    <br />
-    <a href="https://github.com/ECSDevs/Messenger"><strong>Explore the docs »</strong></a>
-    <br />
-    <br />
-    <a href="https://github.com/ECSDevs/Messenger">View Demo</a>
-    &middot;
-    <a href="https://github.com/ECSDevs/Messenger/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
-    &middot;
-    <a href="https://github.com/ECSDevs/Messenger/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    Chat with your favourite AI models on your phone, tablet, or Wear OS watch — Material 3 design, Bring Your Own Key, fully open-source and offline-capable.
   </p>
 </div>
 
@@ -48,7 +39,6 @@
       </ul>
     </li>
     <li><a href="#usage">Usage</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contact">Contact</a></li>
@@ -58,9 +48,9 @@
 
 ## About The Project
 
-Messenger is a Material 3 designed LLM chat application for Android, focused on an on-wrist experience and ease of use. It is fully open-source, free, and offline-capable, using a BYOK (Bring Your Own Key) model.
+Messenger is a Material-3-designed LLM chat application for Android, focused on an on-wrist experience and ease of use. It is fully open-source, free, and offline-capable, using a BYOK (Bring Your Own Key) model.
 
-Chat with your favorite AI models on your phone or tablet — with a clean, modern interface that feels great to use. The Wear OS companion keeps chat simple by syncing your agents from mobile and using your phone as the configured AI backend.
+Chat with your favourite AI models on your phone or tablet — with a clean, modern interface that feels great to use. The Wear OS companion keeps chat simple by syncing your agents from mobile and using your phone as the configured AI backend.
 
 Key highlights:
 
@@ -113,7 +103,7 @@ To get a local copy up and running, follow these simple steps.
    ./gradlew :wear:assembleDebug
    ```
 4. For release builds, place your keystore at `keyring/messenger-release.jks` and provide the environment variables `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`. Version code and name can be overridden with the `VERSION_CODE` and `VERSION_NAME` environment variables.
-5. (Optional) Change git remote url to avoid accidental pushes to the base project
+5. (Optional) Change the git remote URL to avoid accidental pushes to the base project
    ```sh
    git remote set-url origin ECSDevs/Messenger
    git remote -v # confirm the changes
@@ -127,22 +117,11 @@ To get a local copy up and running, follow these simple steps.
 2. Add your API key from your preferred AI provider
 3. Pick a model and start chatting
 4. Create custom agents for different tasks
-5. (Optional) Install the Wear OS companion — it discovers your phone over local network (NSD mDNS) and syncs your agents automatically over a WebSocket on TCP `18765`
+5. (Optional) Install the Wear OS companion — it discovers your phone over the local network (NSD mDNS) and syncs your agents automatically over a WebSocket on TCP `18765`
 
 Messenger speaks the OpenAI-compatible Chat Completions API, so any provider that exposes that interface works out of the box.
 
 _For more details on architecture, conventions, and hard constraints, please refer to [AGENTS.md](AGENTS.md)_
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Roadmap
-
-- [ ] Feature 1
-- [ ] Feature 2
-- [ ] Feature 3
-    - [ ] Nested Feature
-
-See the [open issues](https://github.com/ECSDevs/Messenger/issues) for a full list of proposed features (and known issues).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
