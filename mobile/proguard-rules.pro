@@ -121,6 +121,19 @@
 -dontwarn org.commonmark.**
 
 # ===========================================================================
+# llm-typewriter / AndroidMath (Markdown + LaTeX rendering)
+# ===========================================================================
+# The markdown renderer is called directly from Compose, but LaTeX rendering
+# crosses AndroidMath and FreeType-backed classes that are easy for R8 to strip
+# or rename aggressively. Keep the renderer stack intact for release builds.
+-keep class cc.ptoe.llmtypewriter.** { *; }
+-keep class com.agog.mathdisplay.** { *; }
+-keep class com.pvporbit.freetype.** { *; }
+-dontwarn cc.ptoe.llmtypewriter.**
+-dontwarn com.agog.mathdisplay.**
+-dontwarn com.pvporbit.freetype.**
+
+# ===========================================================================
 # ucrop (image cropping) — UCropActivity is declared in the manifest
 # ===========================================================================
 -keep class com.yalantis.ucrop.** { *; }
