@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -70,17 +71,19 @@ import kotlinx.coroutines.withContext
 fun SettingsScreen(
     onProvidersClick: () -> Unit,
     onLicensesClick: () -> Unit,
-    cloudSyncRepository: CloudSyncRepository,
+    onCloudSettingsClick: () -> Unit,
     viewModel: SettingsViewModel = viewModel(
         factory = SettingsViewModel.provideFactory(
             themePreferences = MessengerApplication.instance.themePreferences,
             appPreferences = MessengerApplication.instance.appPreferences,
-            cloudSyncRepository = cloudSyncRepository
+            cloudSyncRepository = MessengerApplication.instance.cloudSyncRepository
         )
     )
 ) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val userAvatar by viewModel.userAvatar.collectAsStateWithLifecycle()
+    val cloudUser by viewModel.cloudUser.collectAsStateWithLifecycle()
+    val cloudServerUrl by viewModel.cloudServerUrl.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -218,9 +221,9 @@ fun SettingsScreen(
             item {
                 ListItem(
                     title = "Messenger Cloud",
-                    subtitle = viewModel.cloudUser.value?.email ?: "未登录 · ${viewModel.cloudServerUrl.value}",
+                    subtitle = cloudUser?.email ?: "未登录 · $cloudServerUrl",
                     icon = Icons.Default.Cloud,
-                    onClick = { showCloudDialog = true }
+                    onClick = onCloudSettingsClick
                 )
             }
             item {
@@ -279,7 +282,7 @@ fun SettingsScreen(
         if (showClearDataDialog) {
             ConfirmationDialog(
                 title = "清除所有数据",
-                text = "此操作将删除所有对话、Agent、Provider 和相关数据。此操作不可撤销，确定要继续吗？",
+                 text = "此操作将删除本地对话、Agent、Provider 和相关数据，退出 Messenger Cloud，并恢复默认服务器地址。云端备份不会被删除。确定要继续吗？",
                 confirmButtonText = "清除",
                 dismissButtonText = "取消",
                 onConfirm = {
@@ -292,17 +295,43 @@ fun SettingsScreen(
 
         if (showCloudDialog) {
             CloudAccountDialog(
-                serverUrl = viewModel.cloudServerUrl.value,
-                user = viewModel.cloudUser.value?.email,
+                serverUrl = cloudServerUrl,
+                user = cloudUser?.email,
                 onDismiss = { showCloudDialog = false },
-                onServerUrl = { value -> viewModel.setCloudServerUrl(value) {} },
-                onLogin = { email, password, isRegister ->
-                    if (isRegister) viewModel.register(email, password) {}
-                    else viewModel.login(email, password) {}
+                onLogin = { email, password, serverUrl, isRegister ->
+                    val handleResult: (Result<*>) -> Unit = { result ->
+                        result.onSuccess {
+                            showCloudDialog = false
+                            Toast.makeText(context, "登录成功", Toast.LENGTH_SHORT).show()
+                        }.onFailure {
+                            Toast.makeText(context, it.message ?: "登录失败", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    if (isRegister) viewModel.register(email, password, serverUrl, handleResult)
+                    else viewModel.login(email, password, serverUrl, handleResult)
                 },
-                onLogout = { viewModel.logout {} },
-                onUpload = { viewModel.upload {} },
-                onRestore = { viewModel.restore {} }
+                onLogout = {
+                    viewModel.logout { result ->
+                        result.onSuccess { Toast.makeText(context, "已退出登录", Toast.LENGTH_SHORT).show() }
+                    }
+                },
+                onUpload = {
+                    viewModel.upload { result ->
+                        result.onSuccess { Toast.makeText(context, "备份上传成功", Toast.LENGTH_SHORT).show() }
+                            .onFailure { Toast.makeText(context, it.message ?: "上传失败", Toast.LENGTH_LONG).show() }
+                    }
+                },
+                onRestore = {
+                    viewModel.restore { result ->
+                        result.onSuccess { Toast.makeText(context, "云端数据已恢复", Toast.LENGTH_SHORT).show() }
+                            .onFailure { Toast.makeText(context, it.message ?: "恢复失败", Toast.LENGTH_LONG).show() }
+                    }
+                },
+                onServerUrl = { value ->
+                    viewModel.setCloudServerUrl(value) { result ->
+                        result.onFailure { Toast.makeText(context, it.message ?: "服务器地址无效", Toast.LENGTH_LONG).show() }
+                    }
+                }
             )
         }
     }
@@ -314,7 +343,7 @@ private fun CloudAccountDialog(
     user: String?,
     onDismiss: () -> Unit,
     onServerUrl: (String) -> Unit,
-    onLogin: (String, String, Boolean) -> Unit,
+    onLogin: (String, String, String, Boolean) -> Unit,
     onLogout: () -> Unit,
     onUpload: () -> Unit,
     onRestore: () -> Unit
@@ -344,7 +373,7 @@ private fun CloudAccountDialog(
             Column(horizontalAlignment = Alignment.End) {
                 Button(onClick = {
                     onServerUrl(url)
-                    if (user == null) onLogin(email, password, register) else onUpload()
+                    if (user == null) onLogin(email, password, url, register) else onUpload()
                 }) { Text(if (user == null) if (register) "注册并同步" else "登录并同步" else "上传备份") }
                 if (user != null) {
                     TextButton(onClick = onRestore) { Text("从云端恢复") }

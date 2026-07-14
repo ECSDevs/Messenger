@@ -1,6 +1,8 @@
 package cc.ptoe.messenger.data.cloud
 
 import android.os.Build
+import android.content.Context
+import android.util.Base64
 import androidx.room.withTransaction
 import cc.ptoe.messenger.data.local.AppPreferences
 import cc.ptoe.messenger.data.local.MessengerDatabase
@@ -23,6 +25,8 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Url
 import java.util.concurrent.TimeUnit
+import java.io.File
+import java.util.UUID
 
 const val DEFAULT_CLOUD_SERVER_URL = "https://messenger.ptoe.cc"
 
@@ -45,6 +49,7 @@ private interface CloudApi {
 class CloudSyncRepository(
     private val appPreferences: AppPreferences,
     private val database: MessengerDatabase,
+    private val context: Context,
     private val gson: Gson = Gson()
 ) {
     private val api = Retrofit.Builder()
@@ -64,12 +69,17 @@ class CloudSyncRepository(
 
     suspend fun setServerUrl(url: String) {
         val normalized = url.trim().trimEnd('/')
-        require(normalized.startsWith("https://")) { "服务器地址必须使用 HTTPS" }
+        require(normalized.startsWith("http://") || normalized.startsWith("https://")) {
+            "服务器地址必须使用 HTTP 或 HTTPS"
+        }
         appPreferences.setCloudServerUrl(normalized.takeUnless { it == DEFAULT_CLOUD_SERVER_URL })
     }
 
-    suspend fun login(email: String, password: String): CloudUser = api.login(endpoint("api/auth/login"), CredentialsRequest(email.trim(), password)).user.also { saveUser(it) }
-    suspend fun register(email: String, password: String): CloudUser = api.register(endpoint("api/auth/register"), CredentialsRequest(email.trim(), password)).user.also { saveUser(it) }
+    suspend fun login(email: String, password: String, serverUrl: String? = null): CloudUser =
+        api.login(endpoint("api/auth/login", serverUrl), CredentialsRequest(email.trim(), password)).user.also { saveUser(it) }
+
+    suspend fun register(email: String, password: String, serverUrl: String? = null): CloudUser =
+        api.register(endpoint("api/auth/register", serverUrl), CredentialsRequest(email.trim(), password)).user.also { saveUser(it) }
 
     suspend fun logout() {
         runCatching { api.logout(endpoint("api/auth/logout")) }
@@ -97,14 +107,28 @@ class CloudSyncRepository(
     private suspend fun createPayload() = CloudBackupPayload(
         exportedAt = System.currentTimeMillis(),
         device = CloudDevice(deviceName = "${Build.MANUFACTURER} ${Build.MODEL}"),
+        avatars = createAvatarAssets(),
+        userAvatarKey = appPreferences.userAvatar.first(),
         providers = database.providerDao().getAllEntities(),
         models = database.modelDao().getAllEntities(),
         agents = database.agentDao().getAllEntities(),
         conversations = database.conversationDao().getAllEntities(),
-        messages = database.messageDao().getAllEntities()
+        messages = database.messageDao().getAllEntities().map { message ->
+            CloudMessage(
+                id = message.id,
+                conversationId = message.conversationId,
+                role = message.role.lowercase(),
+                content = message.content,
+                timestamp = message.timestamp,
+                status = message.status.uppercase(),
+                errorMessage = message.errorMessage
+            )
+        }
     )
 
     private suspend fun restorePayload(payload: CloudBackupPayload) {
+        val restoredAvatars = restoreAvatarAssets(payload.avatars)
+        val restoredUserAvatar = payload.userAvatarKey?.let { restoredAvatars[it] }
         database.withTransaction {
             database.messageDao().deleteAll()
             database.conversationDao().deleteAll()
@@ -113,10 +137,53 @@ class CloudSyncRepository(
             database.providerDao().deleteAll()
             payload.providers.forEach { database.providerDao().insert(it) }
             payload.models.orEmpty().forEach { database.modelDao().insert(it) }
-            payload.agents.forEach { database.agentDao().insert(it) }
+            payload.agents.forEach { agent ->
+                database.agentDao().insert(agent.copy(avatar = agent.avatar?.let { restoredAvatars[it] ?: it }))
+            }
             payload.conversations.forEach { database.conversationDao().insert(it) }
-            payload.messages.forEach { database.messageDao().insert(it) }
+            payload.messages.forEach { message ->
+                database.messageDao().insert(
+                    cc.ptoe.messenger.data.local.entity.MessageEntity(
+                        id = message.id,
+                        conversationId = message.conversationId,
+                        role = message.role.lowercase(),
+                        content = message.content,
+                        timestamp = message.timestamp,
+                        status = message.status.lowercase(),
+                        errorMessage = message.errorMessage
+                    )
+                )
+            }
         }
+        appPreferences.setUserAvatar(restoredUserAvatar)
+    }
+
+    private suspend fun createAvatarAssets(): List<CloudAvatarAsset> {
+        val paths = buildList {
+            appPreferences.userAvatar.first()?.let(::add)
+            database.agentDao().getAllEntities().mapNotNull { it.avatar }.forEach(::add)
+        }.distinct()
+        return paths.mapNotNull { path ->
+            val file = File(path)
+            if (!file.isFile) return@mapNotNull null
+            CloudAvatarAsset(
+                key = path,
+                data = Base64.encodeToString(file.readBytes(), Base64.NO_WRAP),
+                extension = file.extension.ifBlank { "jpg" }
+            )
+        }
+    }
+
+    private fun restoreAvatarAssets(assets: List<CloudAvatarAsset>): Map<String, String> {
+        if (assets.isEmpty()) return emptyMap()
+        val directory = File(context.filesDir, "cloud_avatars").apply { mkdirs() }
+        return assets.mapNotNull { asset ->
+            runCatching {
+                val file = File(directory, "${UUID.randomUUID()}.${asset.extension}")
+                file.writeBytes(Base64.decode(asset.data, Base64.DEFAULT))
+                asset.key to file.absolutePath
+            }.getOrNull()
+        }.toMap()
     }
 
     private suspend fun checkSignedIn() {
@@ -127,7 +194,10 @@ class CloudSyncRepository(
         appPreferences.setCloudUser(gson.toJson(value))
     }
 
-    private suspend fun endpoint(path: String): String = "${serverUrl.first()}/$path"
+    private suspend fun endpoint(path: String, overrideServerUrl: String? = null): String {
+        val baseUrl = overrideServerUrl?.trim()?.trimEnd('/') ?: serverUrl.first()
+        return "$baseUrl/$path"
+    }
 
     private fun createClient() = OkHttpClient.Builder()
         .cookieJar(PersistentCookieJar(appPreferences))

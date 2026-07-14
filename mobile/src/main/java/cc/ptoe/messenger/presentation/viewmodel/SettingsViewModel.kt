@@ -43,12 +43,16 @@ class SettingsViewModel(
         viewModelScope.launch { onResult(runCatching { cloudSyncRepository.setServerUrl(url) }) }
     }
 
-    fun login(email: String, password: String, onResult: (Result<CloudUser>) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { cloudSyncRepository.login(email, password) }) }
+    fun login(email: String, password: String, serverUrl: String, onResult: (Result<CloudUser>) -> Unit) {
+        viewModelScope.launch {
+            onResult(runCatching { cloudSyncRepository.login(email, password, serverUrl).also { cloudSyncRepository.setServerUrl(serverUrl) } })
+        }
     }
 
-    fun register(email: String, password: String, onResult: (Result<CloudUser>) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { cloudSyncRepository.register(email, password) }) }
+    fun register(email: String, password: String, serverUrl: String, onResult: (Result<CloudUser>) -> Unit) {
+        viewModelScope.launch {
+            onResult(runCatching { cloudSyncRepository.register(email, password, serverUrl).also { cloudSyncRepository.setServerUrl(serverUrl) } })
+        }
     }
 
     fun logout(onResult: (Result<Unit>) -> Unit) {

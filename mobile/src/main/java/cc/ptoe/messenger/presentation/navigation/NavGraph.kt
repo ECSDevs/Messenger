@@ -28,6 +28,7 @@ import cc.ptoe.messenger.presentation.ui.providers.ProviderEditScreen
 import cc.ptoe.messenger.presentation.ui.providers.ProvidersScreen
 import cc.ptoe.messenger.presentation.ui.settings.LicensesScreen
 import cc.ptoe.messenger.presentation.ui.settings.SettingsScreen
+import cc.ptoe.messenger.presentation.ui.settings.CloudSettingsScreen
 import cc.ptoe.messenger.presentation.viewmodel.ConversationsViewModel
 
 @Composable
@@ -110,6 +111,12 @@ fun NavGraph(
                 onLicensesClick = {
                     navController.navigate(Screen.Licenses.route)
                 },
+                onCloudSettingsClick = { navController.navigate(Screen.CloudSettings.route) }
+            )
+        }
+        composable(Screen.CloudSettings.route) {
+            CloudSettingsScreen(
+                onBackClick = { navController.popBackStack() },
                 cloudSyncRepository = MessengerApplication.instance.cloudSyncRepository
             )
         }

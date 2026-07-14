@@ -118,7 +118,7 @@ class MessengerApplication : Application() {
         messageRepository = MessageRepositoryImpl(database.messageDao())
         apiRepository = ApiRepositoryImpl()
         currentAgentRepository = CurrentAgentRepositoryImpl(appPreferences, agentRepository)
-        cloudSyncRepository = CloudSyncRepository(appPreferences, database)
+        cloudSyncRepository = CloudSyncRepository(appPreferences, database, applicationContext)
     }
 
     private fun initDefaultAgent() {
@@ -136,6 +136,9 @@ class MessengerApplication : Application() {
         appPreferences.setDefaultAgentInitialized(false)
         appPreferences.setCurrentAgentId(null)
         appPreferences.setUserAvatar(null)
+        appPreferences.setCloudSession(null)
+        appPreferences.setCloudUser(null)
+        appPreferences.setCloudServerUrl(null)
         createDefaultAgentIfNeeded()
     }
 
