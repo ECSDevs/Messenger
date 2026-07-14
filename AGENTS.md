@@ -21,6 +21,7 @@ Messenger/
 │   └── android.yml          # Android build & release pipeline
 ├── gradle/
 │   └── libs.versions.toml   # Version catalog for dependencies
+├── llm-typewriter/           # Git submodule: source build of the llm-typewriter library (tracks upstream main)
 ├── mobile/                   # Mobile (phone/tablet) module
 │   └── src/main/java/cc/ptoe/messenger/
 │       ├── data/
@@ -142,7 +143,8 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 
 ### Chat bubble rendering (mobile)
 
-- AI message bubbles use [`llm-typewriter`](https://github.com/ECSDevs/llm-typewriter) (`cc.ptoe:llm-typewriter`) for both the streaming reveal and the static rendering of completed messages.
+- AI message bubbles use [`llm-typewriter`](https://github.com/ECSDevs/llm-typewriter) for both the streaming reveal and the static rendering of completed messages.
+- Messenger builds `llm-typewriter` directly from the checked-out `llm-typewriter/` git submodule via `includeBuild("llm-typewriter")` in `settings.gradle.kts`, so Gradle substitutes the source build instead of downloading `cc.ptoe:llm-typewriter` from Maven Central.
 - The library ships progressive Markdown (bold, code fences with syntax highlighting, links) and inline / display LaTeX math, so the AI bubble is rendered via `StreamingTypewriter` + `rememberMarkdownTypewriterRenderer`.
 - `ChatViewModel` owns a single `StreamingTypewriterState` and a `streamingMessageId: StateFlow<String?>`. Each SSE `Content` event calls `typewriterState.appendToken(...)`; on `Done` the view model calls `completeSource()`; on `Error` / stop it calls `stop()` (and `skipToEnd()` on stop so the partial content stays visible). The `streamingMessageId` is cleared at the same point so the bubble switches to the static (`baseDelayMs = 0` + `skipToEnd()`) path.
 - The dependency pulls in [AndroidMath](https://github.com/gregcockroft/AndroidMath) transitively for LaTeX typography, which is hosted on JitPack. `settings.gradle.kts` already declares the `https://jitpack.io` repo.
@@ -268,9 +270,10 @@ If a change makes any section of AGENTS.md outdated or incomplete, update it in 
 ### Local Development
 
 1. Create a `local.properties` file with `sdk.dir=/path/to/android/sdk`
-2. For release builds, set up keystore in `keyring/messenger-release.jks`
-3. Environment variables for signing: `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
-4. Version code can be overridden with `VERSION_CODE` env var; version name with `VERSION_NAME` env var
+2. Initialize submodules after cloning: `git submodule update --init --recursive`
+3. For release builds, set up keystore in `keyring/messenger-release.jks`
+4. Environment variables for signing: `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
+5. Version code can be overridden with `VERSION_CODE` env var; version name with `VERSION_NAME` env var
 
 ## CI/CD
 

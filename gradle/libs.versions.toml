@@ -44,7 +44,6 @@ materialIconsExtended = "1.7.8"
 securityCrypto = "1.1.0"
 ucrop = "2.2.11"
 transition = "1.7.0"
-llmTypewriter = "0.1.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -101,7 +100,7 @@ androidx-transition = { group = "androidx.transition", name = "transition", vers
 
 ucrop = { group = "com.github.Yalantis", name = "ucrop", version.ref = "ucrop" }
 
-llm-typewriter = { group = "cc.ptoe", name = "llm-typewriter", version.ref = "llmTypewriter" }
+llm-typewriter = { group = "cc.ptoe", name = "llm-typewriter" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

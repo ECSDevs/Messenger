@@ -40,5 +40,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Messenger"
+includeBuild("llm-typewriter")
 include(":mobile")
 include(":wear")
