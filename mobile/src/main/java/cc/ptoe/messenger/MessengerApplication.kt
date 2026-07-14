@@ -30,6 +30,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 class MessengerApplication : Application() {
@@ -122,9 +123,14 @@ class MessengerApplication : Application() {
     }
 
     suspend fun clearAllDataAndReinit() = withContext(Dispatchers.IO) {
+        appPreferences.userAvatar.first()?.let { avatarPath ->
+            File(avatarPath).takeIf { it.exists() }?.delete()
+        }
+        File(filesDir, "user_avatars").takeIf { it.exists() }?.deleteRecursively()
         database.clearAllTables()
         appPreferences.setDefaultAgentInitialized(false)
         appPreferences.setCurrentAgentId(null)
+        appPreferences.setUserAvatar(null)
         createDefaultAgentIfNeeded()
     }
 
