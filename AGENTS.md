@@ -280,7 +280,7 @@ If a change makes any section of AGENTS.md outdated or incomplete, update it in 
 GitHub Actions workflow (`.github/workflows/android.yml`):
 
 - **Trigger**: Push to main, PRs to main, tags matching `v*`
-- **Build job**: Compiles mobile and wear release APKs; computes `VERSION_CODE` from `git rev-list --count HEAD` (full checkout via `fetch-depth: 0`)
+- **Build job**: Compiles mobile and wear release APKs; computes `VERSION_CODE` from `git rev-list --count HEAD` (full checkout via `fetch-depth: 0`) and initializes git submodules recursively so the `llm-typewriter/` source build is present on CI
 - **Release job**: Creates GitHub release with APK artifacts on tag push
 - **Caching**: Gradle User Home cache + Kotlin/Native compiler cache
 - **Signing**: Uses GitHub secrets for keystore and passwords
