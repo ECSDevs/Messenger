@@ -23,4 +23,10 @@ interface MessageDao {
 
     @Query("DELETE FROM messages WHERE conversationId = :conversationId")
     suspend fun deleteByConversationId(conversationId: String)
+
+    @Query("SELECT * FROM messages ORDER BY timestamp ASC")
+    suspend fun getAllEntities(): List<MessageEntity>
+
+    @Query("DELETE FROM messages")
+    suspend fun deleteAll()
 }

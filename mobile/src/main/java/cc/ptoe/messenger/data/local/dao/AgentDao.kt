@@ -23,4 +23,10 @@ interface AgentDao {
 
     @Query("DELETE FROM agents WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("SELECT * FROM agents")
+    suspend fun getAllEntities(): List<AgentEntity>
+
+    @Query("DELETE FROM agents")
+    suspend fun deleteAll()
 }

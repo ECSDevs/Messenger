@@ -23,4 +23,10 @@ interface ProviderDao {
 
     @Query("DELETE FROM providers WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("SELECT * FROM providers")
+    suspend fun getAllEntities(): List<ProviderEntity>
+
+    @Query("DELETE FROM providers")
+    suspend fun deleteAll()
 }

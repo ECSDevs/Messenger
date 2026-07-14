@@ -33,6 +33,12 @@ interface ModelDao {
     @Query("DELETE FROM models WHERE id = :id")
     suspend fun delete(id: String)
 
+    @Query("SELECT * FROM models")
+    suspend fun getAllEntities(): List<ModelEntity>
+
+    @Query("DELETE FROM models")
+    suspend fun deleteAll()
+
     @Query("UPDATE models SET isEnabled = :isEnabled WHERE id = :id")
     suspend fun setEnabled(id: String, isEnabled: Boolean)
 }

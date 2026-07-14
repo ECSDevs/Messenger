@@ -26,8 +26,11 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,6 +56,8 @@ import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
 import cc.ptoe.messenger.presentation.ui.components.ListItem
 import cc.ptoe.messenger.presentation.ui.components.SectionHeader
 import cc.ptoe.messenger.presentation.viewmodel.SettingsViewModel
+import cc.ptoe.messenger.data.cloud.CloudSyncRepository
+import cc.ptoe.messenger.data.cloud.DEFAULT_CLOUD_SERVER_URL
 import com.yalantis.ucrop.UCrop
 import java.io.File
 import java.util.UUID
@@ -65,10 +70,12 @@ import kotlinx.coroutines.withContext
 fun SettingsScreen(
     onProvidersClick: () -> Unit,
     onLicensesClick: () -> Unit,
+    cloudSyncRepository: CloudSyncRepository,
     viewModel: SettingsViewModel = viewModel(
         factory = SettingsViewModel.provideFactory(
             themePreferences = MessengerApplication.instance.themePreferences,
-            appPreferences = MessengerApplication.instance.appPreferences
+            appPreferences = MessengerApplication.instance.appPreferences,
+            cloudSyncRepository = cloudSyncRepository
         )
     )
 ) {
@@ -79,6 +86,7 @@ fun SettingsScreen(
 
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
+    var showCloudDialog by remember { mutableStateOf(false) }
 
     val cropLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -209,6 +217,14 @@ fun SettingsScreen(
             }
             item {
                 ListItem(
+                    title = "Messenger Cloud",
+                    subtitle = viewModel.cloudUser.value?.email ?: "未登录 · ${viewModel.cloudServerUrl.value}",
+                    icon = Icons.Default.Cloud,
+                    onClick = { showCloudDialog = true }
+                )
+            }
+            item {
+                ListItem(
                     title = "模型提供商",
                     subtitle = "管理 AI 模型提供商和 API Key",
                     icon = Icons.Default.Cloud,
@@ -273,7 +289,71 @@ fun SettingsScreen(
                 onDismiss = { showClearDataDialog = false }
             )
         }
+
+        if (showCloudDialog) {
+            CloudAccountDialog(
+                serverUrl = viewModel.cloudServerUrl.value,
+                user = viewModel.cloudUser.value?.email,
+                onDismiss = { showCloudDialog = false },
+                onServerUrl = { value -> viewModel.setCloudServerUrl(value) {} },
+                onLogin = { email, password, isRegister ->
+                    if (isRegister) viewModel.register(email, password) {}
+                    else viewModel.login(email, password) {}
+                },
+                onLogout = { viewModel.logout {} },
+                onUpload = { viewModel.upload {} },
+                onRestore = { viewModel.restore {} }
+            )
+        }
     }
+}
+
+@Composable
+private fun CloudAccountDialog(
+    serverUrl: String,
+    user: String?,
+    onDismiss: () -> Unit,
+    onServerUrl: (String) -> Unit,
+    onLogin: (String, String, Boolean) -> Unit,
+    onLogout: () -> Unit,
+    onUpload: () -> Unit,
+    onRestore: () -> Unit
+) {
+    var url by remember(serverUrl) { mutableStateOf(serverUrl) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var register by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Messenger Cloud") },
+        text = {
+            Column {
+                OutlinedTextField(url, { url = it }, label = { Text("服务器地址") }, singleLine = true)
+                TextButton(onClick = { url = DEFAULT_CLOUD_SERVER_URL }) { Text("使用默认服务器") }
+                if (user == null) {
+                    OutlinedTextField(email, { email = it }, label = { Text("邮箱") }, singleLine = true)
+                    OutlinedTextField(password, { password = it }, label = { Text("密码") }, singleLine = true)
+                    TextButton(onClick = { register = !register }) { Text(if (register) "已有账户？登录" else "没有账户？注册") }
+                } else {
+                    Text(user, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+        },
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                Button(onClick = {
+                    onServerUrl(url)
+                    if (user == null) onLogin(email, password, register) else onUpload()
+                }) { Text(if (user == null) if (register) "注册并同步" else "登录并同步" else "上传备份") }
+                if (user != null) {
+                    TextButton(onClick = onRestore) { Text("从云端恢复") }
+                    TextButton(onClick = onLogout) { Text("退出登录") }
+                }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
 }
 
 private fun copyUserAvatarToInternal(context: Context, uri: Uri): String? {

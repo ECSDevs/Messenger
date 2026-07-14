@@ -11,7 +11,7 @@ Messenger is a Material 3 designed LLM chat application for Android, focused on 
 - **Language**: Kotlin
 - **UI**: Jetpack Compose (Material 3) + Wear Compose
 - **Architecture**: Clean Architecture (data/domain/presentation layers)
-- **Modules**: `mobile` (phone/tablet), `wear` (Wear OS)
+- **Modules**: `mobile` (phone/tablet), `wear` (Wear OS), `server` (Next.js/Vercel account and cloud backup service)
 
 ## Project Structure
 
@@ -26,6 +26,7 @@ Messenger/
 │   └── src/main/java/cc/ptoe/messenger/
 │       ├── data/
 │       │   ├── local/        # Room database, DataStore preferences
+│       │   ├── cloud/        # Messenger account authentication and cloud backup/restore
 │       │   │   ├── dao/      # Data Access Objects
 │       │   │   ├── entity/   # Room entities
 │       │   │   ├── AppPreferences.kt
@@ -59,6 +60,14 @@ Messenger/
 │       │   └── viewmodel/    # ViewModels
 │       ├── MainActivity.kt
 │       └── MessengerApplication.kt
+├── server/                   # Git submodule: Next.js account server + admin backend for cloud backup
+│   ├── app/                  # App Router pages and serverless API routes
+│   │   ├── admin/            # Password-protected admin backend
+│   │   └── api/              # Auth and backup endpoints for Messenger clients
+│   ├── components/           # Admin client components
+│   ├── lib/                  # Auth, storage, validation, shared types
+│   ├── package.json          # Node/Next.js manifest
+│   └── README.md             # Server deployment and API notes
 ├── wear/                     # Wear OS companion module
 │   └── src/main/java/cc/ptoe/messenger/
 │       ├── data/             # Wear DataStore + phone bridge
@@ -140,6 +149,14 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - Auth header interceptor for API keys
 - Gson converter for JSON serialization
 - Wear chat requests are forwarded to the phone over a WebSocket on TCP `18765` (`MobileHttpServer` / `WearNetworkBridge`, discovered via NSD mDNS) instead of calling providers directly from the watch
+
+### Cloud Account Server
+
+- `server/` is a standalone Next.js App Router project in a git submodule, intended for Vercel deployment
+- Messenger clients authenticate with email/password against serverless route handlers under `server/app/api/`
+- User metadata and backup manifests are stored in Upstash Redis; the actual backup JSON payload is stored in Vercel Blob
+- The admin backend lives under `server/app/admin/` and uses a separate password-based session cookie from app users
+- The backup payload mirrors Messenger's core mobile entities (`Provider`, `Agent`, `Conversation`, `Message`) so Android can upload and restore complete snapshots
 
 ### Chat bubble rendering (mobile)
 
@@ -274,6 +291,20 @@ If a change makes any section of AGENTS.md outdated or incomplete, update it in 
 3. For release builds, set up keystore in `keyring/messenger-release.jks`
 4. Environment variables for signing: `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
 5. Version code can be overridden with `VERSION_CODE` env var; version name with `VERSION_NAME` env var
+6. For the account server, create `server/.env.local` from `server/.env.example` and provide `JWT_SECRET`, `ADMIN_PASSWORD`, Vercel KV, and Vercel Blob credentials
+
+### Server Commands
+
+```bash
+# Install server dependencies
+cd server && npm install
+
+# Run the account server locally
+cd server && npm run dev
+
+# Type-check the server
+cd server && npm run typecheck
+```
 
 ## CI/CD
 

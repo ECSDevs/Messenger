@@ -26,4 +26,10 @@ interface ConversationDao {
 
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("SELECT * FROM conversations ORDER BY updatedAt DESC")
+    suspend fun getAllEntities(): List<ConversationEntity>
+
+    @Query("DELETE FROM conversations")
+    suspend fun deleteAll()
 }

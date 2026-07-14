@@ -109,7 +109,8 @@ fun NavGraph(
                 },
                 onLicensesClick = {
                     navController.navigate(Screen.Licenses.route)
-                }
+                },
+                cloudSyncRepository = MessengerApplication.instance.cloudSyncRepository
             )
         }
 

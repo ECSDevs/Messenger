@@ -5,6 +5,7 @@ import android.content.Intent
 import cc.ptoe.messenger.data.local.AppPreferences
 import cc.ptoe.messenger.data.local.MessengerDatabase
 import cc.ptoe.messenger.data.local.ThemePreferences
+import cc.ptoe.messenger.data.cloud.CloudSyncRepository
 import cc.ptoe.messenger.data.repository.AgentRepositoryImpl
 import cc.ptoe.messenger.data.repository.ApiRepositoryImpl
 import cc.ptoe.messenger.data.repository.ChatRepositoryImpl
@@ -68,6 +69,9 @@ class MessengerApplication : Application() {
     lateinit var currentAgentRepository: CurrentAgentRepository
         private set
 
+    lateinit var cloudSyncRepository: CloudSyncRepository
+        private set
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
@@ -114,6 +118,7 @@ class MessengerApplication : Application() {
         messageRepository = MessageRepositoryImpl(database.messageDao())
         apiRepository = ApiRepositoryImpl()
         currentAgentRepository = CurrentAgentRepositoryImpl(appPreferences, agentRepository)
+        cloudSyncRepository = CloudSyncRepository(appPreferences, database)
     }
 
     private fun initDefaultAgent() {

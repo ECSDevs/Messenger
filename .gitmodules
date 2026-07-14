@@ -2,3 +2,6 @@
 	path = llm-typewriter
 	url = https://github.com/ECSDevs/llm-typewriter.git
 	branch = main
+[submodule "server"]
+	path = server
+	url = https://github.com/ECSDevs/Messenger-Server.git

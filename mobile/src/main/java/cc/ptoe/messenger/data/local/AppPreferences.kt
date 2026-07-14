@@ -13,6 +13,9 @@ class AppPreferences(private val context: Context) {
         val DEFAULT_AGENT_INITIALIZED = booleanPreferencesKey("default_agent_initialized")
         val CURRENT_AGENT_ID = stringPreferencesKey("current_agent_id")
         val USER_AVATAR = stringPreferencesKey("user_avatar")
+        val CLOUD_SERVER_URL = stringPreferencesKey("cloud_server_url")
+        val CLOUD_SESSION = stringPreferencesKey("cloud_session")
+        val CLOUD_USER = stringPreferencesKey("cloud_user")
     }
 
     val defaultAgentInitialized: Flow<Boolean> = context.dataStore.data
@@ -53,6 +56,39 @@ class AppPreferences(private val context: Context) {
             } else {
                 preferences.remove(PreferencesKeys.USER_AVATAR)
             }
+        }
+    }
+
+    val cloudServerUrl: Flow<String?> = context.dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.CLOUD_SERVER_URL] }
+
+    suspend fun setCloudServerUrl(url: String?) {
+        context.dataStore.edit { preferences ->
+            if (url.isNullOrBlank()) {
+                preferences.remove(PreferencesKeys.CLOUD_SERVER_URL)
+            } else {
+                preferences[PreferencesKeys.CLOUD_SERVER_URL] = url.trim().trimEnd('/')
+            }
+        }
+    }
+
+    val cloudSession: Flow<String?> = context.dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.CLOUD_SESSION] }
+
+    suspend fun setCloudSession(session: String?) {
+        context.dataStore.edit { preferences ->
+            if (session.isNullOrBlank()) preferences.remove(PreferencesKeys.CLOUD_SESSION)
+            else preferences[PreferencesKeys.CLOUD_SESSION] = session
+        }
+    }
+
+    val cloudUser: Flow<String?> = context.dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.CLOUD_USER] }
+
+    suspend fun setCloudUser(user: String?) {
+        context.dataStore.edit { preferences ->
+            if (user.isNullOrBlank()) preferences.remove(PreferencesKeys.CLOUD_USER)
+            else preferences[PreferencesKeys.CLOUD_USER] = user
         }
     }
 }
