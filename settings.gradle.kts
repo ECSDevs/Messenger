@@ -40,6 +40,10 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Messenger"
-includeBuild("llm-typewriter")
+includeBuild("llm-typewriter") {
+    dependencySubstitution {
+        substitute(module("cc.ptoe:llm-typewriter")).using(project(":llm-typewriter"))
+    }
+}
 include(":mobile")
 include(":wear")
