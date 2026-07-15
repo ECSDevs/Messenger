@@ -317,6 +317,70 @@ cd server && pnpm typecheck
 cd server && pnpm lint
 ```
 
+### R8 Troubleshooting
+
+R8 is a possible investigation point for release-only failures involving
+reflection, serialization, generated code, or manifest components. It is not a
+routine verification step.
+
+For daily tasks, maintain the affected module's `proguard-rules.pro` whenever a
+R8-sensitive class, method, annotation, serialized model, generated callback,
+or manifest component is added, removed, or changed. Remove stale rules when
+the corresponding entry point is renamed or deleted, and keep rules as narrow
+as practical.
+
+Do not run R8 checks or R8-enabled `assembleRelease` for ordinary tasks. Those
+builds are slow and have a high performance cost. Follow the steps below only
+when an R8 issue is being investigated, the user explicitly requests
+verification, or a release/R8 configuration change requires validation:
+
+1. Reproduce the shrinker output from a clean task run:
+
+   ```bash
+   ./gradlew :mobile:assembleRelease :wear:assembleRelease --rerun-tasks
+   ```
+
+2. Check `mobile/build/outputs/mapping/release/` and
+   `wear/build/outputs/mapping/release/`:
+   - `mapping.txt` confirms that a class survived and shows its obfuscated name.
+   - `usage.txt` lists removed classes and members; distinguish a fully removed class from an optimized-away member listed beneath a surviving class.
+   - `seeds.txt` confirms that a keep rule matched, but is not by itself proof that the final APK contains the class.
+   - `configuration.txt` confirms the effective rules, including consumer rules from dependencies.
+
+3. Compare the reports with the final APK. Inspect the release APK DEX files
+   with Android Studio APK Analyzer or `apkanalyzer`, and verify the relevant
+   class plus generated or anonymous callback classes are present. For this
+   project, pay special attention to Manifest components, Room's generated
+   `MessengerDatabase_Impl` and DAO implementations, Retrofit API interfaces
+   and Gson DTOs, the mobile `MobileHttpServer` WebSocket/NSD callbacks, and
+   the Wear `WearNetworkBridge` WebSocket/NSD callbacks.
+
+4. Identify the reflective or serialized entry point before adding a rule.
+   Preserve only the smallest required scope. Keep runtime annotation and
+   generic metadata when the library reads them:
+
+   ```proguard
+   -keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations
+   -keepattributes RuntimeVisibleParameterAnnotations,RuntimeInvisibleParameterAnnotations
+   -keepattributes Signature,InnerClasses,EnclosingMethod
+   ```
+
+5. Add the rule to the affected module's `proguard-rules.pro`, rebuild, and
+   confirm that it appears in `configuration.txt`, the expected class is not
+   fully removed according to `usage.txt`/`mapping.txt`, and it is present in
+   the APK. Avoid blanket `-keep class ** { *; }` rules because they hide
+   missing entry points and defeat shrinking.
+
+6. If the root is unclear, temporarily add
+   `-whyareyoukeeping class <fully.qualified.ClassName>` to the affected rules
+   file, rebuild, and use the R8 reason chain to find the missing or unexpected
+   entry point. Remove this diagnostic rule after the investigation.
+
+7. Install the minified APK on a device or emulator and smoke-test the affected
+   path. For crash reports, use the matching `mapping.txt` with Android's
+   `retrace` tool before diagnosing the stack trace. A successful R8 build is
+   not sufficient proof that runtime reflection or serialization works.
+
 ## CI/CD
 
 GitHub Actions workflow (`.github/workflows/android.yml`):

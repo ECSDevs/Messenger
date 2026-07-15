@@ -12,7 +12,7 @@
 
 # --- Annotations / signatures / inner-class metadata -----------------------
 -keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations
--keepattributes RuntimeVisibleParameterAnnotations,RuntimeParameterAnnotation
+-keepattributes RuntimeVisibleParameterAnnotations,RuntimeInvisibleParameterAnnotations
 -keepattributes Signature,InnerClasses,EnclosingMethod
 -keepattributes AnnotationDefault
 -keepattributes Exceptions,Deprecated
@@ -39,9 +39,15 @@
 -keep class cc.ptoe.messenger.data.WearConnectionState* { *; }
 -keep class cc.ptoe.messenger.data.WearChatFrame* { *; }
 
-# Wear data models + JSON codec (manual JSONObject serialization).
--keep class cc.ptoe.messenger.data.WearChatModels { *; }
--keep class cc.ptoe.messenger.data.WearChatModels$* { *; }
+# Wear data models + JSON codec (manual JSONObject serialization). Keep the
+# protocol models stable because they cross StateFlow/SharedFlow and bridge
+# boundaries, even though the current codec uses JSONObject rather than Gson.
+-keep class cc.ptoe.messenger.data.WearAgent { *; }
+-keep class cc.ptoe.messenger.data.WearConversation { *; }
+-keep class cc.ptoe.messenger.data.WearMessageRole { *; }
+-keep class cc.ptoe.messenger.data.WearChatMessage { *; }
+-keep class cc.ptoe.messenger.data.WearSyncSnapshot { *; }
+-keep class cc.ptoe.messenger.data.WearNewChatResponse { *; }
 -keep class cc.ptoe.messenger.data.WearChatJsonCodec { *; }
 
 # ===========================================================================

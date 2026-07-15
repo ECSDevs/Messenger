@@ -14,7 +14,7 @@
 # RuntimeVisibleAnnotations to read @POST/@Query/@Entity etc.; inner classes
 # are needed for the anonymous WebSocketServer / WebSocketListener subclasses.
 -keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations
--keepattributes RuntimeVisibleParameterAnnotations,RuntimeParameterAnnotation
+-keepattributes RuntimeVisibleParameterAnnotations,RuntimeInvisibleParameterAnnotations
 -keepattributes Signature,InnerClasses,EnclosingMethod
 -keepattributes AnnotationDefault
 -keepattributes Exceptions,Deprecated
@@ -30,8 +30,6 @@
 
 # Wear sync handler invoked by MobileHttpServer
 -keep class cc.ptoe.messenger.data.wear.MobileWearChatHandler { *; }
--keep class cc.ptoe.messenger.data.wear.MobileWearSyncManager { *; }
--keep class cc.ptoe.messenger.data.wear.MobileWearSyncManager$* { *; }
 
 # ===========================================================================
 # Room
