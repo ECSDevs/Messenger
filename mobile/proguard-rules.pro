@@ -80,6 +80,12 @@
 -keep class cc.ptoe.messenger.data.remote.dto.** { *; }
 -keepclassmembers class cc.ptoe.messenger.data.remote.dto.** { *; }
 
+# Cloud authentication and sync models are also serialized reflectively through
+# Retrofit/Gson. Keep the whole small cloud package so R8 cannot rename or
+# remove request fields such as CredentialsRequest.email/password, the private
+# CloudApi method annotations, or the response models.
+-keep class cc.ptoe.messenger.data.cloud.** { *; }
+
 # Kotlin metadata so Gson can still see Kotlin data-class field info.
 -keep class kotlin.Metadata { *; }
 -keepattributes KotlinModule
