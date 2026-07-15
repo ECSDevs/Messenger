@@ -1,8 +1,9 @@
 package cc.ptoe.messenger.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Update
 import cc.ptoe.messenger.data.local.entity.MessageEntity
 import kotlinx.coroutines.flow.Flow
@@ -12,8 +13,11 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
     fun getByConversationId(conversationId: String): Flow<List<MessageEntity>>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(message: MessageEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(messages: List<MessageEntity>)
 
     @Update
     suspend fun update(message: MessageEntity)

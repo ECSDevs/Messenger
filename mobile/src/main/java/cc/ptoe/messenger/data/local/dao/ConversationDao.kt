@@ -1,8 +1,8 @@
 package cc.ptoe.messenger.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Upsert
 import androidx.room.Update
 import cc.ptoe.messenger.data.local.entity.ConversationEntity
 import kotlinx.coroutines.flow.Flow
@@ -18,8 +18,14 @@ interface ConversationDao {
     @Query("SELECT * FROM conversations WHERE id = :id")
     fun getById(id: String): Flow<ConversationEntity?>
 
-    @Insert
+    @Upsert
     suspend fun insert(conversation: ConversationEntity)
+
+    @Query("DELETE FROM conversations WHERE agentId = :agentId")
+    suspend fun deleteByAgentId(agentId: String)
+
+    @Query("UPDATE conversations SET agentId = :newAgentId WHERE agentId = :oldAgentId")
+    suspend fun updateAgentId(oldAgentId: String, newAgentId: String)
 
     @Update
     suspend fun update(conversation: ConversationEntity)

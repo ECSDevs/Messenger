@@ -26,16 +26,14 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,8 +55,6 @@ import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
 import cc.ptoe.messenger.presentation.ui.components.ListItem
 import cc.ptoe.messenger.presentation.ui.components.SectionHeader
 import cc.ptoe.messenger.presentation.viewmodel.SettingsViewModel
-import cc.ptoe.messenger.data.cloud.CloudSyncRepository
-import cc.ptoe.messenger.data.cloud.DEFAULT_CLOUD_SERVER_URL
 import com.yalantis.ucrop.UCrop
 import java.io.File
 import java.util.UUID
@@ -84,12 +80,16 @@ fun SettingsScreen(
     val userAvatar by viewModel.userAvatar.collectAsStateWithLifecycle()
     val cloudUser by viewModel.cloudUser.collectAsStateWithLifecycle()
     val cloudServerUrl by viewModel.cloudServerUrl.collectAsStateWithLifecycle()
+    val cloudSyncError by viewModel.cloudSyncError.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
-    var showCloudDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(cloudSyncError) {
+        cloudSyncError?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+    }
 
     val cropLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -282,7 +282,7 @@ fun SettingsScreen(
         if (showClearDataDialog) {
             ConfirmationDialog(
                 title = "清除所有数据",
-                 text = "此操作将删除本地对话、Agent、Provider 和相关数据，退出 Messenger Cloud，并恢复默认服务器地址。云端备份不会被删除。确定要继续吗？",
+                 text = "此操作会清除本应用的本地数据、账户、同步游标、设置和缓存，效果类似 Android 设置中的“清除存储”。云端账户和数据不会被删除。确定要继续吗？",
                 confirmButtonText = "清除",
                 dismissButtonText = "取消",
                 onConfirm = {
@@ -292,97 +292,7 @@ fun SettingsScreen(
                 onDismiss = { showClearDataDialog = false }
             )
         }
-
-        if (showCloudDialog) {
-            CloudAccountDialog(
-                serverUrl = cloudServerUrl,
-                user = cloudUser?.email,
-                onDismiss = { showCloudDialog = false },
-                onLogin = { email, password, serverUrl, isRegister ->
-                    val handleResult: (Result<*>) -> Unit = { result ->
-                        result.onSuccess {
-                            showCloudDialog = false
-                            Toast.makeText(context, "登录成功", Toast.LENGTH_SHORT).show()
-                        }.onFailure {
-                            Toast.makeText(context, it.message ?: "登录失败", Toast.LENGTH_LONG).show()
-                        }
-                    }
-                    if (isRegister) viewModel.register(email, password, serverUrl, handleResult)
-                    else viewModel.login(email, password, serverUrl, handleResult)
-                },
-                onLogout = {
-                    viewModel.logout { result ->
-                        result.onSuccess { Toast.makeText(context, "已退出登录", Toast.LENGTH_SHORT).show() }
-                    }
-                },
-                onUpload = {
-                    viewModel.upload { result ->
-                        result.onSuccess { Toast.makeText(context, "备份上传成功", Toast.LENGTH_SHORT).show() }
-                            .onFailure { Toast.makeText(context, it.message ?: "上传失败", Toast.LENGTH_LONG).show() }
-                    }
-                },
-                onRestore = {
-                    viewModel.restore { result ->
-                        result.onSuccess { Toast.makeText(context, "云端数据已恢复", Toast.LENGTH_SHORT).show() }
-                            .onFailure { Toast.makeText(context, it.message ?: "恢复失败", Toast.LENGTH_LONG).show() }
-                    }
-                },
-                onServerUrl = { value ->
-                    viewModel.setCloudServerUrl(value) { result ->
-                        result.onFailure { Toast.makeText(context, it.message ?: "服务器地址无效", Toast.LENGTH_LONG).show() }
-                    }
-                }
-            )
-        }
     }
-}
-
-@Composable
-private fun CloudAccountDialog(
-    serverUrl: String,
-    user: String?,
-    onDismiss: () -> Unit,
-    onServerUrl: (String) -> Unit,
-    onLogin: (String, String, String, Boolean) -> Unit,
-    onLogout: () -> Unit,
-    onUpload: () -> Unit,
-    onRestore: () -> Unit
-) {
-    var url by remember(serverUrl) { mutableStateOf(serverUrl) }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var register by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Messenger Cloud") },
-        text = {
-            Column {
-                OutlinedTextField(url, { url = it }, label = { Text("服务器地址") }, singleLine = true)
-                TextButton(onClick = { url = DEFAULT_CLOUD_SERVER_URL }) { Text("使用默认服务器") }
-                if (user == null) {
-                    OutlinedTextField(email, { email = it }, label = { Text("邮箱") }, singleLine = true)
-                    OutlinedTextField(password, { password = it }, label = { Text("密码") }, singleLine = true)
-                    TextButton(onClick = { register = !register }) { Text(if (register) "已有账户？登录" else "没有账户？注册") }
-                } else {
-                    Text(user, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
-                }
-            }
-        },
-        confirmButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                Button(onClick = {
-                    onServerUrl(url)
-                    if (user == null) onLogin(email, password, url, register) else onUpload()
-                }) { Text(if (user == null) if (register) "注册并同步" else "登录并同步" else "上传备份") }
-                if (user != null) {
-                    TextButton(onClick = onRestore) { Text("从云端恢复") }
-                    TextButton(onClick = onLogout) { Text("退出登录") }
-                }
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
-    )
 }
 
 private fun copyUserAvatarToInternal(context: Context, uri: Uri): String? {

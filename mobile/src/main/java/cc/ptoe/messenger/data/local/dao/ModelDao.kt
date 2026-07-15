@@ -1,8 +1,8 @@
 package cc.ptoe.messenger.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Upsert
 import androidx.room.Update
 import cc.ptoe.messenger.data.local.entity.ModelEntity
 import kotlinx.coroutines.flow.Flow
@@ -21,11 +21,14 @@ interface ModelDao {
     @Query("SELECT * FROM models WHERE id = :id")
     fun getById(id: String): Flow<ModelEntity?>
 
-    @Insert
+    @Upsert
     suspend fun insert(model: ModelEntity)
 
-    @Insert
+    @Upsert
     suspend fun insertAll(models: List<ModelEntity>)
+
+    @Query("DELETE FROM models WHERE providerId = :providerId")
+    suspend fun deleteByProviderId(providerId: String)
 
     @Update
     suspend fun update(model: ModelEntity)

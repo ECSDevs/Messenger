@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cc.ptoe.messenger.MessengerApplication
 import cc.ptoe.messenger.data.cloud.CloudSyncRepository
 import cc.ptoe.messenger.data.cloud.DEFAULT_CLOUD_SERVER_URL
+import cc.ptoe.messenger.data.cloud.CloudLoginOutcome
 import cc.ptoe.messenger.presentation.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,6 +56,12 @@ fun CloudSettingsScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var register by remember { mutableStateOf(false) }
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var deletePassword by remember { mutableStateOf("") }
+    var pendingLogin by remember { mutableStateOf<CloudLoginOutcome?>(null) }
 
     fun notify(result: Result<*>, success: String, close: Boolean = false) {
         result.onSuccess {
@@ -79,7 +88,7 @@ fun CloudSettingsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("云端账户与备份", style = MaterialTheme.typography.headlineSmall)
+            Text("云端账户与同步", style = MaterialTheme.typography.headlineSmall)
             OutlinedTextField(
                 value = serverUrl,
                 onValueChange = { serverUrl = it },
@@ -97,7 +106,23 @@ fun CloudSettingsScreen(
                         viewModel.setCloudServerUrl(serverUrl) { result ->
                             result.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
                         }
-                        val callback: (Result<*>) -> Unit = { result -> notify(result, "登录成功", close = true) }
+                        val callback: (Result<CloudLoginOutcome>) -> Unit = { result ->
+                            result.onSuccess { outcome ->
+                                if (!outcome.hasLocalData) {
+                                    viewModel.completeLogin(outcome, useLocalData = false) { syncResult ->
+                                        notify(syncResult, "登录成功", close = true)
+                                    }
+                                } else if (outcome.cloudVersion == 0L) {
+                                    viewModel.completeLogin(outcome, useLocalData = true) { syncResult ->
+                                        notify(syncResult, "本地数据已上传", close = true)
+                                    }
+                                } else {
+                                    pendingLogin = outcome
+                                }
+                            }.onFailure {
+                                Toast.makeText(context, it.message ?: "登录失败", Toast.LENGTH_LONG).show()
+                            }
+                        }
                         if (register) viewModel.register(email, password, serverUrl, callback)
                         else viewModel.login(email, password, serverUrl, callback)
                     },
@@ -108,14 +133,117 @@ fun CloudSettingsScreen(
                 }
             } else {
                 Text(user!!.email, style = MaterialTheme.typography.titleMedium)
-                Button(onClick = { viewModel.setCloudServerUrl(serverUrl) {}; viewModel.upload { notify(it, "备份上传成功") } }, modifier = Modifier.fillMaxWidth()) {
-                    Text("上传备份")
+                Button(onClick = { viewModel.upload(serverUrl) { notify(it, "同步成功") } }, modifier = Modifier.fillMaxWidth()) {
+                    Text("上传并同步")
                 }
-                Button(onClick = { viewModel.restore { notify(it, "云端数据已恢复") } }, modifier = Modifier.fillMaxWidth()) {
-                    Text("从云端恢复")
+                Button(onClick = { viewModel.restore(serverUrl) { notify(it, "同步成功") } }, modifier = Modifier.fillMaxWidth()) {
+                    Text("从云端同步")
+                }
+                OutlinedButton(onClick = { showPasswordDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("更改密码")
                 }
                 TextButton(onClick = { viewModel.logout { notify(it, "已退出登录") } }) { Text("退出登录") }
+                TextButton(onClick = { showDeleteDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("注销账户", color = MaterialTheme.colorScheme.error)
+                }
             }
         }
+    }
+
+    if (showPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = { showPasswordDialog = false },
+            title = { Text("更改密码") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = currentPassword,
+                        onValueChange = { currentPassword = it },
+                        label = { Text("当前密码") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = newPassword,
+                        onValueChange = { newPassword = it },
+                        label = { Text("新密码") },
+                        supportingText = { Text("至少 8 个字符") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.changePassword(currentPassword, newPassword) { result ->
+                            notify(result, "密码已更新")
+                            if (result.isSuccess) {
+                                currentPassword = ""
+                                newPassword = ""
+                                showPasswordDialog = false
+                            }
+                        }
+                    },
+                    enabled = currentPassword.isNotBlank() && newPassword.length >= 8
+                ) { Text("保存") }
+            },
+            dismissButton = { TextButton(onClick = { showPasswordDialog = false }) { Text("取消") } }
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("注销账户") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("此操作会永久删除云端账户、所有同步数据和头像，无法恢复。本地对话、设置和头像不会受到影响。")
+                    OutlinedTextField(
+                        value = deletePassword,
+                        onValueChange = { deletePassword = it },
+                        label = { Text("当前密码") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteAccount(deletePassword) { result ->
+                            notify(result, "账户已注销", close = true)
+                            if (result.isSuccess) {
+                                deletePassword = ""
+                                showDeleteDialog = false
+                            }
+                        }
+                    },
+                    enabled = deletePassword.isNotBlank()
+                ) {
+                    Text("永久注销", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("取消") } }
+        )
+    }
+
+    pendingLogin?.let { outcome ->
+        CloudSyncChoiceDialog(
+            outcome = outcome,
+            onUseLocal = {
+                pendingLogin = null
+                viewModel.completeLogin(outcome, useLocalData = true) { result ->
+                    notify(result, "本地数据已上传", close = true)
+                }
+            },
+            onUseCloud = {
+                pendingLogin = null
+                viewModel.completeLogin(outcome, useLocalData = false) { result ->
+                    notify(result, "云端数据已恢复", close = true)
+                }
+            },
+            onDismiss = { pendingLogin = null }
+        )
     }
 }

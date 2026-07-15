@@ -295,7 +295,7 @@ fun ChatScreen(
                                             modifier = bubbleModifier
                                         )
                                     }
-                                    MessageRole.SYSTEM -> {}
+                                    MessageRole.SYSTEM, MessageRole.TOOL -> {}
                                 }
                             }
                         }

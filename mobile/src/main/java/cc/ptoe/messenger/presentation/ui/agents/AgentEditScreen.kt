@@ -330,7 +330,7 @@ fun AgentEditScreen(
                 uiState.temperature
             }
             Text(
-                text = "Temperature: ${String.format(Locale.getDefault(), "%.1f", tempValue)}",
+                text = "Temperature: ${String.format(Locale.US, "%.1f", tempValue)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (tempEnabled) MaterialTheme.colorScheme.onSurface
                 else MaterialTheme.colorScheme.onSurfaceVariant,

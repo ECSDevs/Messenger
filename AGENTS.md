@@ -11,7 +11,7 @@ Messenger is a Material 3 designed LLM chat application for Android, focused on 
 - **Language**: Kotlin
 - **UI**: Jetpack Compose (Material 3) + Wear Compose
 - **Architecture**: Clean Architecture (data/domain/presentation layers)
-- **Modules**: `mobile` (phone/tablet), `wear` (Wear OS), `server` (Next.js/Vercel account and cloud backup service)
+- **Modules**: `mobile` (phone/tablet), `wear` (Wear OS), `server` (Next.js/Vercel account and incremental cloud sync service)
 
 ## Project Structure
 
@@ -26,7 +26,7 @@ Messenger/
 │   └── src/main/java/cc/ptoe/messenger/
 │       ├── data/
 │       │   ├── local/        # Room database, DataStore preferences
-│       │   ├── cloud/        # Messenger account authentication and cloud backup/restore
+│       │   ├── cloud/        # Messenger account authentication and cloud synchronization
 │       │   │   ├── dao/      # Data Access Objects
 │       │   │   ├── entity/   # Room entities
 │       │   │   ├── AppPreferences.kt
@@ -60,10 +60,10 @@ Messenger/
 │       │   └── viewmodel/    # ViewModels
 │       ├── MainActivity.kt
 │       └── MessengerApplication.kt
-├── server/                   # Git submodule: Next.js account server + admin backend for cloud backup
+├── server/                   # Git submodule: Next.js account server + admin backend for incremental cloud sync
 │   ├── app/                  # App Router pages and serverless API routes
 │   │   ├── admin/            # Password-protected admin backend
-│   │   └── api/              # Auth and backup endpoints for Messenger clients
+│   │   └── api/              # Auth, entity sync, and avatar endpoints for Messenger clients
 │   ├── components/           # Admin client components
 │   ├── lib/                  # Auth, storage, validation, shared types
 │   ├── package.json          # Node/Next.js manifest
@@ -154,9 +154,17 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 
 - `server/` is a standalone Next.js App Router project in a git submodule, intended for Vercel deployment
 - Messenger clients authenticate with email/password against serverless route handlers under `server/app/api/`
-- User metadata and backup manifests are stored in Upstash Redis; the actual backup JSON payload is stored in Vercel Blob
+- MongoDB stores user documents plus versioned `agents`, `conversations`, and `providers` documents; conversations embed messages and providers embed models
+- Each user has a monotonically increasing `syncVersion`. Entity writes atomically increment it and stamp the changed document's `version`; deletes are `deleted: true` tombstones returned by `GET /api/sync?since=N`
+- Server registration seeds the one required default Agent in the same transaction as user creation, so the cloud data preserves the default-agent invariant
+- Vercel Blob is used only for public user and agent avatars at `avatars/users/{userId}.{ext}` and `avatars/agents/{agentId}.{ext}`. Replacements snapshot the prior blob, remove prefix-matched files, and restore the prior avatar if the new upload fails
+- Authenticated entity APIs are `PUT`/`DELETE` `/api/agents/{id}`, `/api/conversations/{id}`, and `/api/providers/{id}`. Avatar APIs are `PUT`/`DELETE` `/api/avatars/user` and `/api/avatars/agents/{agentId}`
+- Account APIs include `PUT /api/auth/password` for authenticated password changes and `DELETE /api/auth/account` for permanent account deletion
 - The admin backend lives under `server/app/admin/` and uses a separate password-based session cookie from app users
-- The backup payload mirrors Messenger's core mobile entities (`Provider`, `Agent`, `Conversation`, `Message`) so Android can upload and restore complete snapshots
+- MongoDB must be deployed as Atlas or a replica set because server writes use transactions to atomically advance the sync clock and update an entity
+- The mobile `CloudSyncRepository` uses the session cookie and a per-account DataStore cursor to pull `GET /api/sync?since=N`; it applies tombstones transactionally, flattens provider models and conversation messages into Room, and pushes complete entity snapshots to the corresponding `PUT` endpoints
+- Mobile local repository mutations are debounced into cloud synchronization requests; deleted entities are retained as account-scoped pending-delete markers until the server tombstone write succeeds
+- User and agent avatars are uploaded as multipart `file` parts to the dedicated avatar endpoints and stored locally as the returned public URLs; `AgentAvatar` supports both those URLs and legacy local file paths
 
 ### Chat bubble rendering (mobile)
 
@@ -291,19 +299,22 @@ If a change makes any section of AGENTS.md outdated or incomplete, update it in 
 3. For release builds, set up keystore in `keyring/messenger-release.jks`
 4. Environment variables for signing: `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
 5. Version code can be overridden with `VERSION_CODE` env var; version name with `VERSION_NAME` env var
-6. For the account server, create `server/.env.local` from `server/.env.example` and provide `JWT_SECRET`, `ADMIN_PASSWORD`, Vercel KV, and Vercel Blob credentials
+6. For the account server, create `server/.env.local` from `server/.env.example` and provide `JWT_SECRET`, `ADMIN_PASSWORD`, `MONGODB_URI` (Atlas or replica set), and `BLOB_READ_WRITE_TOKEN`
 
 ### Server Commands
 
 ```bash
 # Install server dependencies
-cd server && npm install
+cd server && pnpm install
 
 # Run the account server locally
-cd server && npm run dev
+cd server && pnpm dev
 
 # Type-check the server
-cd server && npm run typecheck
+cd server && pnpm typecheck
+
+# Lint the server
+cd server && pnpm lint
 ```
 
 ## CI/CD

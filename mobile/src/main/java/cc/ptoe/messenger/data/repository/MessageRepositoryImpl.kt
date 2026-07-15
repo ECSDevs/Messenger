@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class MessageRepositoryImpl(
-    private val messageDao: MessageDao
+    private val messageDao: MessageDao,
+    private val onChanged: (String) -> Unit = {}
 ) : MessageRepository {
 
     override fun getByConversationId(conversationId: String): Flow<List<Message>> {
@@ -21,18 +22,23 @@ class MessageRepositoryImpl(
 
     override suspend fun insert(message: Message) {
         messageDao.insert(message.toEntity())
+        onChanged(message.conversationId)
     }
 
     override suspend fun update(message: Message) {
         messageDao.update(message.toEntity())
+        onChanged(message.conversationId)
     }
 
     override suspend fun delete(id: String) {
+        val conversationId = messageDao.getAllEntities().firstOrNull { it.id == id }?.conversationId
         messageDao.delete(id)
+        conversationId?.let(onChanged)
     }
 
     override suspend fun deleteByConversationId(conversationId: String) {
         messageDao.deleteByConversationId(conversationId)
+        onChanged(conversationId)
     }
 
     private fun MessageEntity.toDomain(): Message {

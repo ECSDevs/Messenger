@@ -27,8 +27,16 @@ fun AgentAvatar(
     size: Dp = 40.dp,
     fallbackIcon: ImageVector = Icons.Default.SmartToy
 ) {
-    val avatarFile = remember(avatar) { avatar?.takeIf { it.isNotBlank() }?.let { File(it) } }
-    val isValid = avatarFile != null && avatarFile.exists()
+    val avatarSource = remember(avatar) {
+        avatar?.takeIf { it.isNotBlank() }?.let { value ->
+            if (value.startsWith("http://") || value.startsWith("https://")) value else File(value)
+        }
+    }
+    val isValid = when (avatarSource) {
+        is File -> avatarSource.exists()
+        is String -> true
+        else -> false
+    }
 
     Box(
         modifier = modifier
@@ -39,7 +47,7 @@ fun AgentAvatar(
     ) {
         if (isValid) {
             AsyncImage(
-                model = avatarFile,
+                model = avatarSource,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(size)

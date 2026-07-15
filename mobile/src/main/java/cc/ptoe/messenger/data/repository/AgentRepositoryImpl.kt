@@ -9,7 +9,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class AgentRepositoryImpl(
-    private val agentDao: AgentDao
+    private val agentDao: AgentDao,
+    private val onChanged: (Agent?, Agent?) -> Unit = { _, _ -> }
 ) : AgentRepository {
 
     override fun getAll(): Flow<List<Agent>> {
@@ -26,10 +27,13 @@ class AgentRepositoryImpl(
 
     override suspend fun insert(agent: Agent) {
         agentDao.insert(agent.toEntity())
+        onChanged(null, agent)
     }
 
     override suspend fun update(agent: Agent) {
+        val previous = agentDao.getById(agent.id).first()?.toDomain()
         agentDao.update(agent.toEntity())
+        onChanged(previous, agent)
     }
 
     override suspend fun delete(id: String) {
@@ -37,6 +41,7 @@ class AgentRepositoryImpl(
         val agent = agentDao.getById(id).first()
         if (agent?.isDefault == true) return
         agentDao.delete(id)
+        onChanged(agent?.toDomain(), null)
     }
 
     private fun AgentEntity.toDomain(): Agent {

@@ -8,7 +8,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class ProviderRepositoryImpl(
-    private val providerDao: ProviderDao
+    private val providerDao: ProviderDao,
+    private val onChanged: (String, Boolean) -> Unit = { _, _ -> }
 ) : ProviderRepository {
 
     override fun getAll(): Flow<List<Provider>> {
@@ -26,15 +27,18 @@ class ProviderRepositoryImpl(
     override suspend fun insert(provider: Provider) {
         // TODO: 加密 API Key 后再保存到数据库
         providerDao.insert(provider.toEntity())
+        onChanged(provider.id, false)
     }
 
     override suspend fun update(provider: Provider) {
         // TODO: 加密 API Key 后再保存到数据库
         providerDao.update(provider.toEntity())
+        onChanged(provider.id, false)
     }
 
     override suspend fun delete(id: String) {
         providerDao.delete(id)
+        onChanged(id, true)
     }
 
     private fun ProviderEntity.toDomain(): Provider {

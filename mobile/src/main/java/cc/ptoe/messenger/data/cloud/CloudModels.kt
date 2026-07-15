@@ -1,38 +1,109 @@
 package cc.ptoe.messenger.data.cloud
 
-import cc.ptoe.messenger.data.local.entity.AgentEntity
-import cc.ptoe.messenger.data.local.entity.ConversationEntity
-import cc.ptoe.messenger.data.local.entity.MessageEntity
-import cc.ptoe.messenger.data.local.entity.ModelEntity
-import cc.ptoe.messenger.data.local.entity.ProviderEntity
+import com.google.gson.annotations.SerializedName
 
-data class CloudUser(val id: String, val email: String, val createdAt: Long? = null, val lastLoginAt: Long? = null)
-data class CloudManifest(val version: Int, val uploadedAt: Long, val recordCounts: CloudRecordCounts)
-data class CloudRecordCounts(val providers: Int, val agents: Int, val conversations: Int, val messages: Int)
-data class CloudDevice(val platform: String = "android", val appVersion: String? = null, val deviceName: String? = null)
-data class CloudAvatarAsset(
-    val key: String,
-    val data: String,
-    val extension: String = "jpg"
-)
-data class CloudMessage(
+data class CloudUser(
     val id: String,
-    val conversationId: String,
+    val email: String,
+    val avatarUrl: String? = null,
+    val syncVersion: Long = 0,
+    val createdAt: Long? = null,
+    val updatedAt: Long? = null,
+    val lastLoginAt: Long? = null
+)
+
+data class CloudSyncResult(
+    val latestVersion: Long,
+    val agents: Int,
+    val conversations: Int,
+    val providers: Int
+)
+
+data class CloudLoginOutcome(
+    val user: CloudUser,
+    val hasLocalData: Boolean,
+    val cloudVersion: Long
+)
+
+data class CloudAgentDocument(
+    @SerializedName("_id") val id: String,
+    val name: String,
+    val avatarUrl: String? = null,
+    val systemPrompt: String,
+    val defaultModelId: String? = null,
+    val temperature: Double,
+    val topP: Double,
+    val maxTokens: Int? = null,
+    val isDefault: Boolean,
+    val followDefaultSystemPrompt: Boolean,
+    val followDefaultModel: Boolean,
+    val followDefaultTemperature: Boolean,
+    val followDefaultTopP: Boolean,
+    val followDefaultMaxTokens: Boolean,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val version: Long,
+    val deleted: Boolean
+)
+
+data class CloudMessageDocument(
+    val id: String,
     val role: String,
     val content: String,
     val timestamp: Long,
     val status: String,
     val errorMessage: String? = null
 )
-data class CloudBackupPayload(
-    val schemaVersion: Int = 1,
-    val exportedAt: Long,
-    val device: CloudDevice,
-    val avatars: List<CloudAvatarAsset> = emptyList(),
-    val userAvatarKey: String? = null,
-    val providers: List<ProviderEntity>,
-    val models: List<ModelEntity> = emptyList(),
-    val agents: List<AgentEntity>,
-    val conversations: List<ConversationEntity>,
-    val messages: List<CloudMessage>
+
+data class CloudConversationDocument(
+    @SerializedName("_id") val id: String,
+    val agentId: String,
+    val title: String,
+    val providerId: String,
+    val overrideModelId: String? = null,
+    val overrideTemperature: Double? = null,
+    val overrideTopP: Double? = null,
+    val overrideMaxTokens: Int? = null,
+    val messages: List<CloudMessageDocument> = emptyList(),
+    val createdAt: Long,
+    val updatedAt: Long,
+    val version: Long,
+    val deleted: Boolean
+)
+
+data class CloudModelDocument(
+    val id: String,
+    val modelId: String,
+    val displayName: String,
+    val isEnabled: Boolean,
+    val createdAt: Long
+)
+
+data class CloudProviderDocument(
+    @SerializedName("_id") val id: String,
+    val name: String,
+    val baseUrl: String,
+    val apiKey: String,
+    val models: List<CloudModelDocument> = emptyList(),
+    val createdAt: Long,
+    val updatedAt: Long,
+    val version: Long,
+    val deleted: Boolean
+)
+
+data class CloudSyncResponse(
+    val agents: List<CloudAgentDocument> = emptyList(),
+    val conversations: List<CloudConversationDocument> = emptyList(),
+    val providers: List<CloudProviderDocument> = emptyList(),
+    val latestVersion: Long
+)
+
+data class CloudUpsertResponse(
+    val id: String,
+    val version: Long
+)
+
+data class CloudAvatarResponse(
+    val url: String?,
+    val version: Long
 )

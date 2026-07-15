@@ -353,6 +353,8 @@ class MobileHttpServer : Service() {
                         put("conversationId", msg.conversationId)
                         put("role", when (msg.role) {
                             MessageRole.ASSISTANT -> "assistant"
+                            MessageRole.TOOL -> "tool"
+                            MessageRole.SYSTEM -> "system"
                             else -> "user"
                         })
                         put("content", msg.content)

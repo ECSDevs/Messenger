@@ -30,6 +30,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -73,6 +75,7 @@ class MessengerApplication : Application() {
         private set
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val localDataMutex = Mutex()
 
     override fun onCreate() {
         super.onCreate()
@@ -80,7 +83,7 @@ class MessengerApplication : Application() {
         initDatabase()
         initPreferences()
         initRepositories()
-        initDefaultAgent()
+        initializeLocalAndCloudData()
         startWearSync()
     }
 
@@ -111,38 +114,70 @@ class MessengerApplication : Application() {
 
     private fun initRepositories() {
         chatRepository = ChatRepositoryImpl()
-        providerRepository = ProviderRepositoryImpl(database.providerDao())
-        modelRepository = ModelRepositoryImpl(database.modelDao())
-        agentRepository = AgentRepositoryImpl(database.agentDao())
-        conversationRepository = ConversationRepositoryImpl(database.conversationDao())
-        messageRepository = MessageRepositoryImpl(database.messageDao())
+        cloudSyncRepository = CloudSyncRepository(
+            appPreferences = appPreferences,
+            database = database,
+            context = applicationContext,
+            localDataMutex = localDataMutex
+        )
+        providerRepository = ProviderRepositoryImpl(database.providerDao()) { id, deleted ->
+            cloudSyncRepository.requestLocalChange("provider", id, deleted)
+        }
+        modelRepository = ModelRepositoryImpl(database.modelDao()) { providerId, _ ->
+            cloudSyncRepository.requestLocalChange("provider", providerId)
+        }
+        agentRepository = AgentRepositoryImpl(database.agentDao()) { previous, current ->
+            cloudSyncRepository.requestAgentAvatarChange(previous, current)
+            current?.let { cloudSyncRepository.requestLocalChange("agent", it.id) }
+                ?: previous?.let { cloudSyncRepository.requestLocalChange("agent", it.id, deleted = true) }
+        }
+        conversationRepository = ConversationRepositoryImpl(database.conversationDao()) { id, deleted ->
+            cloudSyncRepository.requestLocalChange("conversation", id, deleted)
+        }
+        messageRepository = MessageRepositoryImpl(database.messageDao()) { conversationId ->
+            cloudSyncRepository.requestLocalChange("conversation", conversationId)
+        }
         apiRepository = ApiRepositoryImpl()
         currentAgentRepository = CurrentAgentRepositoryImpl(appPreferences, agentRepository)
-        cloudSyncRepository = CloudSyncRepository(appPreferences, database, applicationContext)
     }
 
-    private fun initDefaultAgent() {
+    private fun initializeLocalAndCloudData() {
         applicationScope.launch {
+            if (appPreferences.cloudSession.first() != null) {
+                runCatching {
+                    cloudSyncRepository.refreshUser()
+                    cloudSyncRepository.sync()
+                    cloudSyncRepository.requestLocalSync()
+                }
+            }
             createDefaultAgentIfNeeded()
         }
     }
 
     suspend fun clearAllDataAndReinit() = withContext(Dispatchers.IO) {
-        appPreferences.userAvatar.first()?.let { avatarPath ->
-            File(avatarPath).takeIf { it.exists() }?.delete()
+        cloudSyncRepository.cancelPendingLocalSync()
+        localDataMutex.withLock {
+            appPreferences.userAvatar.first()?.let { avatarPath ->
+                File(avatarPath).takeIf { it.exists() }?.delete()
+            }
+            database.clearAllTables()
+            appPreferences.clearAll()
+            filesDir.deleteRecursively()
+            cacheDir.deleteRecursively()
+            noBackupFilesDir.deleteRecursively()
+            externalCacheDir?.deleteRecursively()
+            createDefaultAgentIfNeededLocked()
         }
-        File(filesDir, "user_avatars").takeIf { it.exists() }?.deleteRecursively()
-        database.clearAllTables()
-        appPreferences.setDefaultAgentInitialized(false)
-        appPreferences.setCurrentAgentId(null)
-        appPreferences.setUserAvatar(null)
-        appPreferences.setCloudSession(null)
-        appPreferences.setCloudUser(null)
-        appPreferences.setCloudServerUrl(null)
-        createDefaultAgentIfNeeded()
     }
 
     private suspend fun createDefaultAgentIfNeeded() {
+        localDataMutex.withLock {
+            createDefaultAgentIfNeededLocked()
+        }
+    }
+
+    private suspend fun createDefaultAgentIfNeededLocked() {
+        if (appPreferences.cloudSession.first() != null) return
         val agents = agentRepository.getAll().first()
         val existingDefault = agents.firstOrNull { it.isDefault }
         if (existingDefault == null) {

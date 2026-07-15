@@ -25,3 +25,4 @@ keyring/
 # Environment variables
 .env
 .env.*
+/specs

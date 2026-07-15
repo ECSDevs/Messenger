@@ -131,6 +131,7 @@ class ApiRepositoryImpl : ApiRepository {
                     MessageRole.USER -> "user"
                     MessageRole.ASSISTANT -> "assistant"
                     MessageRole.SYSTEM -> "system"
+                    MessageRole.TOOL -> "tool"
                 },
                 content = message.content
             )

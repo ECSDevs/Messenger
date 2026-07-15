@@ -167,7 +167,7 @@ fun ConversationSettingsScreen(
             if (uiState.overrideTemperatureEnabled) {
                 val tempValue = uiState.overrideTemperatureValue ?: 0.7f
                 Text(
-                    text = "Temperature: ${String.format(Locale.getDefault(), "%.1f", tempValue)}",
+                    text = "Temperature: ${String.format(Locale.US, "%.1f", tempValue)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 16.dp)
@@ -194,7 +194,7 @@ fun ConversationSettingsScreen(
             if (uiState.overrideTopPEnabled) {
                 val topPValue = uiState.overrideTopPValue ?: 1.0f
                 Text(
-                    text = "Top P: ${String.format(Locale.getDefault(), "%.2f", topPValue)}",
+                    text = "Top P: ${String.format(Locale.US, "%.2f", topPValue)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 16.dp)

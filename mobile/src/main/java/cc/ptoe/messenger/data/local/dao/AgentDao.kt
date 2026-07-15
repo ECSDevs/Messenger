@@ -1,8 +1,8 @@
 package cc.ptoe.messenger.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Upsert
 import androidx.room.Update
 import cc.ptoe.messenger.data.local.entity.AgentEntity
 import kotlinx.coroutines.flow.Flow
@@ -15,7 +15,7 @@ interface AgentDao {
     @Query("SELECT * FROM agents WHERE id = :id")
     fun getById(id: String): Flow<AgentEntity?>
 
-    @Insert
+    @Upsert
     suspend fun insert(agent: AgentEntity)
 
     @Update

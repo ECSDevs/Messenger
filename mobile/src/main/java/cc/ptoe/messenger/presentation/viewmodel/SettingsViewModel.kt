@@ -6,13 +6,15 @@ import androidx.lifecycle.viewModelScope
 import cc.ptoe.messenger.MessengerApplication
 import cc.ptoe.messenger.data.local.AppPreferences
 import cc.ptoe.messenger.data.local.ThemePreferences
-import cc.ptoe.messenger.data.cloud.CloudManifest
+import cc.ptoe.messenger.data.cloud.CloudSyncResult
 import cc.ptoe.messenger.data.cloud.CloudSyncRepository
-import cc.ptoe.messenger.data.cloud.CloudUser
+import cc.ptoe.messenger.data.cloud.CloudLoginOutcome
 import cc.ptoe.messenger.presentation.theme.ThemeMode
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SettingsViewModel(
     private val themePreferences: ThemePreferences,
@@ -38,20 +40,31 @@ class SettingsViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     val cloudServerUrl = cloudSyncRepository.serverUrl
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "https://messenger.ptoe.cc")
+    val cloudSyncError = cloudSyncRepository.syncError
 
     fun setCloudServerUrl(url: String, onResult: (Result<Unit>) -> Unit) {
         viewModelScope.launch { onResult(runCatching { cloudSyncRepository.setServerUrl(url) }) }
     }
 
-    fun login(email: String, password: String, serverUrl: String, onResult: (Result<CloudUser>) -> Unit) {
+    fun login(email: String, password: String, serverUrl: String, onResult: (Result<CloudLoginOutcome>) -> Unit) {
         viewModelScope.launch {
-            onResult(runCatching { cloudSyncRepository.login(email, password, serverUrl).also { cloudSyncRepository.setServerUrl(serverUrl) } })
+            onResult(runCatching {
+                withContext(Dispatchers.IO) {
+                    cloudSyncRepository.login(email, password, serverUrl)
+                        .also { cloudSyncRepository.setServerUrl(serverUrl) }
+                }
+            })
         }
     }
 
-    fun register(email: String, password: String, serverUrl: String, onResult: (Result<CloudUser>) -> Unit) {
+    fun register(email: String, password: String, serverUrl: String, onResult: (Result<CloudLoginOutcome>) -> Unit) {
         viewModelScope.launch {
-            onResult(runCatching { cloudSyncRepository.register(email, password, serverUrl).also { cloudSyncRepository.setServerUrl(serverUrl) } })
+            onResult(runCatching {
+                withContext(Dispatchers.IO) {
+                    cloudSyncRepository.register(email, password, serverUrl)
+                        .also { cloudSyncRepository.setServerUrl(serverUrl) }
+                }
+            })
         }
     }
 
@@ -59,12 +72,56 @@ class SettingsViewModel(
         viewModelScope.launch { onResult(runCatching { cloudSyncRepository.logout() }) }
     }
 
-    fun upload(onResult: (Result<CloudManifest>) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { cloudSyncRepository.upload() }) }
+    fun completeLogin(
+        outcome: CloudLoginOutcome,
+        useLocalData: Boolean,
+        onResult: (Result<CloudSyncResult>) -> Unit
+    ) {
+        viewModelScope.launch {
+            onResult(runCatching {
+                withContext(Dispatchers.IO) {
+                    cloudSyncRepository.completeLogin(outcome, useLocalData)
+                }
+            })
+        }
     }
 
-    fun restore(onResult: (Result<CloudManifest>) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { cloudSyncRepository.downloadAndRestore() }) }
+    fun changePassword(currentPassword: String, newPassword: String, onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            onResult(runCatching {
+                withContext(Dispatchers.IO) {
+                    cloudSyncRepository.changePassword(currentPassword, newPassword)
+                }
+            })
+        }
+    }
+
+    fun deleteAccount(currentPassword: String, onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            onResult(runCatching {
+                withContext(Dispatchers.IO) {
+                    cloudSyncRepository.deleteAccount(currentPassword)
+                }
+            })
+        }
+    }
+
+    fun upload(serverUrl: String? = null, onResult: (Result<CloudSyncResult>) -> Unit) {
+        viewModelScope.launch {
+            onResult(runCatching {
+                serverUrl?.let { cloudSyncRepository.setServerUrl(it) }
+                cloudSyncRepository.upload()
+            })
+        }
+    }
+
+    fun restore(serverUrl: String? = null, onResult: (Result<CloudSyncResult>) -> Unit) {
+        viewModelScope.launch {
+            onResult(runCatching {
+                serverUrl?.let { cloudSyncRepository.setServerUrl(it) }
+                cloudSyncRepository.downloadAndRestore()
+            })
+        }
     }
 
     fun setThemeMode(mode: ThemeMode) {
@@ -76,6 +133,9 @@ class SettingsViewModel(
     fun setUserAvatar(avatar: String?) {
         viewModelScope.launch {
             appPreferences.setUserAvatar(avatar)
+            if (cloudUser.value != null) {
+                runCatching { cloudSyncRepository.uploadUserAvatar(avatar) }
+            }
         }
     }
 

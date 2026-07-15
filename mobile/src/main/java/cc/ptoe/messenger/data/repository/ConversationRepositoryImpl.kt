@@ -8,7 +8,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class ConversationRepositoryImpl(
-    private val conversationDao: ConversationDao
+    private val conversationDao: ConversationDao,
+    private val onChanged: (String, Boolean) -> Unit = { _, _ -> }
 ) : ConversationRepository {
 
     override fun getAll(): Flow<List<Conversation>> {
@@ -31,14 +32,17 @@ class ConversationRepositoryImpl(
 
     override suspend fun insert(conversation: Conversation) {
         conversationDao.insert(conversation.toEntity())
+        onChanged(conversation.id, false)
     }
 
     override suspend fun update(conversation: Conversation) {
         conversationDao.update(conversation.toEntity())
+        onChanged(conversation.id, false)
     }
 
     override suspend fun delete(id: String) {
         conversationDao.delete(id)
+        onChanged(id, true)
     }
 
     private fun ConversationEntity.toDomain(): Conversation {

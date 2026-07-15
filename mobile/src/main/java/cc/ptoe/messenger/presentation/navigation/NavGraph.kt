@@ -63,8 +63,8 @@ fun NavGraph(
                 }
             )
         }
-        composable(Screen.Agents.route) {
-            val conversationsBackStackEntry = remember(navController) {
+        composable(Screen.Agents.route) { backStackEntry ->
+            val conversationsBackStackEntry = remember(backStackEntry) {
                 navController.getBackStackEntry(Screen.Conversations.route)
             }
             val conversationsViewModel: ConversationsViewModel = viewModel(
