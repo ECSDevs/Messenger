@@ -6,6 +6,7 @@ data class CloudUser(
     val id: String,
     val email: String,
     val avatarUrl: String? = null,
+    val avatarVersion: Long? = null,
     val syncVersion: Long = 0,
     val createdAt: Long? = null,
     val updatedAt: Long? = null,
@@ -29,6 +30,7 @@ data class CloudAgentDocument(
     @SerializedName("_id") val id: String,
     val name: String,
     val avatarUrl: String? = null,
+    val avatarVersion: Long? = null,
     val systemPrompt: String,
     val defaultModelId: String? = null,
     val temperature: Double,
@@ -105,5 +107,6 @@ data class CloudUpsertResponse(
 
 data class CloudAvatarResponse(
     val url: String?,
-    val version: Long
+    val version: Long,
+    val avatarVersion: Long? = null
 )

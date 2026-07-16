@@ -37,6 +37,7 @@ import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.HttpException
@@ -54,6 +55,7 @@ import retrofit2.http.Query
 import retrofit2.http.Url
 import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 const val DEFAULT_CLOUD_SERVER_URL = "https://messenger.ptoe.cc"
@@ -219,7 +221,28 @@ class CloudSyncRepository(
         )
         saveUser(response.user)
         if (updateLocalAvatar) {
-            appPreferences.setUserAvatar(response.user.avatarUrl)
+            val currentAvatar = appPreferences.userAvatar.first()
+            val localAvatar = if (response.user.avatarUrl != null) {
+                currentAvatar
+                    ?.takeUnless(::isCloudCachedAvatar)
+                    ?.takeIf(::isUsableLocalAvatar)
+                    ?: runCatching {
+                        cacheRemoteAvatar(
+                            "user",
+                        response.user.id,
+                        response.user.id,
+                        response.user.avatarUrl,
+                        response.user.avatarVersion?.toString()
+                        )
+                    }.getOrNull()
+                    ?: currentAvatar?.takeUnless(::isRemoteAvatar)?.takeIf(::isUsableLocalAvatar)
+            } else {
+                currentAvatar?.takeUnless(::isCloudCachedAvatar)?.takeIf(::isUsableLocalAvatar)
+            }
+            appPreferences.setUserAvatar(localAvatar)
+            if (response.user.avatarUrl == null) {
+                deleteCachedAvatars("user", response.user.id, response.user.id)
+            }
         }
         return response.user
     }
@@ -368,9 +391,19 @@ class CloudSyncRepository(
                         )
                     }
                 }
-                appPreferences.setUserAvatar(response.url)
-                refreshCachedUserAvatar(response.url)
-                localFile?.delete()
+                val cachedAvatar = response.url?.let { url ->
+                    runCatching {
+                        cacheRemoteAvatar("user", user.first()!!.id, user.first()!!.id, url, response.avatarVersion?.toString())
+                    }
+                        .getOrNull()
+                }
+                val localAvatar = cachedAvatar ?: if (response.url != null) path else null
+                appPreferences.setUserAvatar(localAvatar)
+                refreshCachedUserAvatar(response.url, response.avatarVersion)
+                if (response.url == null) {
+                    deleteCachedAvatars("user", user.first()!!.id, user.first()!!.id)
+                }
+                if (localFile != null && localFile.absolutePath != localAvatar) localFile.delete()
                 response
             }
         }
@@ -395,10 +428,20 @@ class CloudSyncRepository(
                         )
                     }
                 }
-                database.agentDao().getById(agentId).first()?.let { agent ->
-                    database.agentDao().insert(agent.copy(avatar = response.url))
+                val cachedAvatar = response.url?.let { url ->
+                    runCatching {
+                        cacheRemoteAvatar("agent", user.first()!!.id, agentId, url, response.avatarVersion?.toString())
+                    }
+                        .getOrNull()
                 }
-                localFile?.delete()
+                val localAvatar = cachedAvatar ?: if (response.url != null) path else null
+                database.agentDao().getById(agentId).first()?.let { agent ->
+                    database.agentDao().insert(agent.copy(avatar = localAvatar))
+                }
+                if (response.url == null) {
+                    deleteCachedAvatars("agent", user.first()!!.id, agentId)
+                }
+                if (localFile != null && localFile.absolutePath != localAvatar) localFile.delete()
                 response
             }
         }
@@ -533,7 +576,7 @@ class CloudSyncRepository(
             latestVersion,
             when {
                 userAvatar == null -> uploadUserAvatar(null).version
-                !isRemoteAvatar(userAvatar) -> uploadUserAvatar(userAvatar).version
+                !isRemoteAvatar(userAvatar) && !isCloudCachedAvatar(userAvatar) -> uploadUserAvatar(userAvatar).version
                 else -> 0L
             }
         )
@@ -591,6 +634,8 @@ class CloudSyncRepository(
             }
             applyDelta(delta)
         }
+        cacheAgentAvatars(account.id, delta)
+        cacheLegacyAgentAvatars(account.id)
         appPreferences.setCloudSyncVersion(account.id, delta.latestVersion)
         localChangesEnabled = true
         Log.i(
@@ -603,7 +648,7 @@ class CloudSyncRepository(
     }
 
     private suspend fun syncAgentAvatar(agent: AgentEntity) {
-        if (agent.avatar != null && !isRemoteAvatar(agent.avatar)) {
+        if (agent.avatar != null && !isRemoteAvatar(agent.avatar) && !isCloudCachedAvatar(agent.avatar)) {
             uploadAgentAvatar(agent.id, agent.avatar)
         }
     }
@@ -614,12 +659,16 @@ class CloudSyncRepository(
                 database.conversationDao().deleteByAgentId(remote.id)
                 database.agentDao().delete(remote.id)
             } else {
+                val existingAvatar = database.agentDao().getById(remote.id).first()?.avatar
+                    ?.takeUnless(::isRemoteAvatar)
+                    ?.takeIf(::isUsableLocalAvatar)
                 if (remote.isDefault) {
                     database.agentDao().getAllEntities()
                         .filter { it.isDefault && it.id != remote.id }
                         .forEach { database.agentDao().insert(it.copy(isDefault = false)) }
                 }
-                database.agentDao().insert(remote.toEntity())
+                // Keep an uncached URL only as a retry marker; AgentAvatar never renders it.
+                database.agentDao().insert(remote.toEntity(existingAvatar ?: remote.avatarUrl))
             }
         }
         delta.providers.forEach { remote ->
@@ -648,6 +697,59 @@ class CloudSyncRepository(
                     .takeIf { it.isNotEmpty() }
                     ?.let { database.messageDao().insertAll(it) }
             }
+        }
+    }
+
+    private suspend fun cacheAgentAvatars(accountId: String, delta: CloudSyncResponse) {
+        delta.agents.forEach { remote ->
+            if (remote.deleted) {
+                deleteCachedAvatars("agent", accountId, remote.id)
+                return@forEach
+            }
+
+            val agent = database.agentDao().getById(remote.id).first() ?: return@forEach
+            val previousAvatar = agent.avatar
+            if (remote.avatarUrl == null) {
+                val localAvatar = previousAvatar
+                    ?.takeUnless(::isCloudCachedAvatar)
+                    ?.takeIf(::isUsableLocalAvatar)
+                if (localAvatar == null) {
+                    database.agentDao().insert(agent.copy(avatar = null))
+                    if (isCloudCachedAvatar(previousAvatar)) {
+                        deleteLocalAvatarIfReplaced(previousAvatar, null)
+                    }
+                }
+                deleteCachedAvatars("agent", accountId, remote.id)
+                return@forEach
+            }
+
+            if (previousAvatar != null && !isCloudCachedAvatar(previousAvatar) &&
+                isUsableLocalAvatar(previousAvatar)
+            ) {
+                return@forEach
+            }
+
+            val cachedAvatar = runCatching {
+                cacheRemoteAvatar(
+                    "agent",
+                    accountId,
+                    remote.id,
+                    remote.avatarUrl,
+                    remote.avatarVersion?.toString()
+                )
+            }.getOrNull() ?: return@forEach
+            database.agentDao().insert(agent.copy(avatar = cachedAvatar))
+            deleteLocalAvatarIfReplaced(previousAvatar, cachedAvatar)
+        }
+    }
+
+    private suspend fun cacheLegacyAgentAvatars(accountId: String) {
+        database.agentDao().getAllEntities().forEach { agent ->
+            val remoteUrl = agent.avatar?.takeIf(::isRemoteAvatar) ?: return@forEach
+            val cachedAvatar = runCatching {
+                cacheRemoteAvatar("agent", accountId, agent.id, remoteUrl)
+            }.getOrNull() ?: return@forEach
+            database.agentDao().insert(agent.copy(avatar = cachedAvatar))
         }
     }
 
@@ -680,10 +782,108 @@ class CloudSyncRepository(
         appPreferences.setCloudUser(gson.toJson(value))
     }
 
-    private suspend fun refreshCachedUserAvatar(url: String?) {
+    private suspend fun refreshCachedUserAvatar(url: String?, avatarVersion: Long?) {
         val current = user.first() ?: return
-        saveUser(current.copy(avatarUrl = url))
+        saveUser(current.copy(avatarUrl = url, avatarVersion = avatarVersion))
     }
+
+    /** Stores a server avatar locally so rendering never depends on a network request. */
+    private fun cacheRemoteAvatar(
+        scope: String,
+        accountId: String,
+        id: String,
+        url: String,
+        version: String? = null
+    ): String {
+        val directory = File(context.filesDir, "cloud_avatars").apply { mkdirs() }
+        val identity = digest("$scope|$accountId|$id")
+        val urlKey = digest("$url|${version.orEmpty()}")
+        val existing = directory.listFiles()
+            ?.firstOrNull { it.isFile && it.name.startsWith("$identity-$urlKey.") && it.length() > 0L }
+        if (existing != null) return existing.absolutePath
+
+        val request = Request.Builder().url(url).get().build()
+        return createAvatarHttpClient().newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("Avatar download failed (${response.code})")
+            }
+            val body = response.body
+            val contentLength = body.contentLength()
+            check(contentLength <= MAX_AVATAR_BYTES || contentLength == -1L) {
+                "Avatar must not exceed 5 MiB"
+            }
+            val extension = avatarExtension(response.header("Content-Type"), url)
+            val target = File(directory, "$identity-$urlKey.$extension")
+            val temporary = File(directory, "$identity-$urlKey.part")
+            try {
+                body.byteStream().use { input ->
+                    temporary.outputStream().use { output ->
+                        var total = 0L
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            total += count
+                            check(total <= MAX_AVATAR_BYTES) { "Avatar must not exceed 5 MiB" }
+                            output.write(buffer, 0, count)
+                        }
+                    }
+                }
+                check(temporary.length() > 0L) { "Avatar response was empty" }
+                if (!temporary.renameTo(target)) {
+                    throw IOException("Unable to cache avatar")
+                }
+            } finally {
+                temporary.delete()
+            }
+            deleteCachedAvatarsExcept(scope, accountId, id, target)
+            target.absolutePath
+        }
+    }
+
+    private fun deleteCachedAvatars(scope: String, accountId: String, id: String) {
+        val identity = digest("$scope|$accountId|$id")
+        File(context.filesDir, "cloud_avatars").listFiles()
+            ?.filter { it.isFile && it.name.startsWith("$identity-") }
+            ?.forEach { it.delete() }
+    }
+
+    private fun deleteCachedAvatarsExcept(scope: String, accountId: String, id: String, keep: File) {
+        val identity = digest("$scope|$accountId|$id")
+        File(context.filesDir, "cloud_avatars").listFiles()
+            ?.filter { it.isFile && it.name.startsWith("$identity-") && it != keep }
+            ?.forEach { it.delete() }
+    }
+
+    private fun deleteLocalAvatarIfReplaced(previous: String?, current: String?) {
+        if (previous != null && previous != current && !isRemoteAvatar(previous)) {
+            File(previous).takeIf { it.exists() }?.delete()
+        }
+    }
+
+    private fun isUsableLocalAvatar(value: String): Boolean =
+        !isRemoteAvatar(value) && File(value).isFile && File(value).length() > 0L
+
+    private fun isCloudCachedAvatar(value: String?): Boolean =
+        value != null && File(value).parentFile?.absoluteFile == File(context.filesDir, "cloud_avatars").absoluteFile
+
+    private fun avatarExtension(contentType: String?, url: String): String {
+        val mime = contentType?.substringBefore(';')?.trim()?.lowercase()
+        return when (mime) {
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            "image/gif" -> "gif"
+            "image/jpeg", "image/jpg" -> "jpg"
+            else -> url.substringBefore('?').substringAfterLast('.', "img")
+                .lowercase()
+                .takeIf { it.matches(Regex("[a-z0-9]{1,5}")) }
+                ?: "img"
+        }
+    }
+
+    private fun digest(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte -> "%02x".format(byte) }
 
     private fun avatarPart(file: File): MultipartBody.Part {
         check(file.isFile) { "Avatar file not found" }
@@ -750,6 +950,7 @@ class CloudSyncRepository(
 
     private companion object {
         const val TAG = "CloudSyncRepository"
+        const val MAX_AVATAR_BYTES = 5L * 1024L * 1024L
     }
 }
 
@@ -830,10 +1031,10 @@ private fun ConversationEntity.toCloudRequest(messages: List<MessageEntity>) = C
     updatedAt = updatedAt
 )
 
-private fun CloudAgentDocument.toEntity() = AgentEntity(
+private fun CloudAgentDocument.toEntity(avatar: String?) = AgentEntity(
     id = id,
     name = name,
-    avatar = avatarUrl,
+    avatar = avatar,
     systemPrompt = systemPrompt,
     defaultModelId = defaultModelId,
     temperature = temperature.toFloat(),

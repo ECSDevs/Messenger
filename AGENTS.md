@@ -170,8 +170,9 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - The mobile `CloudSyncRepository` uses the session cookie and a per-account DataStore cursor to pull `GET /api/sync?since=N`; it applies tombstones transactionally, flattens provider models and conversation messages into Room, and pushes complete entity snapshots to the corresponding `PUT` endpoints
 - Mobile local repository mutations are debounced into cloud synchronization requests; deleted entities are retained as account-scoped pending-delete markers until the server tombstone write succeeds
 - User and agent avatars are uploaded as multipart `file` parts to the dedicated avatar endpoints;
-  authenticated GET endpoints proxy private Blob content, and `AgentAvatar` supports those server
-  URLs plus legacy local file paths
+  authenticated GET endpoints proxy private Blob content. Mobile avatar URLs are downloaded during
+  Cloud Sync into `filesDir/cloud_avatars`; Room/DataStore store local avatar paths so `AgentAvatar`
+  never depends on a network request
 
 ### Chat bubble rendering (mobile)
 

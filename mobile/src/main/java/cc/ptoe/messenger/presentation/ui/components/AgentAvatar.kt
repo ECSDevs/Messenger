@@ -28,13 +28,11 @@ fun AgentAvatar(
     fallbackIcon: ImageVector = Icons.Default.SmartToy
 ) {
     val avatarSource = remember(avatar) {
-        avatar?.takeIf { it.isNotBlank() }?.let { value ->
-            if (value.startsWith("http://") || value.startsWith("https://")) value else File(value)
-        }
+        avatar?.takeIf { it.isNotBlank() && !it.startsWith("http://") && !it.startsWith("https://") }
+            ?.let(::File)
     }
     val isValid = when (avatarSource) {
         is File -> avatarSource.exists()
-        is String -> true
         else -> false
     }
 
