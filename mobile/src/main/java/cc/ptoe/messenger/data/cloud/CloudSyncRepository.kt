@@ -55,6 +55,7 @@ import retrofit2.http.Query
 import retrofit2.http.Url
 import java.io.File
 import java.io.IOException
+import java.net.URI
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
@@ -214,6 +215,7 @@ class CloudSyncRepository(
     private suspend fun refreshUser(updateLocalAvatar: Boolean): CloudUser {
         checkSignedIn()
         val response = request { api.me(endpoint("api/auth/me")) }
+        val configuredServerUrl = serverUrl.first()
         Log.i(
             TAG,
             "Cloud account id=${response.user.id} email=${response.user.email} " +
@@ -229,10 +231,11 @@ class CloudSyncRepository(
                     ?: runCatching {
                         cacheRemoteAvatar(
                             "user",
-                        response.user.id,
-                        response.user.id,
-                        response.user.avatarUrl,
-                        response.user.avatarVersion?.toString()
+                            response.user.id,
+                            response.user.id,
+                            response.user.avatarUrl,
+                            response.user.avatarVersion?.toString(),
+                            configuredServerUrl
                         )
                     }.getOrNull()
                     ?: currentAvatar?.takeUnless(::isRemoteAvatar)?.takeIf(::isUsableLocalAvatar)
@@ -391,9 +394,17 @@ class CloudSyncRepository(
                         )
                     }
                 }
+                val configuredServerUrl = serverUrl.first()
                 val cachedAvatar = response.url?.let { url ->
                     runCatching {
-                        cacheRemoteAvatar("user", user.first()!!.id, user.first()!!.id, url, response.avatarVersion?.toString())
+                        cacheRemoteAvatar(
+                            "user",
+                            user.first()!!.id,
+                            user.first()!!.id,
+                            url,
+                            response.avatarVersion?.toString(),
+                            configuredServerUrl
+                        )
                     }
                         .getOrNull()
                 }
@@ -428,9 +439,17 @@ class CloudSyncRepository(
                         )
                     }
                 }
+                val configuredServerUrl = serverUrl.first()
                 val cachedAvatar = response.url?.let { url ->
                     runCatching {
-                        cacheRemoteAvatar("agent", user.first()!!.id, agentId, url, response.avatarVersion?.toString())
+                        cacheRemoteAvatar(
+                            "agent",
+                            user.first()!!.id,
+                            agentId,
+                            url,
+                            response.avatarVersion?.toString(),
+                            configuredServerUrl
+                        )
                     }
                         .getOrNull()
                 }
@@ -634,8 +653,9 @@ class CloudSyncRepository(
             }
             applyDelta(delta)
         }
-        cacheAgentAvatars(account.id, delta)
-        cacheLegacyAgentAvatars(account.id)
+        val configuredServerUrl = serverUrl.first()
+        cacheAgentAvatars(account.id, delta, configuredServerUrl)
+        cacheLegacyAgentAvatars(account.id, configuredServerUrl)
         appPreferences.setCloudSyncVersion(account.id, delta.latestVersion)
         localChangesEnabled = true
         Log.i(
@@ -700,7 +720,7 @@ class CloudSyncRepository(
         }
     }
 
-    private suspend fun cacheAgentAvatars(accountId: String, delta: CloudSyncResponse) {
+    private suspend fun cacheAgentAvatars(accountId: String, delta: CloudSyncResponse, configuredServerUrl: String) {
         delta.agents.forEach { remote ->
             if (remote.deleted) {
                 deleteCachedAvatars("agent", accountId, remote.id)
@@ -735,7 +755,8 @@ class CloudSyncRepository(
                     accountId,
                     remote.id,
                     remote.avatarUrl,
-                    remote.avatarVersion?.toString()
+                    remote.avatarVersion?.toString(),
+                    configuredServerUrl
                 )
             }.getOrNull() ?: return@forEach
             database.agentDao().insert(agent.copy(avatar = cachedAvatar))
@@ -743,11 +764,11 @@ class CloudSyncRepository(
         }
     }
 
-    private suspend fun cacheLegacyAgentAvatars(accountId: String) {
+    private suspend fun cacheLegacyAgentAvatars(accountId: String, configuredServerUrl: String) {
         database.agentDao().getAllEntities().forEach { agent ->
             val remoteUrl = agent.avatar?.takeIf(::isRemoteAvatar) ?: return@forEach
             val cachedAvatar = runCatching {
-                cacheRemoteAvatar("agent", accountId, agent.id, remoteUrl)
+                cacheRemoteAvatar("agent", accountId, agent.id, remoteUrl, baseUrl = configuredServerUrl)
             }.getOrNull() ?: return@forEach
             database.agentDao().insert(agent.copy(avatar = cachedAvatar))
         }
@@ -793,16 +814,18 @@ class CloudSyncRepository(
         accountId: String,
         id: String,
         url: String,
-        version: String? = null
+        version: String? = null,
+        baseUrl: String
     ): String {
         val directory = File(context.filesDir, "cloud_avatars").apply { mkdirs() }
         val identity = digest("$scope|$accountId|$id")
-        val urlKey = digest("$url|${version.orEmpty()}")
+        val requestUrl = resolveAvatarUrl(url, baseUrl)
+        val urlKey = digest("$requestUrl|${version.orEmpty()}")
         val existing = directory.listFiles()
             ?.firstOrNull { it.isFile && it.name.startsWith("$identity-$urlKey.") && it.length() > 0L }
         if (existing != null) return existing.absolutePath
 
-        val request = Request.Builder().url(url).get().build()
+        val request = Request.Builder().url(requestUrl).get().build()
         return createAvatarHttpClient().newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 throw IOException("Avatar download failed (${response.code})")
@@ -812,7 +835,7 @@ class CloudSyncRepository(
             check(contentLength <= MAX_AVATAR_BYTES || contentLength == -1L) {
                 "Avatar must not exceed 5 MiB"
             }
-            val extension = avatarExtension(response.header("Content-Type"), url)
+            val extension = avatarExtension(response.header("Content-Type"), requestUrl)
             val target = File(directory, "$identity-$urlKey.$extension")
             val temporary = File(directory, "$identity-$urlKey.part")
             try {
@@ -899,6 +922,17 @@ class CloudSyncRepository(
 
     private fun isRemoteAvatar(value: String): Boolean =
         value.startsWith("http://") || value.startsWith("https://")
+
+    /** The API may build absolute URLs from its internal localhost origin. Use the configured server host. */
+    private fun resolveAvatarUrl(url: String, baseUrl: String): String {
+        val base = URI(baseUrl)
+        val source = URI(url)
+        val origin = "${base.scheme}://${base.rawAuthority}"
+        val path = source.rawPath?.takeIf { it.isNotEmpty() } ?: "/"
+        val query = source.rawQuery?.let { "?$it" }.orEmpty()
+        val fragment = source.rawFragment?.let { "#$it" }.orEmpty()
+        return "$origin$path$query$fragment"
+    }
 
     private suspend fun endpoint(path: String, baseUrl: String? = null): String =
         "${(baseUrl ?: serverUrl.first()).trimEnd('/')}/$path"
