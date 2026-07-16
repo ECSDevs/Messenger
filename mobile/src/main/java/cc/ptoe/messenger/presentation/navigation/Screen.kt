@@ -6,6 +6,10 @@ sealed class Screen(val route: String) {
         fun createRoute(conversationId: String) = "chat/$conversationId"
     }
     data object Agents : Screen("agents")
+    data object AgentMarket : Screen("agent_market")
+    data object AgentMarketDetail : Screen("agent_market_detail/{marketAgentId}") {
+        fun createRoute(marketAgentId: String) = "agent_market_detail/$marketAgentId"
+    }
     data object Providers : Screen("providers")
     data object Settings : Screen("settings")
     data object CloudSettings : Screen("cloud_settings")

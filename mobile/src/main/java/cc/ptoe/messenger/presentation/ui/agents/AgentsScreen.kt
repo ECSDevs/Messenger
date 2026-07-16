@@ -14,8 +14,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +51,7 @@ import cc.ptoe.messenger.presentation.viewmodel.AgentsViewModel
 @Composable
 fun AgentsScreen(
     onAddClick: () -> Unit,
+    onMarketClick: () -> Unit,
     onEditClick: (String) -> Unit,
     onAgentClick: (String) -> Unit,
     viewModel: AgentsViewModel = viewModel(
@@ -62,6 +66,8 @@ fun AgentsScreen(
     )
 
     var showDeleteDialog by remember { mutableStateOf<String?>(null) }
+    var fabExpanded by remember { mutableStateOf(false) }
+    val cloudUser by MessengerApplication.instance.cloudSyncRepository.user.collectAsStateWithLifecycle(initialValue = null)
 
     Scaffold(
         topBar = {
@@ -70,8 +76,31 @@ fun AgentsScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddClick) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "添加")
+            Column(horizontalAlignment = Alignment.End) {
+                if (cloudUser != null && fabExpanded) {
+                    SmallFloatingActionButton(onClick = {
+                        fabExpanded = false
+                        onMarketClick()
+                    }) {
+                        Icon(imageVector = Icons.Default.Storefront, contentDescription = "Agent 市场")
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SmallFloatingActionButton(onClick = {
+                        fabExpanded = false
+                        onAddClick()
+                    }) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = "新建 Agent")
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                FloatingActionButton(onClick = {
+                    if (cloudUser == null) onAddClick() else fabExpanded = !fabExpanded
+                }) {
+                    Icon(
+                        imageVector = if (fabExpanded) Icons.Default.Close else Icons.Default.Add,
+                        contentDescription = if (fabExpanded) "关闭操作菜单" else "添加"
+                    )
+                }
             }
         },
         modifier = Modifier.fillMaxSize()

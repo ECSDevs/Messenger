@@ -42,6 +42,9 @@ data class CloudAgentDocument(
     val followDefaultTemperature: Boolean,
     val followDefaultTopP: Boolean,
     val followDefaultMaxTokens: Boolean,
+    val marketAgentId: String? = null,
+    val marketAgentVersion: Long? = null,
+    val marketAgentRole: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
     val version: Long,
@@ -109,4 +112,33 @@ data class CloudAvatarResponse(
     val url: String?,
     val version: Long,
     val avatarVersion: Long? = null
+)
+
+data class CloudMarketAgent(
+    val id: String,
+    val name: String,
+    val avatarUrl: String? = null,
+    val avatarVersion: Long? = null,
+    val systemPrompt: String,
+    val temperature: Double,
+    val topP: Double,
+    val maxTokens: Int? = null,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val version: Long
+)
+
+data class CloudMarketAgentListResponse(
+    val agents: List<CloudMarketAgent> = emptyList(),
+    val nextCursor: String? = null
+)
+
+data class CloudMarketAgentResponse(
+    val agent: CloudMarketAgent,
+    val isOwner: Boolean = false
+)
+
+data class CloudMarketAgentUpdate(
+    val agent: CloudMarketAgent,
+    val hasUpdate: Boolean
 )

@@ -20,6 +20,8 @@ import androidx.navigation.navArgument
 import cc.ptoe.messenger.MessengerApplication
 import cc.ptoe.messenger.presentation.ui.agents.AgentEditScreen
 import cc.ptoe.messenger.presentation.ui.agents.AgentsScreen
+import cc.ptoe.messenger.presentation.ui.agents.AgentMarketDetailScreen
+import cc.ptoe.messenger.presentation.ui.agents.AgentMarketScreen
 import cc.ptoe.messenger.presentation.ui.chat.ChatScreen
 import cc.ptoe.messenger.presentation.ui.conversations.ConversationSettingsScreen
 import cc.ptoe.messenger.presentation.ui.conversations.ConversationsScreen
@@ -80,6 +82,9 @@ fun NavGraph(
                 onAddClick = {
                     navController.navigate(Screen.AgentEdit.createRoute())
                 },
+                onMarketClick = {
+                    navController.navigate(Screen.AgentMarket.route)
+                },
                 onEditClick = { agentId ->
                     navController.navigate(Screen.AgentEdit.createRoute(agentId))
                 },
@@ -112,6 +117,27 @@ fun NavGraph(
                     navController.navigate(Screen.Licenses.route)
                 },
                 onCloudSettingsClick = { navController.navigate(Screen.CloudSettings.route) }
+            )
+        }
+        composable(Screen.AgentMarket.route) {
+            AgentMarketScreen(
+                onBackClick = { navController.popBackStack() },
+                onAgentClick = { marketAgentId ->
+                    navController.navigate(Screen.AgentMarketDetail.createRoute(marketAgentId))
+                }
+            )
+        }
+        composable(
+            route = Screen.AgentMarketDetail.route,
+            arguments = listOf(navArgument("marketAgentId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val marketAgentId = backStackEntry.arguments?.getString("marketAgentId") ?: return@composable
+            AgentMarketDetailScreen(
+                marketAgentId = marketAgentId,
+                onBackClick = { navController.popBackStack() },
+                onImported = {
+                    navController.popBackStack(Screen.AgentMarket.route, inclusive = true)
+                }
             )
         }
         composable(Screen.CloudSettings.route) {

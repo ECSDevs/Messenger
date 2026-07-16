@@ -60,6 +60,9 @@ class AgentRepositoryImpl(
             followDefaultTemperature = followDefaultTemperature,
             followDefaultTopP = followDefaultTopP,
             followDefaultMaxTokens = followDefaultMaxTokens,
+            marketAgentId = marketAgentId,
+            marketAgentVersion = marketAgentVersion,
+            marketAgentRole = marketAgentRole,
             createdAt = createdAt,
             updatedAt = updatedAt
         )
@@ -81,6 +84,9 @@ class AgentRepositoryImpl(
             followDefaultTemperature = followDefaultTemperature,
             followDefaultTopP = followDefaultTopP,
             followDefaultMaxTokens = followDefaultMaxTokens,
+            marketAgentId = marketAgentId,
+            marketAgentVersion = marketAgentVersion,
+            marketAgentRole = marketAgentRole,
             createdAt = createdAt,
             updatedAt = updatedAt
         )

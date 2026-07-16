@@ -132,7 +132,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
   - `AgentEntity` - AI agent configurations
   - `ConversationEntity` - Chat conversations
   - `MessageEntity` - Chat messages
-- Database version: 5 (with `fallbackToDestructiveMigration`)
+- Database version: 6 (with `fallbackToDestructiveMigration`)
 
 ### Navigation
 
@@ -141,6 +141,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - NavGraph defined in `NavGraph.kt`
 - Bottom navigation routes defined in `BottomLevelRoutes.kt`
 - **Important**: `ProviderEdit` and `AgentEdit` routes use optional parameter syntax (`provider_edit?providerId={providerId}`)
+- `AgentMarket` and `AgentMarketDetail` are Cloud-authenticated routes entered from the Agent list FAB; the FAB exposes the market only while a Cloud user is signed in.
 
 ### API / Network
 
@@ -155,6 +156,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - `server/` is a standalone Next.js App Router project in a git submodule, intended for Vercel deployment
 - Messenger clients authenticate with email/password against serverless route handlers under `server/app/api/`
 - MongoDB stores user documents plus versioned `agents`, `conversations`, and `providers` documents; conversations embed messages and providers embed models
+- Public Agent Market entries live separately in `market_agents`; they contain only portable Agent snapshots (name, avatar, prompt, and sampling parameters), never providers, model bindings, or API keys.
 - Each user has a monotonically increasing `syncVersion`. Entity writes atomically increment it and stamp the changed document's `version`; deletes are `deleted: true` tombstones returned by `GET /api/sync?since=N`
 - Server registration seeds the one required default Agent in the same transaction as user creation, so the cloud data preserves the default-agent invariant
 - Vercel Blob private storage is used only for user and agent avatars at
@@ -173,6 +175,8 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
   authenticated GET endpoints proxy private Blob content. Mobile avatar URLs are downloaded during
   Cloud Sync into `filesDir/cloud_avatars`; Room/DataStore store local avatar paths so `AgentAvatar`
   never depends on a network request
+- Market list/detail, publish, update, and unpublish APIs require a Messenger session. Market avatars remain private Blobs and are streamed through authenticated `/api/market/agents/{id}/avatar` routes.
+- Imported Agents retain their market entry/version link in Room and private cloud sync metadata, but always clear the model binding and follow-default flags. Market updates require explicit user confirmation and preserve the local model binding.
 
 ### Chat bubble rendering (mobile)
 

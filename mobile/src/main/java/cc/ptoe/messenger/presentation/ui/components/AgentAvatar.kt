@@ -25,7 +25,8 @@ fun AgentAvatar(
     avatar: String?,
     modifier: Modifier = Modifier,
     size: Dp = 40.dp,
-    fallbackIcon: ImageVector = Icons.Default.SmartToy
+    fallbackIcon: ImageVector = Icons.Default.SmartToy,
+    allowRemote: Boolean = false
 ) {
     val avatarSource = remember(avatar) {
         avatar?.takeIf { it.isNotBlank() && !it.startsWith("http://") && !it.startsWith("https://") }
@@ -35,6 +36,7 @@ fun AgentAvatar(
         is File -> avatarSource.exists()
         else -> false
     }
+    val remoteAvatar = avatar?.takeIf { allowRemote && (it.startsWith("http://") || it.startsWith("https://")) }
 
     Box(
         modifier = modifier
@@ -43,9 +45,9 @@ fun AgentAvatar(
             .background(MaterialTheme.colorScheme.primaryContainer),
         contentAlignment = Alignment.Center
     ) {
-        if (isValid) {
+        if (isValid || remoteAvatar != null) {
             AsyncImage(
-                model = avatarSource,
+                model = avatarSource ?: remoteAvatar,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(size)

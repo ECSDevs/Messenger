@@ -57,6 +57,7 @@ import java.io.File
 import java.io.IOException
 import java.net.URI
 import java.security.MessageDigest
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 const val DEFAULT_CLOUD_SERVER_URL = "https://messenger.ptoe.cc"
@@ -77,6 +78,16 @@ private interface CloudApi {
     suspend fun deleteAccount(@Url url: String, @Body body: AccountDeleteRequest): SuccessResponse
     @GET suspend fun sync(@Url url: String, @Query("since") since: Long): CloudSyncResponse
 
+    @GET suspend fun listMarketAgents(
+        @Url url: String,
+        @Query("query") query: String,
+        @Query("cursor") cursor: String? = null
+    ): CloudMarketAgentListResponse
+    @GET suspend fun getMarketAgent(@Url url: String): CloudMarketAgentResponse
+    @POST suspend fun createMarketAgent(@Url url: String, @Body body: CloudMarketAgentRequest): CloudMarketAgentResponse
+    @PUT suspend fun updateMarketAgent(@Url url: String, @Body body: CloudMarketAgentRequest): CloudMarketAgentResponse
+    @DELETE suspend fun deleteMarketAgent(@Url url: String): SuccessResponse
+
     @PUT suspend fun putAgent(@Url url: String, @Body body: CloudAgentRequest): CloudUpsertResponse
     @DELETE suspend fun deleteAgent(@Url url: String): CloudUpsertResponse
     @PUT suspend fun putConversation(@Url url: String, @Body body: CloudConversationRequest): CloudUpsertResponse
@@ -90,6 +101,9 @@ private interface CloudApi {
     @Multipart
     @PUT suspend fun uploadAgentAvatar(@Url url: String, @Part file: MultipartBody.Part): CloudAvatarResponse
     @DELETE suspend fun deleteAgentAvatar(@Url url: String): CloudAvatarResponse
+    @Multipart
+    @PUT suspend fun uploadMarketAgentAvatar(@Url url: String, @Part file: MultipartBody.Part): CloudAvatarResponse
+    @DELETE suspend fun deleteMarketAgentAvatar(@Url url: String): CloudAvatarResponse
 }
 
 private data class CloudAgentRequest(
@@ -107,8 +121,19 @@ private data class CloudAgentRequest(
     val followDefaultTemperature: Boolean,
     val followDefaultTopP: Boolean,
     val followDefaultMaxTokens: Boolean,
+    val marketAgentId: String? = null,
+    val marketAgentVersion: Long? = null,
+    val marketAgentRole: String? = null,
     val createdAt: Long,
     val updatedAt: Long
+)
+
+private data class CloudMarketAgentRequest(
+    val name: String,
+    val systemPrompt: String,
+    val temperature: Double,
+    val topP: Double,
+    val maxTokens: Int? = null
 )
 
 private data class CloudMessageRequest(
@@ -280,6 +305,157 @@ class CloudSyncRepository(
         }
         cancelPendingLocalSync()
         appPreferences.clearCloudAccount(accountId)
+    }
+
+    suspend fun listMarketAgents(
+        query: String,
+        cursor: String? = null
+    ): CloudMarketAgentListResponse = withContext(Dispatchers.IO) {
+        checkSignedIn()
+        request { api.listMarketAgents(endpoint("api/market/agents"), query.trim(), cursor) }
+    }
+
+    suspend fun marketAgent(id: String): CloudMarketAgent = withContext(Dispatchers.IO) {
+        checkSignedIn()
+        request { api.getMarketAgent(endpoint("api/market/agents/$id")) }.agent
+    }
+
+    suspend fun publishMarketAgent(agentId: String): CloudMarketAgent = withContext(Dispatchers.IO) {
+        localDataMutex.withLock {
+            checkSignedIn()
+            val agent = requireAgentForMarket(agentId)
+            check(!agent.isDefault) { "The default Agent cannot be published." }
+            check(agent.marketAgentId == null) { "This Agent is already linked to the market." }
+            val response = request {
+                api.createMarketAgent(endpoint("api/market/agents"), agent.toMarketRequest())
+            }.agent
+            val updated = try {
+                updateMarketAvatar(response, agent.avatar)
+            } catch (error: Throwable) {
+                runCatching { request { api.deleteMarketAgent(endpoint("api/market/agents/${response.id}")) } }
+                throw error
+            }
+            persistMarketLink(agent.id, updated.id, updated.version, "publisher")
+            updated
+        }
+    }
+
+    suspend fun pushMarketAgentUpdate(agentId: String): CloudMarketAgent = withContext(Dispatchers.IO) {
+        localDataMutex.withLock {
+            checkSignedIn()
+            val agent = requireAgentForMarket(agentId)
+            val marketId = checkNotNull(agent.marketAgentId) { "Publish this Agent first." }
+            check(agent.marketAgentRole == "publisher") { "Only the publisher can update this Agent." }
+            val response = request {
+                api.updateMarketAgent(endpoint("api/market/agents/$marketId"), agent.toMarketRequest())
+            }.agent
+            val updated = updateMarketAvatar(response, agent.avatar)
+            persistMarketLink(agent.id, updated.id, updated.version, "publisher")
+            updated
+        }
+    }
+
+    suspend fun removeMarketAgent(agentId: String) = withContext(Dispatchers.IO) {
+        localDataMutex.withLock {
+            checkSignedIn()
+            val agent = requireAgentForMarket(agentId)
+            val marketId = checkNotNull(agent.marketAgentId) { "This Agent is not published." }
+            check(agent.marketAgentRole == "publisher") { "Only the publisher can remove this Agent." }
+            request { api.deleteMarketAgent(endpoint("api/market/agents/$marketId")) }
+            persistMarketLink(agent.id, null, null, null)
+        }
+    }
+
+    suspend fun importMarketAgent(marketId: String): Agent = withContext(Dispatchers.IO) {
+        localDataMutex.withLock {
+            checkSignedIn()
+            val market = marketAgent(marketId)
+            val account = checkNotNull(user.first())
+            val avatar = market.avatarUrl?.let { url ->
+                cacheRemoteAvatar(
+                    scope = "market-agent",
+                    accountId = account.id,
+                    id = market.id,
+                    url = url,
+                    version = market.avatarVersion?.toString(),
+                    baseUrl = serverUrl.first()
+                ).let(::copyMarketAvatarToAgentStorage)
+            }
+            val now = System.currentTimeMillis()
+            val imported = AgentEntity(
+                id = UUID.randomUUID().toString(),
+                name = market.name,
+                avatar = avatar,
+                systemPrompt = market.systemPrompt,
+                defaultModelId = null,
+                temperature = market.temperature.toFloat(),
+                topP = market.topP.toFloat(),
+                maxTokens = market.maxTokens,
+                isDefault = false,
+                followDefaultSystemPrompt = false,
+                followDefaultModel = false,
+                followDefaultTemperature = false,
+                followDefaultTopP = false,
+                followDefaultMaxTokens = false,
+                marketAgentId = market.id,
+                marketAgentVersion = market.version,
+                marketAgentRole = "importer",
+                createdAt = now,
+                updatedAt = now
+            )
+            database.agentDao().insert(imported)
+            requestLocalChange("agent", imported.id)
+            imported.toDomain()
+        }
+    }
+
+    suspend fun checkMarketAgentUpdate(agentId: String): CloudMarketAgentUpdate = withContext(Dispatchers.IO) {
+        checkSignedIn()
+        val agent = requireAgentForMarket(agentId)
+        val marketId = checkNotNull(agent.marketAgentId) { "This Agent is not linked to the market." }
+        check(agent.marketAgentRole == "importer") { "Published Agents do not receive market updates." }
+        val market = marketAgent(marketId)
+        CloudMarketAgentUpdate(market, market.version > (agent.marketAgentVersion ?: 0L))
+    }
+
+    suspend fun applyMarketAgentUpdate(agentId: String, market: CloudMarketAgent): Agent = withContext(Dispatchers.IO) {
+        localDataMutex.withLock {
+            checkSignedIn()
+            val agent = requireAgentForMarket(agentId)
+            check(agent.marketAgentId == market.id && agent.marketAgentRole == "importer") {
+                "This Agent is not linked to the selected market entry."
+            }
+            val account = checkNotNull(user.first())
+            val avatar = market.avatarUrl?.let { url ->
+                cacheRemoteAvatar(
+                    scope = "market-agent",
+                    accountId = account.id,
+                    id = market.id,
+                    url = url,
+                    version = market.avatarVersion?.toString(),
+                    baseUrl = serverUrl.first()
+                ).let(::copyMarketAvatarToAgentStorage)
+            }
+            deleteLocalAvatarIfReplaced(agent.avatar, avatar)
+            val updated = agent.copy(
+                name = market.name,
+                avatar = avatar,
+                systemPrompt = market.systemPrompt,
+                temperature = market.temperature.toFloat(),
+                topP = market.topP.toFloat(),
+                maxTokens = market.maxTokens,
+                followDefaultSystemPrompt = false,
+                followDefaultModel = false,
+                followDefaultTemperature = false,
+                followDefaultTopP = false,
+                followDefaultMaxTokens = false,
+                marketAgentVersion = market.version,
+                updatedAt = System.currentTimeMillis()
+            )
+            database.agentDao().update(updated)
+            requestLocalChange("agent", updated.id)
+            updated.toDomain()
+        }
     }
 
     /** Pulls all server changes since the account cursor and applies them atomically. */
@@ -783,6 +959,64 @@ class CloudSyncRepository(
         File(context.filesDir, "cloud_avatars").deleteRecursively()
     }
 
+    private suspend fun requireAgentForMarket(agentId: String): AgentEntity {
+        return checkNotNull(database.agentDao().getById(agentId).first()) { "Agent not found." }
+    }
+
+    private suspend fun AgentEntity.toMarketRequest(): CloudMarketAgentRequest {
+        val defaultAgent = database.agentDao().getAllEntities().firstOrNull { it.isDefault }
+        return CloudMarketAgentRequest(
+            name = name.trim(),
+            systemPrompt = if (followDefaultSystemPrompt) defaultAgent?.systemPrompt ?: systemPrompt else systemPrompt,
+            temperature = (if (followDefaultTemperature) defaultAgent?.temperature ?: temperature else temperature).toDouble(),
+            topP = (if (followDefaultTopP) defaultAgent?.topP ?: topP else topP).toDouble(),
+            maxTokens = if (followDefaultMaxTokens) defaultAgent?.maxTokens ?: maxTokens else maxTokens
+        )
+    }
+
+    private suspend fun updateMarketAvatar(market: CloudMarketAgent, avatar: String?): CloudMarketAgent {
+        val currentAvatar = avatar?.takeIf(::isUsableLocalAvatar)
+        val response = when {
+            currentAvatar != null -> request {
+                api.uploadMarketAgentAvatar(
+                    endpoint("api/market/agents/${market.id}/avatar"),
+                    avatarPart(File(currentAvatar))
+                )
+            }
+            market.avatarUrl != null -> request {
+                api.deleteMarketAgentAvatar(endpoint("api/market/agents/${market.id}/avatar"))
+            }
+            else -> null
+        }
+        return response?.let { market.copy(version = it.version, avatarVersion = it.avatarVersion) } ?: market
+    }
+
+    private suspend fun persistMarketLink(
+        agentId: String,
+        marketAgentId: String?,
+        marketAgentVersion: Long?,
+        marketAgentRole: String?
+    ) {
+        val existing = requireAgentForMarket(agentId)
+        val updated = existing.copy(
+            marketAgentId = marketAgentId,
+            marketAgentVersion = marketAgentVersion,
+            marketAgentRole = marketAgentRole,
+            updatedAt = System.currentTimeMillis()
+        )
+        database.agentDao().update(updated)
+        requestLocalChange("agent", agentId)
+    }
+
+    private fun copyMarketAvatarToAgentStorage(sourcePath: String): String {
+        val source = File(sourcePath)
+        if (!source.isFile) return sourcePath
+        val directory = File(context.filesDir, "agent_avatars").apply { mkdirs() }
+        val target = File(directory, "market_${UUID.randomUUID()}.${source.extension.ifBlank { "jpg" }}")
+        source.copyTo(target, overwrite = false)
+        return target.absolutePath
+    }
+
     private suspend fun checkSignedIn() {
         check(appPreferences.cloudSession.first() != null) { "Please sign in first" }
     }
@@ -1022,6 +1256,9 @@ private fun AgentEntity.toCloudRequest() = CloudAgentRequest(
     followDefaultTemperature = followDefaultTemperature,
     followDefaultTopP = followDefaultTopP,
     followDefaultMaxTokens = followDefaultMaxTokens,
+    marketAgentId = marketAgentId,
+    marketAgentVersion = marketAgentVersion,
+    marketAgentRole = marketAgentRole,
     createdAt = createdAt,
     updatedAt = updatedAt
 )
@@ -1080,6 +1317,31 @@ private fun CloudAgentDocument.toEntity(avatar: String?) = AgentEntity(
     followDefaultTemperature = followDefaultTemperature,
     followDefaultTopP = followDefaultTopP,
     followDefaultMaxTokens = followDefaultMaxTokens,
+    marketAgentId = marketAgentId,
+    marketAgentVersion = marketAgentVersion,
+    marketAgentRole = marketAgentRole,
+    createdAt = createdAt,
+    updatedAt = updatedAt
+)
+
+private fun AgentEntity.toDomain() = Agent(
+    id = id,
+    name = name,
+    avatar = avatar,
+    systemPrompt = systemPrompt,
+    defaultModelId = defaultModelId,
+    temperature = temperature,
+    topP = topP,
+    maxTokens = maxTokens,
+    isDefault = isDefault,
+    followDefaultSystemPrompt = followDefaultSystemPrompt,
+    followDefaultModel = followDefaultModel,
+    followDefaultTemperature = followDefaultTemperature,
+    followDefaultTopP = followDefaultTopP,
+    followDefaultMaxTokens = followDefaultMaxTokens,
+    marketAgentId = marketAgentId,
+    marketAgentVersion = marketAgentVersion,
+    marketAgentRole = marketAgentRole,
     createdAt = createdAt,
     updatedAt = updatedAt
 )

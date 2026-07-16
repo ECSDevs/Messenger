@@ -19,6 +19,9 @@ data class AgentEntity(
     val followDefaultTemperature: Boolean = false,
     val followDefaultTopP: Boolean = false,
     val followDefaultMaxTokens: Boolean = false,
+    val marketAgentId: String? = null,
+    val marketAgentVersion: Long? = null,
+    val marketAgentRole: String? = null,
     val createdAt: Long,
     val updatedAt: Long
 )

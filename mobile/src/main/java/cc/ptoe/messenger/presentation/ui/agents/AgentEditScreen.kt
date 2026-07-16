@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -22,6 +23,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.SystemUpdateAlt
+import androidx.compose.material.icons.filled.Update
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -31,6 +37,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -67,6 +75,7 @@ import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
 import cc.ptoe.messenger.presentation.ui.components.SectionHeader
+import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
 import cc.ptoe.messenger.presentation.viewmodel.AgentEditViewModel
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 
@@ -81,6 +90,7 @@ fun AgentEditScreen(
             agentRepository = MessengerApplication.instance.agentRepository,
             modelRepository = MessengerApplication.instance.modelRepository,
             providerRepository = MessengerApplication.instance.providerRepository,
+            cloudSyncRepository = MessengerApplication.instance.cloudSyncRepository,
             agentId = agentId
         )
     )
@@ -88,12 +98,18 @@ fun AgentEditScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val providers by viewModel.providers.collectAsStateWithLifecycle(initialValue = emptyList())
     val models by viewModel.modelsForSelectedProvider.collectAsStateWithLifecycle(initialValue = emptyList())
+    val cloudUser by MessengerApplication.instance.cloudSyncRepository.user.collectAsStateWithLifecycle(initialValue = null)
 
     // 非默认 Agent 才显示"跟随默认 Agent"开关
     val showFollowToggles = !uiState.isDefault
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showPublishDialog by remember { mutableStateOf(false) }
+    var showPushDialog by remember { mutableStateOf(false) }
+    var showUnpublishDialog by remember { mutableStateOf(false) }
+    var showPullDialog by remember { mutableStateOf(false) }
 
     // 裁剪结果：uCrop 输出到缓存 URI，再复制到内部存储持久化
     val cropLauncher = rememberLauncherForActivityResult(
@@ -166,6 +182,7 @@ fun AgentEditScreen(
                 }
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
         Column(
@@ -376,7 +393,135 @@ fun AgentEditScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
             )
+
+            if (cloudUser != null && uiState.isEditing && !uiState.isDefault) {
+                Spacer(modifier = Modifier.height(24.dp))
+                SectionHeader(title = "Agent 市场")
+                Spacer(modifier = Modifier.height(8.dp))
+                when (uiState.marketAgentRole) {
+                    "publisher" -> {
+                        Button(
+                            onClick = { showPushDialog = true },
+                            enabled = !uiState.marketActionInProgress,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.FileUpload, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("推送更新")
+                        }
+                        TextButton(
+                            onClick = { showUnpublishDialog = true },
+                            enabled = !uiState.marketActionInProgress,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("从市场下架")
+                        }
+                    }
+                    "importer" -> {
+                        Button(
+                            onClick = {
+                                viewModel.checkMarketAgentUpdate { result ->
+                                    coroutineScope.launch {
+                                        result.onSuccess { update ->
+                                            if (update.hasUpdate) showPullDialog = true
+                                            else snackbarHostState.showSnackbar("已是最新版本")
+                                        }.onFailure { error ->
+                                            snackbarHostState.showSnackbar(error.message ?: "获取更新失败")
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !uiState.marketActionInProgress,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.SystemUpdateAlt, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("获取更新")
+                        }
+                    }
+                    else -> Button(
+                        onClick = { showPublishDialog = true },
+                        enabled = !uiState.marketActionInProgress,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.FileUpload, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("发布到市场")
+                    }
+                }
+            }
         }
+    }
+
+    if (showPublishDialog) {
+        ConfirmationDialog(
+            title = "发布 Agent",
+            text = "将公开名称、头像、系统提示词和采样参数。不会公开模型、Provider 或 API Key。",
+            confirmButtonText = "发布",
+            dismissButtonText = "取消",
+            onConfirm = {
+                showPublishDialog = false
+                viewModel.publishMarketAgent { result ->
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(result.fold({ "已发布到 Agent 市场" }, { it.message ?: "发布失败" }))
+                    }
+                }
+            },
+            onDismiss = { showPublishDialog = false }
+        )
+    }
+    if (showPushDialog) {
+        ConfirmationDialog(
+            title = "推送更新",
+            text = "将用当前 Agent 的公开配置覆盖市场版本。",
+            confirmButtonText = "推送",
+            dismissButtonText = "取消",
+            onConfirm = {
+                showPushDialog = false
+                viewModel.pushMarketAgentUpdate { result ->
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(result.fold({ "市场版本已更新" }, { it.message ?: "推送失败" }))
+                    }
+                }
+            },
+            onDismiss = { showPushDialog = false }
+        )
+    }
+    if (showUnpublishDialog) {
+        ConfirmationDialog(
+            title = "从市场下架",
+            text = "下架后其他用户将无法再浏览或导入此 Agent。",
+            confirmButtonText = "下架",
+            dismissButtonText = "取消",
+            onConfirm = {
+                showUnpublishDialog = false
+                viewModel.removeMarketAgent { result ->
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(result.fold({ "已从市场下架" }, { it.message ?: "下架失败" }))
+                    }
+                }
+            },
+            onDismiss = { showUnpublishDialog = false }
+        )
+    }
+    if (showPullDialog) {
+        ConfirmationDialog(
+            title = "获取市场更新",
+            text = "更新会覆盖名称、头像、系统提示词和采样参数，但会保留本地模型设置。",
+            confirmButtonText = "更新",
+            dismissButtonText = "取消",
+            onConfirm = {
+                showPullDialog = false
+                viewModel.applyMarketAgentUpdate { result ->
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(result.fold({ "已获取市场更新" }, { it.message ?: "更新失败" }))
+                    }
+                }
+            },
+            onDismiss = { showPullDialog = false }
+        )
     }
 }
 

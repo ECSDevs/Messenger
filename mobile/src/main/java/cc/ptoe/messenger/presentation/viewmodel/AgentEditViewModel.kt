@@ -3,6 +3,8 @@ package cc.ptoe.messenger.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import cc.ptoe.messenger.data.cloud.CloudMarketAgentUpdate
+import cc.ptoe.messenger.data.cloud.CloudSyncRepository
 import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Provider
@@ -41,13 +43,17 @@ data class AgentEditUiState(
     val defaultAgent: Agent? = null,
     val nameError: String? = null,
     val isEditing: Boolean = false,
-    val isSaved: Boolean = false
+    val isSaved: Boolean = false,
+    val marketAgentId: String? = null,
+    val marketAgentRole: String? = null,
+    val marketActionInProgress: Boolean = false
 )
 
 class AgentEditViewModel(
     private val agentRepository: AgentRepository,
     private val modelRepository: ModelRepository,
     private val providerRepository: ProviderRepository,
+    private val cloudSyncRepository: CloudSyncRepository,
     private val agentId: String? = null
 ) : ViewModel() {
 
@@ -113,6 +119,8 @@ class AgentEditViewModel(
                         followDefaultTemperature = agent.followDefaultTemperature,
                         followDefaultTopP = agent.followDefaultTopP,
                         followDefaultMaxTokens = agent.followDefaultMaxTokens,
+                        marketAgentId = agent.marketAgentId,
+                        marketAgentRole = agent.marketAgentRole,
                         isEditing = true
                     )
                 }
@@ -251,11 +259,80 @@ class AgentEditViewModel(
         return true
     }
 
+    fun publishMarketAgent(onResult: (Result<Unit>) -> Unit) = runMarketAction(onResult) {
+        cloudSyncRepository.publishMarketAgent(requireNotNull(agentId))
+    }
+
+    fun pushMarketAgentUpdate(onResult: (Result<Unit>) -> Unit) = runMarketAction(onResult) {
+        cloudSyncRepository.pushMarketAgentUpdate(requireNotNull(agentId))
+    }
+
+    fun removeMarketAgent(onResult: (Result<Unit>) -> Unit) = runMarketAction(onResult) {
+        cloudSyncRepository.removeMarketAgent(requireNotNull(agentId))
+    }
+
+    fun checkMarketAgentUpdate(onResult: (Result<CloudMarketAgentUpdate>) -> Unit) {
+        val id = agentId ?: return onResult(Result.failure(IllegalStateException("Save the Agent before checking updates.")))
+        _uiState.value = _uiState.value.copy(marketActionInProgress = true)
+        viewModelScope.launch {
+            val result = runCatching { cloudSyncRepository.checkMarketAgentUpdate(id) }
+            _uiState.value = _uiState.value.copy(marketActionInProgress = false)
+            onResult(result)
+        }
+    }
+
+    fun applyMarketAgentUpdate(onResult: (Result<Unit>) -> Unit) = runMarketAction(onResult) {
+        val update = cloudSyncRepository.checkMarketAgentUpdate(requireNotNull(agentId))
+        check(update.hasUpdate) { "This Agent is already up to date." }
+        cloudSyncRepository.applyMarketAgentUpdate(requireNotNull(agentId), update.agent)
+    }
+
+    private fun runMarketAction(onResult: (Result<Unit>) -> Unit, action: suspend () -> Unit) {
+        if (agentId == null) {
+            onResult(Result.failure(IllegalStateException("Save the Agent before using the market.")))
+            return
+        }
+        _uiState.value = _uiState.value.copy(marketActionInProgress = true)
+        viewModelScope.launch {
+            val result = runCatching {
+                saveCurrentAgentForMarket()
+                action()
+            }
+            _uiState.value = _uiState.value.copy(marketActionInProgress = false)
+            onResult(result)
+        }
+    }
+
+    private suspend fun saveCurrentAgentForMarket() {
+        val id = requireNotNull(agentId)
+        val currentState = _uiState.value
+        check(currentState.name.isNotBlank()) { "名称不能为空" }
+        val existing = checkNotNull(agentRepository.getById(id).first()) { "Agent 不存在" }
+        agentRepository.update(
+            existing.copy(
+                name = currentState.name.trim(),
+                avatar = currentState.avatar,
+                systemPrompt = currentState.systemPrompt.trim(),
+                defaultModelId = currentState.defaultModelId,
+                temperature = currentState.temperature,
+                topP = currentState.topP,
+                maxTokens = currentState.maxTokens?.toIntOrNull(),
+                followDefaultSystemPrompt = currentState.followDefaultSystemPrompt,
+                followDefaultModel = currentState.followDefaultModel,
+                followDefaultTemperature = currentState.followDefaultTemperature,
+                followDefaultTopP = currentState.followDefaultTopP,
+                followDefaultMaxTokens = currentState.followDefaultMaxTokens,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
     companion object {
         fun provideFactory(
             agentRepository: AgentRepository,
             modelRepository: ModelRepository,
             providerRepository: ProviderRepository,
+            cloudSyncRepository: CloudSyncRepository,
             agentId: String? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -264,6 +341,7 @@ class AgentEditViewModel(
                     agentRepository,
                     modelRepository,
                     providerRepository,
+                    cloudSyncRepository,
                     agentId
                 ) as T
             }
