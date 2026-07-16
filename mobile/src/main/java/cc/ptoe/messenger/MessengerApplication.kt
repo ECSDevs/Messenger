@@ -2,10 +2,11 @@ package cc.ptoe.messenger
 
 import android.app.Application
 import android.content.Intent
+import androidx.room.Room
+import cc.ptoe.messenger.data.cloud.CloudSyncRepository
 import cc.ptoe.messenger.data.local.AppPreferences
 import cc.ptoe.messenger.data.local.MessengerDatabase
 import cc.ptoe.messenger.data.local.ThemePreferences
-import cc.ptoe.messenger.data.cloud.CloudSyncRepository
 import cc.ptoe.messenger.data.repository.AgentRepositoryImpl
 import cc.ptoe.messenger.data.repository.ApiRepositoryImpl
 import cc.ptoe.messenger.data.repository.ChatRepositoryImpl
@@ -24,7 +25,8 @@ import cc.ptoe.messenger.domain.repository.CurrentAgentRepository
 import cc.ptoe.messenger.domain.repository.MessageRepository
 import cc.ptoe.messenger.domain.repository.ModelRepository
 import cc.ptoe.messenger.domain.repository.ProviderRepository
-import androidx.room.Room
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,7 +38,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
-class MessengerApplication : Application() {
+class MessengerApplication : Application(), ImageLoaderFactory {
 
     lateinit var database: MessengerDatabase
         private set
@@ -86,6 +88,10 @@ class MessengerApplication : Application() {
         initializeLocalAndCloudData()
         startWearSync()
     }
+
+    override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
+        .okHttpClient { cloudSyncRepository.createAvatarHttpClient() }
+        .build()
 
     /**
      * Spin up the WebSocket server that the watch companion connects to.

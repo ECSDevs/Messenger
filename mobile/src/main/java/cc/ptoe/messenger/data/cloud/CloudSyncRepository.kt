@@ -1,6 +1,7 @@
 package cc.ptoe.messenger.data.cloud
 
 import android.content.Context
+import android.util.Log
 import androidx.room.withTransaction
 import cc.ptoe.messenger.data.local.AppPreferences
 import cc.ptoe.messenger.data.local.MessengerDatabase
@@ -12,7 +13,12 @@ import cc.ptoe.messenger.data.local.entity.ProviderEntity
 import cc.ptoe.messenger.domain.model.Agent
 import com.google.gson.Gson
 import com.google.gson.JsonParser
-import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,17 +26,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.joinAll
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -160,6 +160,7 @@ class CloudSyncRepository(
     private var localChangesEnabled = false
     private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val syncMutex = Mutex()
+    private val avatarSyncMutex = Mutex()
     private var scheduledSync: Job? = null
     private val _syncError = MutableStateFlow<String?>(null)
     val syncError: StateFlow<String?> = _syncError.asStateFlow()
@@ -339,38 +340,68 @@ class CloudSyncRepository(
             if (user.first() == null || !localChangesEnabled) return@launch
             val agentId = current?.id ?: previous?.id ?: return@launch
             runCatching { uploadAgentAvatar(agentId, current?.avatar) }
-                .onFailure { _syncError.value = it.message ?: "Avatar synchronization failed" }
+                .onSuccess { _syncError.value = null }
+                .onFailure { error ->
+                    Log.e(TAG, "Agent avatar synchronization failed for agent=$agentId", error)
+                    _syncError.value = error.message ?: "Avatar synchronization failed"
+                }
         }
     }
 
-    suspend fun uploadUserAvatar(path: String?): CloudAvatarResponse = withContext(Dispatchers.IO) {
-        checkSignedIn()
-        val localFile = path?.takeUnless(::isRemoteAvatar)?.let(::File)
-        val response = if (path == null || isRemoteAvatar(path)) {
-            request { api.deleteUserAvatar(endpoint("api/avatars/user")) }
-        } else {
-            request { api.uploadUserAvatar(endpoint("api/avatars/user"), avatarPart(File(path))) }
+    suspend fun uploadUserAvatar(path: String?): CloudAvatarResponse =
+        avatarSyncMutex.withLock {
+            withContext(Dispatchers.IO) {
+                checkSignedIn()
+                val currentAvatar = appPreferences.userAvatar.first()
+                if (path != null && !isRemoteAvatar(path) && currentAvatar != path) {
+                    // A concurrent upload already replaced and cleaned up this local file.
+                    return@withContext CloudAvatarResponse(currentAvatar, 0L)
+                }
+                val localFile = path?.takeUnless(::isRemoteAvatar)?.let(::File)
+                val response = if (path == null || isRemoteAvatar(path)) {
+                    request { api.deleteUserAvatar(endpoint("api/avatars/user")) }
+                } else {
+                    request {
+                        api.uploadUserAvatar(
+                            endpoint("api/avatars/user"),
+                            avatarPart(File(path))
+                        )
+                    }
+                }
+                appPreferences.setUserAvatar(response.url)
+                refreshCachedUserAvatar(response.url)
+                localFile?.delete()
+                response
+            }
         }
-        appPreferences.setUserAvatar(response.url)
-        refreshCachedUserAvatar(response.url)
-        localFile?.delete()
-        response
-    }
 
-    suspend fun uploadAgentAvatar(agentId: String, path: String?): CloudAvatarResponse = withContext(Dispatchers.IO) {
-        checkSignedIn()
-        val localFile = path?.takeUnless(::isRemoteAvatar)?.let(::File)
-        val response = if (path == null || isRemoteAvatar(path)) {
-            request { api.deleteAgentAvatar(endpoint("api/avatars/agents/$agentId")) }
-        } else {
-            request { api.uploadAgentAvatar(endpoint("api/avatars/agents/$agentId"), avatarPart(localFile!!)) }
+    suspend fun uploadAgentAvatar(agentId: String, path: String?): CloudAvatarResponse =
+        avatarSyncMutex.withLock {
+            withContext(Dispatchers.IO) {
+                checkSignedIn()
+                val currentAvatar = database.agentDao().getById(agentId).first()?.avatar
+                if (path != null && !isRemoteAvatar(path) && currentAvatar != path) {
+                    // A concurrent upload already replaced and cleaned up this local file.
+                    return@withContext CloudAvatarResponse(currentAvatar, 0L)
+                }
+                val localFile = path?.takeUnless(::isRemoteAvatar)?.let(::File)
+                val response = if (path == null || isRemoteAvatar(path)) {
+                    request { api.deleteAgentAvatar(endpoint("api/avatars/agents/$agentId")) }
+                } else {
+                    request {
+                        api.uploadAgentAvatar(
+                            endpoint("api/avatars/agents/$agentId"),
+                            avatarPart(localFile!!)
+                        )
+                    }
+                }
+                database.agentDao().getById(agentId).first()?.let { agent ->
+                    database.agentDao().insert(agent.copy(avatar = response.url))
+                }
+                localFile?.delete()
+                response
+            }
         }
-        database.agentDao().getById(agentId).first()?.let { agent ->
-            database.agentDao().insert(agent.copy(avatar = response.url))
-        }
-        localFile?.delete()
-        response
-    }
 
     private suspend fun completeAuthentication(value: CloudUser, baseUrl: String): CloudLoginOutcome {
         val previousUser = user.first()
@@ -706,6 +737,8 @@ class CloudSyncRepository(
         }
         return normalized
     }
+
+    fun createAvatarHttpClient(): OkHttpClient = createClient()
 
     private fun createClient() = OkHttpClient.Builder()
         .cookieJar(PersistentCookieJar(appPreferences))

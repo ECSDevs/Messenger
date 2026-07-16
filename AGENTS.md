@@ -157,14 +157,21 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - MongoDB stores user documents plus versioned `agents`, `conversations`, and `providers` documents; conversations embed messages and providers embed models
 - Each user has a monotonically increasing `syncVersion`. Entity writes atomically increment it and stamp the changed document's `version`; deletes are `deleted: true` tombstones returned by `GET /api/sync?since=N`
 - Server registration seeds the one required default Agent in the same transaction as user creation, so the cloud data preserves the default-agent invariant
-- Vercel Blob is used only for public user and agent avatars at `avatars/users/{userId}.{ext}` and `avatars/agents/{agentId}.{ext}`. Replacements snapshot the prior blob, remove prefix-matched files, and restore the prior avatar if the new upload fails
-- Authenticated entity APIs are `PUT`/`DELETE` `/api/agents/{id}`, `/api/conversations/{id}`, and `/api/providers/{id}`. Avatar APIs are `PUT`/`DELETE` `/api/avatars/user` and `/api/avatars/agents/{agentId}`
+- Vercel Blob private storage is used only for user and agent avatars at
+  `avatars/users/{userId}.{ext}` and `avatars/agents/{agentId}.{ext}`. Replacements snapshot the
+  prior blob, remove prefix-matched files, and restore the prior avatar if the new upload fails.
+  Authenticated avatar GET routes stream private blobs to mobile clients
+- Authenticated entity APIs are `PUT`/`DELETE` `/api/agents/{id}`, `/api/conversations/{id}`, and
+  `/api/providers/{id}`. Avatar APIs use `GET`/`PUT`/`DELETE` `/api/avatars/user` and
+  `/api/avatars/agents/{agentId}`; GET requests authenticate the user and proxy private Blob content
 - Account APIs include `PUT /api/auth/password` for authenticated password changes and `DELETE /api/auth/account` for permanent account deletion
 - The admin backend lives under `server/app/admin/` and uses a separate password-based session cookie from app users
 - MongoDB must be deployed as Atlas or a replica set because server writes use transactions to atomically advance the sync clock and update an entity
 - The mobile `CloudSyncRepository` uses the session cookie and a per-account DataStore cursor to pull `GET /api/sync?since=N`; it applies tombstones transactionally, flattens provider models and conversation messages into Room, and pushes complete entity snapshots to the corresponding `PUT` endpoints
 - Mobile local repository mutations are debounced into cloud synchronization requests; deleted entities are retained as account-scoped pending-delete markers until the server tombstone write succeeds
-- User and agent avatars are uploaded as multipart `file` parts to the dedicated avatar endpoints and stored locally as the returned public URLs; `AgentAvatar` supports both those URLs and legacy local file paths
+- User and agent avatars are uploaded as multipart `file` parts to the dedicated avatar endpoints;
+  authenticated GET endpoints proxy private Blob content, and `AgentAvatar` supports those server
+  URLs plus legacy local file paths
 
 ### Chat bubble rendering (mobile)
 
