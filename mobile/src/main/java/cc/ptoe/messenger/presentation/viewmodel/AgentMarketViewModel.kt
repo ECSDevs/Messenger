@@ -16,7 +16,8 @@ data class AgentMarketUiState(
     val agents: List<CloudMarketAgent> = emptyList(),
     val error: String? = null,
     val nextCursor: String? = null,
-    val isLoadingMore: Boolean = false
+    val isLoadingMore: Boolean = false,
+    val importingAgentId: String? = null
 )
 
 class AgentMarketViewModel(
@@ -69,6 +70,16 @@ class AgentMarketViewModel(
                         error = error.message ?: "加载更多 Agent 失败"
                     )
                 }
+        }
+    }
+
+    fun importAgent(marketAgentId: String, onResult: (Result<Unit>) -> Unit) {
+        if (_uiState.value.importingAgentId != null) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(importingAgentId = marketAgentId)
+            val result = runCatching { cloudSyncRepository.importMarketAgent(marketAgentId) }
+            _uiState.value = _uiState.value.copy(importingAgentId = null)
+            onResult(result.map { Unit })
         }
     }
 

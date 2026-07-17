@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -59,11 +60,14 @@ import kotlinx.coroutines.launch
 fun AgentMarketScreen(
     onBackClick: () -> Unit,
     onAgentClick: (String) -> Unit,
+    onImported: () -> Unit,
     viewModel: AgentMarketViewModel = viewModel(
         factory = AgentMarketViewModel.provideFactory(MessengerApplication.instance.cloudSyncRepository)
     )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
 
     LaunchedEffect(query) {
@@ -88,7 +92,8 @@ fun AgentMarketScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -126,7 +131,20 @@ fun AgentMarketScreen(
                 )
                 else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.agents, key = { it.id }) { agent ->
-                        MarketAgentListItem(agent = agent, onClick = { onAgentClick(agent.id) })
+                        MarketAgentListItem(
+                            agent = agent,
+                            onClick = { onAgentClick(agent.id) },
+                            isImporting = uiState.importingAgentId == agent.id,
+                            onImportClick = {
+                                viewModel.importAgent(agent.id) { result ->
+                                    scope.launch {
+                                        result.onSuccess { onImported() }.onFailure {
+                                            snackbarHostState.showSnackbar(it.message ?: "导入失败")
+                                        }
+                                    }
+                                }
+                            }
+                        )
                     }
                     if (uiState.nextCursor != null) {
                         item {
@@ -152,7 +170,12 @@ fun AgentMarketScreen(
 }
 
 @Composable
-private fun MarketAgentListItem(agent: CloudMarketAgent, onClick: () -> Unit) {
+private fun MarketAgentListItem(
+    agent: CloudMarketAgent,
+    onClick: () -> Unit,
+    isImporting: Boolean,
+    onImportClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -172,6 +195,19 @@ private fun MarketAgentListItem(agent: CloudMarketAgent, onClick: () -> Unit) {
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+        OutlinedButton(
+            onClick = onImportClick,
+            enabled = !isImporting,
+            contentPadding = ButtonDefaults.ContentPadding
+        ) {
+            if (isImporting) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(Icons.Default.Download, contentDescription = null)
+            }
+            Spacer(Modifier.width(4.dp))
+            Text("导入")
         }
     }
 }

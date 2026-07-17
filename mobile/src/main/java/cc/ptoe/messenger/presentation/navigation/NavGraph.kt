@@ -124,6 +124,9 @@ fun NavGraph(
                 onBackClick = { navController.popBackStack() },
                 onAgentClick = { marketAgentId ->
                     navController.navigate(Screen.AgentMarketDetail.createRoute(marketAgentId))
+                },
+                onImported = {
+                    navController.popBackStack(Screen.Agents.route, inclusive = false)
                 }
             )
         }
