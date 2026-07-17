@@ -7,11 +7,13 @@ import cc.ptoe.messenger.domain.repository.AgentRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.io.File
 import java.util.UUID
 
 class AgentRepositoryImpl(
     private val agentDao: AgentDao,
-    private val onChanged: (Agent?, Agent?) -> Unit = { _, _ -> }
+    private val onChanged: (Agent?, Agent?) -> Unit = { _, _ -> },
+    private val avatarDirectory: File? = null
 ) : AgentRepository {
 
     override fun getAll(): Flow<List<Agent>> {
@@ -44,6 +46,7 @@ class AgentRepositoryImpl(
         val cloned = source.copy(
             id = UUID.randomUUID().toString(),
             name = uniqueCloneName(source.name, existingNames),
+            avatar = copyAvatar(source.avatar),
             isDefault = false,
             marketAgentId = null,
             marketAgentVersion = null,
@@ -54,6 +57,17 @@ class AgentRepositoryImpl(
         agentDao.insert(cloned.toEntity())
         onChanged(null, cloned)
         return cloned
+    }
+
+    private fun copyAvatar(avatar: String?): String? {
+        val source = avatar?.let(::File)?.takeIf { it.isFile && it.length() > 0L } ?: return null
+        val directory = (avatarDirectory ?: source.parentFile)?.apply { mkdirs() } ?: return null
+        val extension = source.extension.takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty()
+        val destination = File(directory, "${UUID.randomUUID()}$extension")
+        return runCatching {
+            source.copyTo(destination, overwrite = false)
+            destination.absolutePath
+        }.getOrNull()
     }
 
     override suspend fun delete(id: String) {

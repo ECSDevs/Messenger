@@ -132,11 +132,15 @@ class MessengerApplication : Application(), ImageLoaderFactory {
         modelRepository = ModelRepositoryImpl(database.modelDao()) { providerId, _ ->
             cloudSyncRepository.requestLocalChange("provider", providerId)
         }
-        agentRepository = AgentRepositoryImpl(database.agentDao()) { previous, current ->
-            cloudSyncRepository.requestAgentAvatarChange(previous, current)
-            current?.let { cloudSyncRepository.requestLocalChange("agent", it.id) }
-                ?: previous?.let { cloudSyncRepository.requestLocalChange("agent", it.id, deleted = true) }
-        }
+        agentRepository = AgentRepositoryImpl(
+            agentDao = database.agentDao(),
+            onChanged = { previous, current ->
+                cloudSyncRepository.requestAgentAvatarChange(previous, current)
+                current?.let { cloudSyncRepository.requestLocalChange("agent", it.id) }
+                    ?: previous?.let { cloudSyncRepository.requestLocalChange("agent", it.id, deleted = true) }
+            },
+            avatarDirectory = File(applicationContext.filesDir, "agent_avatars")
+        )
         conversationRepository = ConversationRepositoryImpl(database.conversationDao()) { id, deleted ->
             cloudSyncRepository.requestLocalChange("conversation", id, deleted)
         }
