@@ -55,6 +55,7 @@ fun ConversationsScreen(
     viewModel: ConversationsViewModel = viewModel(
         factory = ConversationsViewModel.provideFactory(
             conversationRepository = MessengerApplication.instance.conversationRepository,
+            messageRepository = MessengerApplication.instance.messageRepository,
             currentAgentRepository = MessengerApplication.instance.currentAgentRepository,
             agentRepository = MessengerApplication.instance.agentRepository,
             modelRepository = MessengerApplication.instance.modelRepository
@@ -153,6 +154,9 @@ fun ConversationsScreen(
                         conversation = conversation,
                         avatar = agentsById[conversation.agentId]?.avatar,
                         onClick = { onConversationClick(conversation.id) },
+                        onCloneClick = {
+                            viewModel.cloneConversation(conversation.id, onConversationClick)
+                        },
                         onRenameClick = {
                             renameInitialTitle = conversation.title
                             renameConversationId = conversation.id
@@ -226,6 +230,7 @@ private fun ConversationListItem(
     conversation: Conversation,
     avatar: String?,
     onClick: () -> Unit,
+    onCloneClick: () -> Unit,
     onRenameClick: () -> Unit,
     onDeleteClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -284,6 +289,13 @@ private fun ConversationListItem(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
+                DropdownMenuItem(
+                    text = { Text("克隆") },
+                    onClick = {
+                        expanded = false
+                        onCloneClick()
+                    }
+                )
                 DropdownMenuItem(
                     text = { Text("重命名") },
                     onClick = {

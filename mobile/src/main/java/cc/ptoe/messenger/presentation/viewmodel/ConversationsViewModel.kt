@@ -6,9 +6,11 @@ import androidx.lifecycle.viewModelScope
 import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Conversation
+import cc.ptoe.messenger.domain.model.MessageStatus
 import cc.ptoe.messenger.domain.repository.AgentRepository
 import cc.ptoe.messenger.domain.repository.ConversationRepository
 import cc.ptoe.messenger.domain.repository.CurrentAgentRepository
+import cc.ptoe.messenger.domain.repository.MessageRepository
 import cc.ptoe.messenger.domain.repository.ModelRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +28,7 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConversationsViewModel(
     private val conversationRepository: ConversationRepository,
+    private val messageRepository: MessageRepository,
     private val currentAgentRepository: CurrentAgentRepository,
     private val agentRepository: AgentRepository,
     private val modelRepository: ModelRepository
@@ -127,6 +130,42 @@ class ConversationsViewModel(
         }
     }
 
+    fun cloneConversation(
+        conversationId: String,
+        onCloned: (String) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val source = conversationRepository.getById(conversationId).first()
+                ?: return@launch
+            val clonedConversationId = UUID.randomUUID().toString()
+            val now = System.currentTimeMillis()
+            val clonedConversation = source.copy(
+                id = clonedConversationId,
+                title = "${source.title}（副本）",
+                createdAt = now,
+                updatedAt = now
+            )
+
+            conversationRepository.insert(clonedConversation)
+            messageRepository.getByConversationId(source.id).first().forEach { message ->
+                messageRepository.insert(
+                    message.copy(
+                        id = UUID.randomUUID().toString(),
+                        conversationId = clonedConversationId,
+                        // A clone is a completed snapshot; an in-flight message
+                        // must not remain stuck in the sending state.
+                        status = if (message.status == MessageStatus.SENDING) {
+                            MessageStatus.SENT
+                        } else {
+                            message.status
+                        }
+                    )
+                )
+            }
+            onCloned(clonedConversationId)
+        }
+    }
+
     fun switchAgent(agentId: String) {
         viewModelScope.launch {
             currentAgentRepository.setCurrentAgentId(agentId)
@@ -141,6 +180,7 @@ class ConversationsViewModel(
     companion object {
         fun provideFactory(
             conversationRepository: ConversationRepository,
+            messageRepository: MessageRepository,
             currentAgentRepository: CurrentAgentRepository,
             agentRepository: AgentRepository,
             modelRepository: ModelRepository
@@ -149,6 +189,7 @@ class ConversationsViewModel(
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 return ConversationsViewModel(
                     conversationRepository,
+                    messageRepository,
                     currentAgentRepository,
                     agentRepository,
                     modelRepository

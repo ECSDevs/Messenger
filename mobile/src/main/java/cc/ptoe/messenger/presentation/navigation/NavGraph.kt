@@ -73,6 +73,7 @@ fun NavGraph(
                 conversationsBackStackEntry,
                 factory = ConversationsViewModel.provideFactory(
                     conversationRepository = MessengerApplication.instance.conversationRepository,
+                    messageRepository = MessengerApplication.instance.messageRepository,
                     currentAgentRepository = MessengerApplication.instance.currentAgentRepository,
                     agentRepository = MessengerApplication.instance.agentRepository,
                     modelRepository = MessengerApplication.instance.modelRepository
