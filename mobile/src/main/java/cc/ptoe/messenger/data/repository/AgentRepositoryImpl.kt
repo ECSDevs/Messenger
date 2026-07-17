@@ -114,19 +114,24 @@ class AgentRepositoryImpl(
 
     private fun uniqueCloneName(sourceName: String, existingNames: Set<String>): String {
         val baseName = sourceName.trim().replace(CLONE_SUFFIX_PATTERN, "")
-        val firstName = "$baseName$CLONE_SUFFIX"
-        if (firstName !in existingNames) return firstName
+        val cloneNamePattern = Regex("^${Regex.escape(baseName)}（副本\\s*(\\d+)?）$")
+        val usedCopyNumbers = existingNames.mapNotNull { name ->
+            cloneNamePattern.matchEntire(name.trim())?.let { match ->
+                match.groupValues[1].toIntOrNull() ?: 1
+            }
+        }.toSet()
+        if (1 !in usedCopyNumbers) return "$baseName$CLONE_SUFFIX"
 
         var copyNumber = 2
-        while ("$baseName$CLONE_SUFFIX_WITH_NUMBER_PREFIX$copyNumber$CLONE_SUFFIX" in existingNames) {
+        while (copyNumber in usedCopyNumbers) {
             copyNumber++
         }
-        return "$baseName$CLONE_SUFFIX_WITH_NUMBER_PREFIX$copyNumber$CLONE_SUFFIX"
+        return "$baseName$CLONE_SUFFIX_WITH_NUMBER_PREFIX$copyNumber）"
     }
 
     private companion object {
         const val CLONE_SUFFIX = "（副本）"
-        const val CLONE_SUFFIX_WITH_NUMBER_PREFIX = "（副本 "
-        val CLONE_SUFFIX_PATTERN = Regex("（副本(?: \\d+)?）$")
+        const val CLONE_SUFFIX_WITH_NUMBER_PREFIX = "（副本"
+        val CLONE_SUFFIX_PATTERN = Regex("（副本\\s*\\d*）$")
     }
 }
