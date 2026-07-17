@@ -409,19 +409,18 @@ GitHub Actions workflow (`.github/workflows/android.yml`):
 - Release tags: `v*` (e.g., `v123`, named after version code = commit count)
 - Version code = number of commits (auto-calculated in CI)
 - Version name = `v{yyyyMMdd}` from latest commit's date for reproducibility (e.g., `v20260711`)
-- Each completed task should be committed and pushed
+- Each completed task should be committed locally; do not push unless explicitly requested
 
-### Commit & Push After Each Task
+### Commit After Each Task
 
 When a task is completed:
 
 ```bash
 git add <changed-files>
 git commit -m "<descriptive commit message>"
-git push
 ```
 
-Write clear, concise commit messages describing what was changed and why.
+Write clear, concise commit messages describing what was changed and why. Push only when explicitly requested.
 
 ## Key Files Reference
 
