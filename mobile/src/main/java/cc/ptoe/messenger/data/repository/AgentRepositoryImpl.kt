@@ -7,6 +7,7 @@ import cc.ptoe.messenger.domain.repository.AgentRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.util.UUID
 
 class AgentRepositoryImpl(
     private val agentDao: AgentDao,
@@ -34,6 +35,25 @@ class AgentRepositoryImpl(
         val previous = agentDao.getById(agent.id).first()?.toDomain()
         agentDao.update(agent.toEntity())
         onChanged(previous, agent)
+    }
+
+    override suspend fun clone(id: String): Agent? {
+        val source = agentDao.getById(id).first()?.toDomain() ?: return null
+        val existingNames = agentDao.getAllEntities().map { it.name }.toSet()
+        val now = System.currentTimeMillis()
+        val cloned = source.copy(
+            id = UUID.randomUUID().toString(),
+            name = uniqueCloneName(source.name, existingNames),
+            isDefault = false,
+            marketAgentId = null,
+            marketAgentVersion = null,
+            marketAgentRole = null,
+            createdAt = now,
+            updatedAt = now
+        )
+        agentDao.insert(cloned.toEntity())
+        onChanged(null, cloned)
+        return cloned
     }
 
     override suspend fun delete(id: String) {
@@ -90,5 +110,23 @@ class AgentRepositoryImpl(
             createdAt = createdAt,
             updatedAt = updatedAt
         )
+    }
+
+    private fun uniqueCloneName(sourceName: String, existingNames: Set<String>): String {
+        val baseName = sourceName.trim().replace(CLONE_SUFFIX_PATTERN, "")
+        val firstName = "$baseName$CLONE_SUFFIX"
+        if (firstName !in existingNames) return firstName
+
+        var copyNumber = 2
+        while ("$baseName$CLONE_SUFFIX_WITH_NUMBER_PREFIX$copyNumber$CLONE_SUFFIX" in existingNames) {
+            copyNumber++
+        }
+        return "$baseName$CLONE_SUFFIX_WITH_NUMBER_PREFIX$copyNumber$CLONE_SUFFIX"
+    }
+
+    private companion object {
+        const val CLONE_SUFFIX = "（副本）"
+        const val CLONE_SUFFIX_WITH_NUMBER_PREFIX = "（副本 "
+        val CLONE_SUFFIX_PATTERN = Regex("（副本(?: \\d+)?）$")
     }
 }

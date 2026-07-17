@@ -45,6 +45,12 @@ class AgentsViewModel(
         }
     }
 
+    fun cloneAgent(agentId: String) {
+        viewModelScope.launch {
+            agentRepository.clone(agentId)
+        }
+    }
+
     companion object {
         fun provideFactory(
             agentRepository: AgentRepository,

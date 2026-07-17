@@ -124,6 +124,7 @@ fun AgentsScreen(
                         item = item,
                         onClick = { onAgentClick(item.agent.id) },
                         onEditClick = { onEditClick(item.agent.id) },
+                        onCloneClick = { viewModel.cloneAgent(item.agent.id) },
                         onDeleteClick = {
                             if (!item.agent.isDefault) {
                                 showDeleteDialog = item.agent.id
@@ -158,6 +159,7 @@ private fun AgentListItem(
     item: AgentWithModel,
     onClick: () -> Unit,
     onEditClick: () -> Unit,
+    onCloneClick: () -> Unit,
     onDeleteClick: () -> Unit,
     canDelete: Boolean,
     modifier: Modifier = Modifier
@@ -225,6 +227,13 @@ private fun AgentListItem(
                     onClick = {
                         expanded = false
                         onEditClick()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("克隆") },
+                    onClick = {
+                        expanded = false
+                        onCloneClick()
                     }
                 )
                 if (canDelete) {

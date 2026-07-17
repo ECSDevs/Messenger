@@ -8,5 +8,6 @@ interface AgentRepository {
     fun getById(id: String): Flow<Agent?>
     suspend fun insert(agent: Agent)
     suspend fun update(agent: Agent)
+    suspend fun clone(id: String): Agent?
     suspend fun delete(id: String)
 }
