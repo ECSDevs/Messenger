@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
@@ -261,6 +263,7 @@ fun AgentMarketDetailScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
+                        .verticalScroll(rememberScrollState())
                         .padding(16.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -276,7 +279,7 @@ fun AgentMarketDetailScreen(
                     Text("Temperature: ${agent.temperature}", style = MaterialTheme.typography.bodyMedium)
                     Text("Top P: ${agent.topP}", style = MaterialTheme.typography.bodyMedium)
                     agent.maxTokens?.let { Text("Max Tokens: $it", style = MaterialTheme.typography.bodyMedium) }
-                    Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.height(24.dp))
                     Button(
                         onClick = {
                             viewModel.importAgent { result ->
