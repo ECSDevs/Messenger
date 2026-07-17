@@ -27,6 +27,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
@@ -56,6 +57,7 @@ import cc.ptoe.messenger.presentation.viewmodel.AgentMarketDetailViewModel
 import cc.ptoe.messenger.presentation.viewmodel.AgentMarketViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -272,13 +274,22 @@ fun AgentMarketDetailScreen(
                         Text(agent.name, style = MaterialTheme.typography.headlineSmall)
                     }
                     Spacer(Modifier.height(24.dp))
-                    Text("系统提示词", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(8.dp))
-                    Text(agent.systemPrompt.ifBlank { "无系统提示词" }, style = MaterialTheme.typography.bodyLarge)
-                    Spacer(Modifier.height(24.dp))
-                    Text("Temperature: ${agent.temperature}", style = MaterialTheme.typography.bodyMedium)
-                    Text("Top P: ${agent.topP}", style = MaterialTheme.typography.bodyMedium)
-                    agent.maxTokens?.let { Text("Max Tokens: $it", style = MaterialTheme.typography.bodyMedium) }
+                    ListItem(
+                        headlineContent = { Text("系统提示词") },
+                        supportingContent = {
+                            Text(agent.systemPrompt.ifBlank { "无系统提示词" })
+                        }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Temperature") },
+                        supportingContent = {
+                            Text(String.format(Locale.US, "%.1f", agent.temperature))
+                        }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Max Tokens") },
+                        supportingContent = { Text(agent.maxTokens?.toString() ?: "不限") }
+                    )
                     Spacer(Modifier.height(24.dp))
                     Button(
                         onClick = {
