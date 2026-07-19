@@ -103,6 +103,35 @@ data class CloudSyncResponse(
     val latestVersion: Long
 )
 
+/**
+ * /api/sync?collection=... 分页响应。documents 字段是异构数组,
+ * 由三个具体类型 Page DTO(CloudSyncAgentsPage / CloudSyncConversationsPage /
+ * CloudSyncProvidersPage)分别承接,Gson 按方法的泛型签名反序列化。
+ */
+data class CloudSyncAgentsPage(
+    val collection: String = "agents",
+    val documents: List<CloudAgentDocument> = emptyList(),
+    val hasMore: Boolean = false,
+    val nextCursor: String? = null,
+    val latestVersion: Long
+)
+
+data class CloudSyncConversationsPage(
+    val collection: String = "conversations",
+    val documents: List<CloudConversationDocument> = emptyList(),
+    val hasMore: Boolean = false,
+    val nextCursor: String? = null,
+    val latestVersion: Long
+)
+
+data class CloudSyncProvidersPage(
+    val collection: String = "providers",
+    val documents: List<CloudProviderDocument> = emptyList(),
+    val hasMore: Boolean = false,
+    val nextCursor: String? = null,
+    val latestVersion: Long
+)
+
 data class CloudUpsertResponse(
     val id: String,
     val version: Long

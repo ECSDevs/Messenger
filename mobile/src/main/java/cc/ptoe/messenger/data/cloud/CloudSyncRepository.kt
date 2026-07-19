@@ -76,7 +76,30 @@ private interface CloudApi {
     @PUT suspend fun changePassword(@Url url: String, @Body body: PasswordChangeRequest): SuccessResponse
     @HTTP(method = "DELETE", path = "", hasBody = true)
     suspend fun deleteAccount(@Url url: String, @Body body: AccountDeleteRequest): SuccessResponse
-    @GET suspend fun sync(@Url url: String, @Query("since") since: Long): CloudSyncResponse
+
+    @GET suspend fun syncAgentsPage(
+        @Url url: String,
+        @Query("since") since: Long,
+        @Query("collection") collection: String = "agents",
+        @Query("cursor") cursor: String? = null,
+        @Query("limit") limit: Int? = null
+    ): CloudSyncAgentsPage
+
+    @GET suspend fun syncConversationsPage(
+        @Url url: String,
+        @Query("since") since: Long,
+        @Query("collection") collection: String = "conversations",
+        @Query("cursor") cursor: String? = null,
+        @Query("limit") limit: Int? = null
+    ): CloudSyncConversationsPage
+
+    @GET suspend fun syncProvidersPage(
+        @Url url: String,
+        @Query("since") since: Long,
+        @Query("collection") collection: String = "providers",
+        @Query("cursor") cursor: String? = null,
+        @Query("limit") limit: Int? = null
+    ): CloudSyncProvidersPage
 
     @GET suspend fun listMarketAgents(
         @Url url: String,
@@ -697,7 +720,7 @@ class CloudSyncRepository(
             checkSignedIn()
             val account = refreshUser(updateLocalAvatar = false)
             syncMutex.withLock {
-                val remote = request { api.sync(endpoint("api/sync"), 0L) }
+                val remote = fetchCloudSync(since = 0L)
                 mergeLocalDefaultWithCloudDefault(remote)
                 val localAgents = database.agentDao().getAllEntities()
                 val localProviders = database.providerDao().getAllEntities()
@@ -833,7 +856,7 @@ class CloudSyncRepository(
         checkSignedIn()
         val account = user.first() ?: error("Please sign in first")
         val since = sinceOverride ?: appPreferences.cloudSyncVersion(account.id)
-        val delta = request { api.sync(endpoint("api/sync"), since) }
+        val delta = fetchCloudSync(since)
         Log.i(
             TAG,
             "Cloud sync account=${account.id} since=$since latest=${delta.latestVersion} " +
@@ -864,6 +887,52 @@ class CloudSyncRepository(
                 "providers=${database.providerDao().getAllEntities().size}"
         )
         return CloudSyncResult(delta.latestVersion, delta.agents.size, delta.conversations.size, delta.providers.size)
+    }
+
+    /**
+     * 按 collection 翻页拉满所有 delta,最后组装成 CloudSyncResponse 复用既有路径。
+     * 单批 conversation 文档可能很大(尤其含数千条 messages),分页避免单个
+     * serverless 响应体爆内存、客户端一次 Gson 解析卡 UI 线程。
+     */
+    private suspend fun fetchCloudSync(since: Long): CloudSyncResponse {
+        val agents = mutableListOf<CloudAgentDocument>()
+        var agentsLatest = since
+        var cursor: String? = null
+        do {
+            val page = request { api.syncAgentsPage(endpoint("api/sync"), since, cursor = cursor, limit = SYNC_PAGE_SIZE) }
+            agents += page.documents
+            agentsLatest = maxOf(agentsLatest, page.latestVersion)
+            cursor = if (page.hasMore) page.nextCursor else null
+        } while (cursor != null)
+
+        val conversations = mutableListOf<CloudConversationDocument>()
+        var conversationsLatest = since
+        cursor = null
+        do {
+            val page = request {
+                api.syncConversationsPage(endpoint("api/sync"), since, cursor = cursor, limit = SYNC_PAGE_SIZE)
+            }
+            conversations += page.documents
+            conversationsLatest = maxOf(conversationsLatest, page.latestVersion)
+            cursor = if (page.hasMore) page.nextCursor else null
+        } while (cursor != null)
+
+        val providers = mutableListOf<CloudProviderDocument>()
+        var providersLatest = since
+        cursor = null
+        do {
+            val page = request { api.syncProvidersPage(endpoint("api/sync"), since, cursor = cursor, limit = SYNC_PAGE_SIZE) }
+            providers += page.documents
+            providersLatest = maxOf(providersLatest, page.latestVersion)
+            cursor = if (page.hasMore) page.nextCursor else null
+        } while (cursor != null)
+
+        return CloudSyncResponse(
+            agents = agents,
+            conversations = conversations,
+            providers = providers,
+            latestVersion = maxOf(agentsLatest, conversationsLatest, providersLatest)
+        )
     }
 
     private suspend fun syncAgentAvatar(agent: AgentEntity) {
@@ -1082,12 +1151,20 @@ class CloudSyncRepository(
         val identity = digest("$scope|$accountId|$id")
         val requestUrl = resolveAvatarUrl(url, baseUrl)
         val urlKey = digest("$requestUrl|${version.orEmpty()}")
+        // 本地命中文件(非空,扩展名任意)。命中后仍发条件 GET 校验 ETag,
+        // server 返回 304 时直接复用本地文件,200 时覆盖并更新 sidecar ETag。
         val existing = directory.listFiles()
-            ?.firstOrNull { it.isFile && it.name.startsWith("$identity-$urlKey.") && it.length() > 0L }
-        if (existing != null) return existing.absolutePath
-
-        val request = Request.Builder().url(requestUrl).get().build()
-        return createAvatarHttpClient().newCall(request).execute().use { response ->
+            ?.firstOrNull { it.isFile && it.name.startsWith("$identity-$urlKey.") && !it.name.endsWith(ETAG_SIDECAR_SUFFIX) && it.length() > 0L }
+        val storedEtag = existing?.let { readEtagSidecar(it) }
+        val requestBuilder = Request.Builder().url(requestUrl).get()
+        if (existing != null && !storedEtag.isNullOrEmpty()) {
+            requestBuilder.header("If-None-Match", storedEtag)
+        }
+        return createAvatarHttpClient().newCall(requestBuilder.build()).execute().use { response ->
+            // 304 命中:本地文件仍最新,直接复用,不重写 sidecar(ETag 不变)。
+            if (response.code == 304 && existing != null) {
+                return@use existing.absolutePath
+            }
             if (!response.isSuccessful) {
                 throw IOException("Avatar download failed (${response.code})")
             }
@@ -1120,8 +1197,24 @@ class CloudSyncRepository(
             } finally {
                 temporary.delete()
             }
+            writeEtagSidecar(target, response.header("ETag"))
             deleteCachedAvatarsExcept(scope, accountId, id, target)
             target.absolutePath
+        }
+    }
+
+    /** 复用同一文件名加 .etag 后缀存放 server 返回的 ETag。 */
+    private fun etagSidecarFor(avatar: File): File = File(avatar.parentFile, "${avatar.name}$ETAG_SIDECAR_SUFFIX")
+
+    private fun readEtagSidecar(avatar: File): String? =
+        etagSidecarFor(avatar).takeIf { it.isFile }?.readText(Charsets.UTF_8)?.trim()?.ifEmpty { null }
+
+    private fun writeEtagSidecar(avatar: File, etag: String?) {
+        val sidecar = etagSidecarFor(avatar)
+        if (etag.isNullOrEmpty()) {
+            sidecar.delete()
+        } else {
+            sidecar.writeText(etag, Charsets.UTF_8)
         }
     }
 
@@ -1141,7 +1234,10 @@ class CloudSyncRepository(
 
     private fun deleteLocalAvatarIfReplaced(previous: String?, current: String?) {
         if (previous != null && previous != current && !isRemoteAvatar(previous)) {
-            File(previous).takeIf { it.exists() }?.delete()
+            val file = File(previous)
+            if (file.exists()) file.delete()
+            // 同步清理 cloud_avatars 目录下的 ETag sidecar(其他目录没有 sidecar,delete() 静默失败)
+            etagSidecarFor(file).takeIf { it.exists() }?.delete()
         }
     }
 
@@ -1246,6 +1342,11 @@ class CloudSyncRepository(
     private companion object {
         const val TAG = "CloudSyncRepository"
         const val MAX_AVATAR_BYTES = 5L * 1024L * 1024L
+        // 单次 /api/sync?collection=... 拉取的页大小。server 端 SYNC_MAX_LIMIT=500,
+        // 这里取 100 兼顾请求数与单次响应体大小:一个 conversation 文档含数千条
+        // messages 时,100 条/页已经接近 serverless 单次响应的舒适区。
+        const val SYNC_PAGE_SIZE = 100
+        const val ETAG_SIDECAR_SUFFIX = ".etag"
     }
 }
 
