@@ -22,6 +22,9 @@ object SSEParser {
                 if (currentLine.startsWith("data: ")) {
                     val data = currentLine.removePrefix("data: ")
                     if (data == "[DONE]") {
+                        // Forward the sentinel so downstream can emit Done
+                        // instead of mistaking the clean end-of-stream for an error.
+                        emit("[DONE]")
                         break
                     }
                     emit(data)

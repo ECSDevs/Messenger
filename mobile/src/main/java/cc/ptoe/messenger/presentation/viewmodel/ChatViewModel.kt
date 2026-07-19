@@ -228,14 +228,14 @@ class ChatViewModel(
         _streamingMessageId.value = aiMessageId
         _isGenerating.value = true
 
-        val historyMessages = messages.value
-            .filter { it.status == MessageStatus.SENT }
-            .takeLast(20)
-
         currentGenerationJob = viewModelScope.launch {
             var hasFinished = false
+            var currentContent = ""
             try {
-                var currentContent = ""
+                val historyMessages = messageRepository.getByConversationId(conversationId)
+                    .first()
+                    .filter { it.status == MessageStatus.SENT }
+                    .takeLast(20)
                 apiRepository.streamChatCompletion(
                     provider = provider,
                     modelId = model.modelId,
@@ -248,9 +248,6 @@ class ChatViewModel(
                     when (event) {
                         is ChatStreamEvent.Content -> {
                             currentContent += event.text
-                            // Drive the shared typewriter state so the bubble
-                            // animates progressively; the DB write below keeps
-                            // the persisted content in sync for re-entry.
                             typewriterState.appendToken(event.text)
                             messageRepository.update(
                                 aiMessage.copy(content = currentContent)
@@ -267,11 +264,6 @@ class ChatViewModel(
                                 )
                             )
                             updateConversationLastMessage(conversationId, currentContent, System.currentTimeMillis())
-                            // Let the typewriter finish revealing its buffer before
-                            // unbinding so the bubble doesn't jump from partial text
-                            // to the full static content (flicker). _isGenerating stays
-                            // true so a new send can't reset the shared state; tap Stop
-                            // to skip the tail.
                             awaitTypewriterDone()
                             _streamingMessageId.value = null
                             _isGenerating.value = false
@@ -279,13 +271,22 @@ class ChatViewModel(
                         is ChatStreamEvent.Error -> {
                             hasFinished = true
                             typewriterState.stop()
-                            messageRepository.update(
-                                aiMessage.copy(
-                                    content = currentContent,
-                                    status = MessageStatus.ERROR,
-                                    errorMessage = event.message
+                            if (currentContent.isNotBlank()) {
+                                messageRepository.update(
+                                    aiMessage.copy(
+                                        content = currentContent,
+                                        status = MessageStatus.SENT
+                                    )
                                 )
-                            )
+                            } else {
+                                messageRepository.update(
+                                    aiMessage.copy(
+                                        content = currentContent,
+                                        status = MessageStatus.ERROR,
+                                        errorMessage = event.message
+                                    )
+                                )
+                            }
                             setError(event.message)
                             _streamingMessageId.value = null
                             _isGenerating.value = false
@@ -294,34 +295,53 @@ class ChatViewModel(
                 }
                 if (!hasFinished) {
                     typewriterState.stop()
-                    messageRepository.update(
-                        aiMessage.copy(
-                            content = currentContent,
-                            status = MessageStatus.ERROR,
-                            errorMessage = "API 未返回有效响应"
+                    val errorMsg = "API 未返回有效响应，请检查 API 配置和参数"
+                    if (currentContent.isNotBlank()) {
+                        messageRepository.update(
+                            aiMessage.copy(
+                                content = currentContent,
+                                status = MessageStatus.SENT
+                            )
                         )
-                    )
-                    setError("API 未返回有效响应，请检查 API 配置和参数")
+                    } else {
+                        messageRepository.update(
+                            aiMessage.copy(
+                                content = currentContent,
+                                status = MessageStatus.ERROR,
+                                errorMessage = "API 未返回有效响应"
+                            )
+                        )
+                    }
+                    setError(errorMsg)
                     _streamingMessageId.value = null
                     _isGenerating.value = false
                 }
             } catch (e: Exception) {
+                // User-initiated stop arrives as CancellationException. The
+                // stopGeneration() path owns the SENDING -> SENT transition
+                // and the typewriter cleanup in this case, so just rethrow
+                // without racing it with DB writes or surfacing an error.
+                if (e is CancellationException) throw e
                 if (hasFinished) {
-                    // Done already processed — don't overwrite SENT with ERROR.
-                    // Rethrow cancellation so it propagates cleanly; swallow the
-                    // (unlikely) rest to avoid crashing the scope.
-                    if (e is CancellationException) throw e
                     return@launch
                 }
-                val currentContent = messages.value.find { it.id == aiMessageId }?.content ?: ""
                 typewriterState.stop()
-                messageRepository.update(
-                    aiMessage.copy(
-                        content = currentContent,
-                        status = MessageStatus.ERROR,
-                        errorMessage = e.message ?: "Unknown error"
+                if (currentContent.isNotBlank()) {
+                    messageRepository.update(
+                        aiMessage.copy(
+                            content = currentContent,
+                            status = MessageStatus.SENT
+                        )
                     )
-                )
+                } else {
+                    messageRepository.update(
+                        aiMessage.copy(
+                            content = currentContent,
+                            status = MessageStatus.ERROR,
+                            errorMessage = e.message ?: "Unknown error"
+                        )
+                    )
+                }
                 setError(e.message ?: "Unknown error")
                 _streamingMessageId.value = null
                 _isGenerating.value = false
@@ -360,11 +380,17 @@ class ChatViewModel(
             typewriterState.stop()
             _streamingMessageId.value = null
 
-            val lastAiMessage = messages.value.lastOrNull { it.role == MessageRole.ASSISTANT }
-            if (lastAiMessage != null && lastAiMessage.status == MessageStatus.SENDING) {
-                messageRepository.update(
-                    lastAiMessage.copy(status = MessageStatus.SENT)
-                )
+            // Read from DB (not messages.value) so we observe the very latest
+            // content written during streaming, even if the StateFlow hasn't
+            // propagated yet. Any SENDING assistant message is promoted to SENT
+            // so the partial content is kept and enters future AI context.
+            val convId = _conversationId.value
+            if (convId != null) {
+                val pending = messageRepository.getByConversationId(convId).first()
+                    .filter { it.role == MessageRole.ASSISTANT && it.status == MessageStatus.SENDING }
+                pending.forEach { msg ->
+                    messageRepository.update(msg.copy(status = MessageStatus.SENT))
+                }
             }
         }
     }
@@ -405,20 +431,18 @@ class ChatViewModel(
 
             val (provider, model) = result
 
-            val historyMessages = messages.value
-                .filter { it.status == MessageStatus.SENT && it.id != messageId }
-                .takeLast(20)
-
-            // Bind the shared typewriter state to this message id and reset
-            // the buffer so the retry stream starts from a clean slate.
             typewriterState.reset()
             _streamingMessageId.value = messageId
             _isGenerating.value = true
 
             currentGenerationJob = launch {
                 var hasFinished = false
+                var currentContent = ""
                 try {
-                    var currentContent = ""
+                    val historyMessages = messageRepository.getByConversationId(message.conversationId)
+                        .first()
+                        .filter { it.status == MessageStatus.SENT && it.id != messageId }
+                        .takeLast(20)
                     apiRepository.streamChatCompletion(
                         provider = provider,
                         modelId = model.modelId,
@@ -463,13 +487,23 @@ class ChatViewModel(
                             is ChatStreamEvent.Error -> {
                                 hasFinished = true
                                 typewriterState.stop()
-                                messageRepository.update(
-                                    message.copy(
-                                        content = currentContent,
-                                        status = MessageStatus.ERROR,
-                                        errorMessage = event.message
+                                if (currentContent.isNotBlank()) {
+                                    messageRepository.update(
+                                        message.copy(
+                                            content = currentContent,
+                                            status = MessageStatus.SENT,
+                                            errorMessage = null
+                                        )
                                     )
-                                )
+                                } else {
+                                    messageRepository.update(
+                                        message.copy(
+                                            content = currentContent,
+                                            status = MessageStatus.ERROR,
+                                            errorMessage = event.message
+                                        )
+                                    )
+                                }
                                 setError(event.message)
                                 _streamingMessageId.value = null
                                 _isGenerating.value = false
@@ -478,31 +512,55 @@ class ChatViewModel(
                     }
                     if (!hasFinished) {
                         typewriterState.stop()
-                        messageRepository.update(
-                            message.copy(
-                                content = currentContent,
-                                status = MessageStatus.ERROR,
-                                errorMessage = "API 未返回有效响应"
+                        val errorMsg = "API 未返回有效响应，请检查 API 配置和参数"
+                        if (currentContent.isNotBlank()) {
+                            messageRepository.update(
+                                message.copy(
+                                    content = currentContent,
+                                    status = MessageStatus.SENT,
+                                    errorMessage = null
+                                )
                             )
-                        )
-                        setError("API 未返回有效响应，请检查 API 配置和参数")
+                        } else {
+                            messageRepository.update(
+                                message.copy(
+                                    content = currentContent,
+                                    status = MessageStatus.ERROR,
+                                    errorMessage = "API 未返回有效响应"
+                                )
+                            )
+                        }
+                        setError(errorMsg)
                         _streamingMessageId.value = null
                         _isGenerating.value = false
                     }
                 } catch (e: Exception) {
+                    // User-initiated stop arrives as CancellationException. The
+                    // stopGeneration() path owns the SENDING -> SENT transition
+                    // and the typewriter cleanup in this case, so just rethrow
+                    // without racing it with DB writes or surfacing an error.
+                    if (e is CancellationException) throw e
                     if (hasFinished) {
-                        if (e is CancellationException) throw e
                         return@launch
                     }
-                    val currentContent = messages.value.find { it.id == messageId }?.content ?: ""
                     typewriterState.stop()
-                    messageRepository.update(
-                        message.copy(
-                            content = currentContent,
-                            status = MessageStatus.ERROR,
-                            errorMessage = e.message ?: "Unknown error"
+                    if (currentContent.isNotBlank()) {
+                        messageRepository.update(
+                            message.copy(
+                                content = currentContent,
+                                status = MessageStatus.SENT,
+                                errorMessage = null
+                            )
                         )
-                    )
+                    } else {
+                        messageRepository.update(
+                            message.copy(
+                                content = currentContent,
+                                status = MessageStatus.ERROR,
+                                errorMessage = e.message ?: "Unknown error"
+                            )
+                        )
+                    }
                     setError(e.message ?: "Unknown error")
                     _streamingMessageId.value = null
                     _isGenerating.value = false

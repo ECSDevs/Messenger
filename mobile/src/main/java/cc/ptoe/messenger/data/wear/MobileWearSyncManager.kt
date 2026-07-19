@@ -124,25 +124,87 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
 
             var currentContent = ""
             var hasFinished = false
-            app.apiRepository.streamChatCompletion(
-                provider = activeModel.first,
-                modelId = activeModel.second.modelId,
-                messages = history,
-                systemPrompt = resolvedAgent.systemPrompt,
-                temperature = resolvedAgent.temperature,
-                topP = resolvedAgent.topP,
-                maxTokens = resolvedAgent.maxTokens
-            ).collect { event ->
-                when (event) {
-                    is ChatStreamEvent.Content -> {
-                        currentContent += event.text
-                        app.messageRepository.update(
-                            assistantMessage.copy(content = currentContent)
-                        )
-                        frame("chat_delta") { put("delta", event.text) }
+            try {
+                app.apiRepository.streamChatCompletion(
+                    provider = activeModel.first,
+                    modelId = activeModel.second.modelId,
+                    messages = history,
+                    systemPrompt = resolvedAgent.systemPrompt,
+                    temperature = resolvedAgent.temperature,
+                    topP = resolvedAgent.topP,
+                    maxTokens = resolvedAgent.maxTokens
+                ).collect { event ->
+                    when (event) {
+                        is ChatStreamEvent.Content -> {
+                            currentContent += event.text
+                            app.messageRepository.update(
+                                assistantMessage.copy(content = currentContent)
+                            )
+                            frame("chat_delta") { put("delta", event.text) }
+                        }
+                        is ChatStreamEvent.Done -> {
+                            hasFinished = true
+                            app.messageRepository.update(
+                                assistantMessage.copy(
+                                    content = currentContent,
+                                    status = MessageStatus.SENT
+                                )
+                            )
+                            app.conversationRepository.update(
+                                conversation.copy(
+                                    lastMessage = currentContent,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                            frame("chat_done") {
+                                put("content", currentContent)
+                                put("userMessageId", userMessage.id)
+                                put("assistantMessageId", assistantMessage.id)
+                            }
+                        }
+                        is ChatStreamEvent.Error -> {
+                            hasFinished = true
+                            if (currentContent.isNotBlank()) {
+                                app.messageRepository.update(
+                                    assistantMessage.copy(
+                                        content = currentContent,
+                                        status = MessageStatus.SENT
+                                    )
+                                )
+                                app.conversationRepository.update(
+                                    conversation.copy(
+                                        lastMessage = currentContent,
+                                        updatedAt = System.currentTimeMillis()
+                                    )
+                                )
+                                frame("chat_done") {
+                                    put("content", currentContent)
+                                    put("userMessageId", userMessage.id)
+                                    put("assistantMessageId", assistantMessage.id)
+                                }
+                                frame("chat_error") { put("error", event.message) }
+                            } else {
+                                app.messageRepository.update(
+                                    assistantMessage.copy(
+                                        content = currentContent,
+                                        status = MessageStatus.ERROR,
+                                        errorMessage = event.message
+                                    )
+                                )
+                                app.conversationRepository.update(
+                                    conversation.copy(
+                                        lastMessage = text,
+                                        updatedAt = System.currentTimeMillis()
+                                    )
+                                )
+                                frame("chat_error") { put("error", event.message) }
+                            }
+                        }
                     }
-                    is ChatStreamEvent.Done -> {
-                        hasFinished = true
+                }
+                if (!hasFinished) {
+                    val msg = "API 未返回有效数据，请检查 API 配置和参数"
+                    if (currentContent.isNotBlank()) {
                         app.messageRepository.update(
                             assistantMessage.copy(
                                 content = currentContent,
@@ -160,36 +222,39 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
                             put("userMessageId", userMessage.id)
                             put("assistantMessageId", assistantMessage.id)
                         }
-                    }
-                    is ChatStreamEvent.Error -> {
-                        hasFinished = true
+                        frame("chat_error") { put("error", msg) }
+                    } else {
                         app.messageRepository.update(
                             assistantMessage.copy(
                                 content = currentContent,
                                 status = MessageStatus.ERROR,
-                                errorMessage = event.message
+                                errorMessage = msg
                             )
                         )
-                        app.conversationRepository.update(
-                            conversation.copy(
-                                lastMessage = currentContent.ifBlank { text },
-                                updatedAt = System.currentTimeMillis()
-                            )
-                        )
-                        frame("chat_error") { put("error", event.message) }
+                        frame("chat_error") { put("error", msg) }
                     }
                 }
-            }
-            if (!hasFinished) {
-                val msg = "API 未返回有效数据，请检查 API 配置和参数"
-                app.messageRepository.update(
-                    assistantMessage.copy(
-                        content = currentContent,
-                        status = MessageStatus.ERROR,
-                        errorMessage = msg
+            } catch (e: Exception) {
+                if (currentContent.isNotBlank()) {
+                    app.messageRepository.update(
+                        assistantMessage.copy(
+                            content = currentContent,
+                            status = MessageStatus.SENT
+                        )
                     )
-                )
-                frame("chat_error") { put("error", msg) }
+                    app.conversationRepository.update(
+                        conversation.copy(
+                            lastMessage = currentContent,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                    )
+                    frame("chat_done") {
+                        put("content", currentContent)
+                        put("userMessageId", userMessage.id)
+                        put("assistantMessageId", assistantMessage.id)
+                    }
+                }
+                frame("chat_error") { put("error", e.message ?: "Unknown error") }
             }
         } catch (e: Exception) {
             frame("chat_error") { put("error", e.message ?: "Unknown error") }
