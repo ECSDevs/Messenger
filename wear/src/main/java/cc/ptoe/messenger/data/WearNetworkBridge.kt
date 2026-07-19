@@ -92,6 +92,10 @@ class WearNetworkBridge(
     @Volatile private var webSocket: WebSocket? = null
     @Volatile private var listenerJob: Job? = null
 
+    // mDNS 发现缓存：记录上次成功发现的 endpoint，加速重连
+    @Volatile private var cachedEndpoint: Endpoint? = null
+    private val endpointCacheLock = Any()
+
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 
@@ -124,7 +128,15 @@ class WearNetworkBridge(
     suspend fun connect(): Boolean = mutex.withLock {
         if (_isConnected.value) return@withLock true
 
-        val endpoint = discoverPhone()
+        // 优先尝试缓存的 endpoint，加速重连
+        val cached = synchronized(endpointCacheLock) { cachedEndpoint }
+        val endpoint = if (cached != null) {
+            Log.d(TAG, "Trying cached endpoint: ${cached.host}:${cached.port}")
+            cached
+        } else {
+            discoverPhone()
+        }
+
         if (endpoint == null) {
             _connectionState.value = WearConnectionState.Error(
                 "找不到手机服务 — 检查手表和手机是否在同一网络下（通过手表系统设置 > 蓝牙 PAN 走网络）"
@@ -145,6 +157,10 @@ class WearNetworkBridge(
                 this@WearNetworkBridge.webSocket = webSocket
                 _isConnected.value = true
                 _connectionState.value = WearConnectionState.Connected
+                // 连接成功，缓存 endpoint 供下次重连使用
+                synchronized(endpointCacheLock) {
+                    cachedEndpoint = endpoint
+                }
                 if (!result.isCompleted) result.complete(Result.success(Unit))
             }
 
@@ -476,7 +492,7 @@ class WearNetworkBridge(
         private const val TAG = "WearNetworkBridge"
         // NSD service type — DNS-SD. Must match the phone's registration.
         private const val SERVICE_TYPE = "_messenger._tcp."
-        private const val DISCOVERY_TIMEOUT_MS = 8_000L
+        private const val DISCOVERY_TIMEOUT_MS = 4_000L  // 优化：从 8s 降到 4s
         private const val REQUEST_TIMEOUT_MS = 60_000L
     }
 }

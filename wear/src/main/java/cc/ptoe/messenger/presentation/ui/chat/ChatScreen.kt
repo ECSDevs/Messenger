@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -112,6 +113,10 @@ private fun ChatContent(
     var hasInitiallyScrolled by remember(conversationId) { mutableStateOf(false) }
     var previousItemCount by remember(conversationId) { mutableIntStateOf(0) }
 
+    // 滚动节流：避免每个字符变化都触发滚动
+    var lastScrollTime by remember { mutableLongStateOf(0L) }
+    val scrollThrottleMs = 100L  // 最小 100ms 间隔
+
     // 进入会话时滚动到底部（reverseLayout 下 index 0）
     LaunchedEffect(conversationId, uiState.messages.isNotEmpty()) {
         if (!hasInitiallyScrolled && uiState.messages.isNotEmpty()) {
@@ -121,13 +126,18 @@ private fun ChatContent(
     }
 
     // 流式跟踪：用户停留在底部附近时跟随最新消息；上滑查看历史时不打扰
+    // 节流：最小 100ms 间隔，避免频繁滚动调用
     LaunchedEffect(uiState.messages, uiState.isSending) {
         if (!hasInitiallyScrolled || uiState.messages.isEmpty()) return@LaunchedEffect
         if (listState.firstVisibleItemIndex <= 2) {
-            if (uiState.messages.size != previousItemCount) {
-                listState.animateScrollToItem(0)
-            } else {
-                listState.scrollToItem(0)
+            val now = System.currentTimeMillis()
+            if (now - lastScrollTime >= scrollThrottleMs) {
+                lastScrollTime = now
+                if (uiState.messages.size != previousItemCount) {
+                    listState.animateScrollToItem(0)
+                } else {
+                    listState.scrollToItem(0)
+                }
             }
         }
         previousItemCount = uiState.messages.size

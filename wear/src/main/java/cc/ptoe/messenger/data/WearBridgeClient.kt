@@ -79,6 +79,10 @@ class WearBridgeClient(
     private var syncJob: Job? = null
     private var lastUpdatedAt: Long = 0L
 
+    // 指数退避：空闲时逐步增大轮询间隔
+    private var consecutiveNoChangeCount = 0
+    private var currentPollIntervalMs: Long = BASE_POLL_INTERVAL_MS
+
     /**
      * In-memory cache of the avatar version we have on disk for each agent
      * (and "user" for the user's own avatar). Keyed by agent id. A version
@@ -107,7 +111,7 @@ class WearBridgeClient(
                         // to reconnect — we want to close the socket and try
                         // again straight away.
                         if (reconnectTrigger.value != targetTick) break
-                        delay(POLL_INTERVAL_MS)
+                        delay(currentPollIntervalMs)  // 使用动态间隔
                         if (reconnectTrigger.value != targetTick) break
                         requestSync()
                     }
@@ -125,6 +129,9 @@ class WearBridgeClient(
                 if (reconnectTrigger.value != targetTick) {
                     Log.d(TAG, "Reconnect requested — closing socket and retrying")
                     runCatching { networkBridge.close() }
+                    // 重连时重置轮询间隔
+                    currentPollIntervalMs = BASE_POLL_INTERVAL_MS
+                    consecutiveNoChangeCount = 0
                 }
             }
         }
@@ -154,10 +161,23 @@ class WearBridgeClient(
         val response = networkBridge.requestSync() ?: return
         if (response.optString("type") != "sync_response") return
         val updatedAt = response.optLong("updatedAt", 0L)
-        // Always emit on the first poll so the UI has data, then dedupe
-        // subsequent polls by the updatedAt timestamp.
-        if (lastUpdatedAt != 0L && updatedAt <= lastUpdatedAt) return
-        lastUpdatedAt = updatedAt
+
+        // 检查是否有数据变化
+        val hasChanges = lastUpdatedAt == 0L || updatedAt > lastUpdatedAt
+
+        if (hasChanges) {
+            // 有变化：更新 lastUpdatedAt，重置退避计数
+            lastUpdatedAt = updatedAt
+            consecutiveNoChangeCount = 0
+            currentPollIntervalMs = BASE_POLL_INTERVAL_MS
+        } else {
+            // 无变化：增加退避计数，逐步增大轮询间隔
+            consecutiveNoChangeCount++
+            currentPollIntervalMs = minOf(
+                BASE_POLL_INTERVAL_MS * (1 shl consecutiveNoChangeCount),
+                MAX_POLL_INTERVAL_MS
+            )
+        }
 
         runCatching {
             val agentsArray = response.optJSONArray("agents") ?: JSONArray()
@@ -321,7 +341,10 @@ class WearBridgeClient(
 
     companion object {
         private const val TAG = "WearBridgeClient"
-        private const val POLL_INTERVAL_MS = 3000L
+        // 基础轮询间隔（秒级响应）
+        private const val BASE_POLL_INTERVAL_MS = 3000L
+        // 最大轮询间隔（空闲时退避到 60 秒）
+        private const val MAX_POLL_INTERVAL_MS = 60_000L
         private const val RECONNECT_DELAY_MS = 5000L
         private const val USER_AVATAR_KEY = "user"
     }
