@@ -29,4 +29,7 @@ interface AgentDao {
 
     @Query("DELETE FROM agents")
     suspend fun deleteAll()
+
+    @Query("UPDATE agents SET marketAgentId = NULL, marketAgentVersion = NULL, marketAgentRole = NULL")
+    suspend fun clearAllMarketLinks()
 }

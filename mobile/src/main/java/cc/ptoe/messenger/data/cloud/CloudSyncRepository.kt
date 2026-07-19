@@ -212,6 +212,9 @@ class CloudSyncRepository(
         val previous = serverUrl.first()
         if (previous != normalized) {
             localChangesEnabled = false
+            localDataMutex.withLock {
+                database.agentDao().clearAllMarketLinks()
+            }
             appPreferences.setCloudSession(null)
             appPreferences.setCloudSessionHost(null)
             appPreferences.setCloudUser(null)
@@ -279,6 +282,9 @@ class CloudSyncRepository(
         runCatching { request { api.logout(endpoint("api/auth/logout")) } }
         user.first()?.let { appPreferences.clearCloudSyncVersion(it.id) }
         localChangesEnabled = false
+        localDataMutex.withLock {
+            database.agentDao().clearAllMarketLinks()
+        }
         appPreferences.setCloudSession(null)
         appPreferences.setCloudSessionHost(null)
         appPreferences.setCloudUser(null)
@@ -346,9 +352,19 @@ class CloudSyncRepository(
             val agent = requireAgentForMarket(agentId)
             val marketId = checkNotNull(agent.marketAgentId) { "Publish this Agent first." }
             check(agent.marketAgentRole == "publisher") { "Only the publisher can update this Agent." }
-            val response = request {
-                api.updateMarketAgent(endpoint("api/market/agents/$marketId"), agent.toMarketRequest())
-            }.agent
+            val response = runCatching {
+                request {
+                    api.updateMarketAgent(endpoint("api/market/agents/$marketId"), agent.toMarketRequest())
+                }.agent
+            }.getOrElse { error ->
+                if (isMarketNotFound(error)) {
+                    _syncError.value = null
+                    persistMarketLink(agent.id, null, null, null)
+                    throw IOException("Market entry no longer exists; local Agent marked as unpublished.", error)
+                } else {
+                    throw error
+                }
+            }
             val updated = updateMarketAvatar(response, agent.avatar)
             persistMarketLink(agent.id, updated.id, updated.version, "publisher")
             updated
@@ -361,10 +377,17 @@ class CloudSyncRepository(
             val agent = requireAgentForMarket(agentId)
             val marketId = checkNotNull(agent.marketAgentId) { "This Agent is not published." }
             check(agent.marketAgentRole == "publisher") { "Only the publisher can remove this Agent." }
-            request { api.deleteMarketAgent(endpoint("api/market/agents/$marketId")) }
+            runCatching { request { api.deleteMarketAgent(endpoint("api/market/agents/$marketId")) } }
+                .onFailure { error ->
+                    if (!isMarketNotFound(error)) throw error
+                    _syncError.value = null
+                }
             persistMarketLink(agent.id, null, null, null)
         }
     }
+
+    private fun isMarketNotFound(error: Throwable): Boolean =
+        (error.cause as? HttpException)?.code() == 404
 
     suspend fun importMarketAgent(marketId: String): Agent = withContext(Dispatchers.IO) {
         localDataMutex.withLock {
@@ -1025,6 +1048,10 @@ class CloudSyncRepository(
         val baseUrl = normalizeServerUrl(override ?: serverUrl.first())
         val currentHost = appPreferences.cloudSessionHost.first()
         if (currentHost != null && currentHost != baseUrl) {
+            localChangesEnabled = false
+            localDataMutex.withLock {
+                database.agentDao().clearAllMarketLinks()
+            }
             appPreferences.setCloudSession(null)
             appPreferences.setCloudSessionHost(null)
             appPreferences.setCloudUser(null)
