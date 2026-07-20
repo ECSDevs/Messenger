@@ -28,6 +28,12 @@ class AgentRepositoryImpl(
         }
     }
 
+    override fun getDefaultAgent(): Flow<Agent?> {
+        return agentDao.getDefaultAgent().map { entity ->
+            entity?.toDomain()
+        }
+    }
+
     override suspend fun insert(agent: Agent) {
         agentDao.insert(agent.toEntity())
         onChanged(null, agent)

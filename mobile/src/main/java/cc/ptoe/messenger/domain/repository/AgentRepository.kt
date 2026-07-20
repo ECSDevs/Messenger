@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 interface AgentRepository {
     fun getAll(): Flow<List<Agent>>
     fun getById(id: String): Flow<Agent?>
+    fun getDefaultAgent(): Flow<Agent?>
     suspend fun insert(agent: Agent)
     suspend fun update(agent: Agent)
     suspend fun clone(id: String): Agent?

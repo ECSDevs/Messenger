@@ -29,4 +29,7 @@ interface ProviderDao {
 
     @Query("DELETE FROM providers")
     suspend fun deleteAll()
+
+    @Query("SELECT COUNT(*) FROM providers")
+    suspend fun count(): Int
 }

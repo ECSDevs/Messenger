@@ -9,5 +9,6 @@ interface ConversationRepository {
     fun getById(id: String): Flow<Conversation?>
     suspend fun insert(conversation: Conversation)
     suspend fun update(conversation: Conversation)
+    suspend fun updateLastMessage(id: String, lastMessage: String, updatedAt: Long)
     suspend fun delete(id: String)
 }

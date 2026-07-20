@@ -20,9 +20,18 @@ class MessageRepositoryImpl(
         }
     }
 
+    override suspend fun getByConversationIds(conversationIds: List<String>): List<Message> {
+        return messageDao.getByConversationIds(conversationIds).map { it.toDomain() }
+    }
+
     override suspend fun insert(message: Message) {
         messageDao.insert(message.toEntity())
         onChanged(message.conversationId)
+    }
+
+    override suspend fun insertAll(messages: List<Message>) {
+        messageDao.insertAll(messages.map { it.toEntity() })
+        messages.firstOrNull()?.conversationId?.let(onChanged)
     }
 
     override suspend fun update(message: Message) {
@@ -31,7 +40,7 @@ class MessageRepositoryImpl(
     }
 
     override suspend fun delete(id: String) {
-        val conversationId = messageDao.getAllEntities().firstOrNull { it.id == id }?.conversationId
+        val conversationId = messageDao.getConversationIdById(id)
         messageDao.delete(id)
         conversationId?.let(onChanged)
     }
@@ -39,6 +48,10 @@ class MessageRepositoryImpl(
     override suspend fun deleteByConversationId(conversationId: String) {
         messageDao.deleteByConversationId(conversationId)
         onChanged(conversationId)
+    }
+
+    override suspend fun getConversationIdById(id: String): String? {
+        return messageDao.getConversationIdById(id)
     }
 
     private fun MessageEntity.toDomain(): Message {

@@ -42,6 +42,9 @@ interface ModelDao {
     @Query("DELETE FROM models")
     suspend fun deleteAll()
 
+    @Query("SELECT COUNT(*) FROM models")
+    suspend fun count(): Int
+
     @Query("UPDATE models SET isEnabled = :isEnabled WHERE id = :id")
     suspend fun setEnabled(id: String, isEnabled: Boolean)
 }

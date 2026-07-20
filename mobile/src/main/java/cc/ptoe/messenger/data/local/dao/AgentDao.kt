@@ -15,6 +15,9 @@ interface AgentDao {
     @Query("SELECT * FROM agents WHERE id = :id")
     fun getById(id: String): Flow<AgentEntity?>
 
+    @Query("SELECT * FROM agents WHERE isDefault = 1 LIMIT 1")
+    fun getDefaultAgent(): Flow<AgentEntity?>
+
     @Upsert
     suspend fun insert(agent: AgentEntity)
 
@@ -29,6 +32,9 @@ interface AgentDao {
 
     @Query("DELETE FROM agents")
     suspend fun deleteAll()
+
+    @Query("SELECT COUNT(*) FROM agents")
+    suspend fun count(): Int
 
     @Query("UPDATE agents SET marketAgentId = NULL, marketAgentVersion = NULL, marketAgentRole = NULL")
     suspend fun clearAllMarketLinks()

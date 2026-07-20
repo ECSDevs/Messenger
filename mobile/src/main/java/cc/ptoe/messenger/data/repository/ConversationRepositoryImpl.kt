@@ -40,6 +40,11 @@ class ConversationRepositoryImpl(
         onChanged(conversation.id, false)
     }
 
+    override suspend fun updateLastMessage(id: String, lastMessage: String, updatedAt: Long) {
+        conversationDao.updateLastMessage(id, lastMessage, updatedAt)
+        onChanged(id, false)
+    }
+
     override suspend fun delete(id: String) {
         conversationDao.delete(id)
         onChanged(id, true)

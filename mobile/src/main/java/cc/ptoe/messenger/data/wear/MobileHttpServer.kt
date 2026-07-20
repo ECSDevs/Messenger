@@ -342,28 +342,33 @@ class MobileHttpServer : Service() {
         }
 
         val messagesJson = JSONObject()
-        conversations.forEach { conv ->
-            val messages = app.messageRepository.getByConversationId(conv.id).first()
+        if (conversations.isNotEmpty()) {
+            val conversationIds = conversations.map { it.id }
+            val allMessages = app.messageRepository.getByConversationIds(conversationIds)
                 .filter { it.role != MessageRole.SYSTEM }
-                .takeLast(MAX_MESSAGES_PER_CONVERSATION)
-            messagesJson.put(conv.id, JSONArray().apply {
-                messages.forEach { msg ->
-                    put(JSONObject().apply {
-                        put("id", msg.id)
-                        put("conversationId", msg.conversationId)
-                        put("role", when (msg.role) {
-                            MessageRole.ASSISTANT -> "assistant"
-                            MessageRole.TOOL -> "tool"
-                            MessageRole.SYSTEM -> "system"
-                            else -> "user"
+                .groupBy { it.conversationId }
+
+            conversations.forEach { conv ->
+                val messages = allMessages[conv.id]?.takeLast(MAX_MESSAGES_PER_CONVERSATION) ?: emptyList()
+                messagesJson.put(conv.id, JSONArray().apply {
+                    messages.forEach { msg ->
+                        put(JSONObject().apply {
+                            put("id", msg.id)
+                            put("conversationId", msg.conversationId)
+                            put("role", when (msg.role) {
+                                MessageRole.ASSISTANT -> "assistant"
+                                MessageRole.TOOL -> "tool"
+                                MessageRole.SYSTEM -> "system"
+                                else -> "user"
+                            })
+                            put("content", msg.content)
+                            put("timestamp", msg.timestamp)
+                            put("isError", msg.status == MessageStatus.ERROR)
+                            put("isPending", msg.status == MessageStatus.SENDING)
                         })
-                        put("content", msg.content)
-                        put("timestamp", msg.timestamp)
-                        put("isError", msg.status == MessageStatus.ERROR)
-                        put("isPending", msg.status == MessageStatus.SENDING)
-                    })
-                }
-            })
+                    }
+                })
+            }
         }
 
         val userAvatarPath = app.appPreferences.userAvatar.first()

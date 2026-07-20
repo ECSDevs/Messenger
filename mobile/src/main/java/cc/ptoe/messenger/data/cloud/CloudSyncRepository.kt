@@ -702,17 +702,17 @@ class CloudSyncRepository(
     }
 
     private suspend fun hasLocalData(): Boolean {
+        if (database.providerDao().count() > 0) return true
+        if (database.modelDao().count() > 0) return true
+        if (database.conversationDao().count() > 0) return true
+        if (database.messageDao().count() > 0) return true
+
         val agents = database.agentDao().getAllEntities()
-        val providers = database.providerDao().getAllEntities()
-        val models = database.modelDao().getAllEntities()
-        val conversations = database.conversationDao().getAllEntities()
-        val messages = database.messageDao().getAllEntities()
-        return providers.isNotEmpty() ||
-            models.isNotEmpty() ||
-            conversations.isNotEmpty() ||
-            messages.isNotEmpty() ||
-            agents.any { !it.isDefault || !it.isDefaultAgentBaseline() } ||
-            appPreferences.userAvatar.first() != null
+        if (agents.any { !it.isDefault || !it.isDefaultAgentBaseline() }) return true
+
+        if (appPreferences.userAvatar.first() != null) return true
+
+        return false
     }
 
     private suspend fun replaceCloudWithLocal(): CloudSyncResult = withContext(Dispatchers.IO) {
@@ -782,7 +782,14 @@ class CloudSyncRepository(
         val agents = database.agentDao().getAllEntities()
         val providers = database.providerDao().getAllEntities()
         val conversations = database.conversationDao().getAllEntities()
-        val messagesByConversation = database.messageDao().getAllEntities().groupBy { it.conversationId }
+
+        val pushConversations = conversations.filter { shouldPush("conversation", it.id) }
+        val pushConversationIds = pushConversations.map { it.id }
+        val messagesByConversation = if (pushConversationIds.isNotEmpty()) {
+            database.messageDao().getByConversationIds(pushConversationIds).groupBy { it.conversationId }
+        } else {
+            emptyMap()
+        }
 
         agents.filter { shouldPush("agent", it.id) }.forEach { agent ->
             val response = request {
@@ -802,7 +809,7 @@ class CloudSyncRepository(
             latestVersion = maxOf(latestVersion, response.version)
             appPreferences.removeCloudPendingUpsert(account.id, "provider", provider.id)
         }
-        conversations.filter { shouldPush("conversation", it.id) }.forEach { conversation ->
+        pushConversations.forEach { conversation ->
             val response = request {
                 api.putConversation(
                     endpoint("api/conversations/${conversation.id}"),

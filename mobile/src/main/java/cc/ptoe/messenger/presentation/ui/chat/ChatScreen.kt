@@ -129,15 +129,12 @@ fun ChatScreen(
 
     // 自动保持底部：消息更新或生成状态变化时，若用户未主动上滑则跟随到底部
     // reverseLayout 下 firstVisibleItemIndex 越小越靠近底部；0 表示完全在底部
-    LaunchedEffect(messages, isGenerating) {
+    LaunchedEffect(chatItems.size, isGenerating) {
         if (!hasInitiallyScrolled || chatItems.isEmpty()) return@LaunchedEffect
-        // 用户停留在底部附近（容差 3 项）时自动跟随到最新消息；
-        // 用户主动上滑远离底部时则停止跟随，便于查看历史消息
         if (listState.firstVisibleItemIndex <= 3) {
-            // 新增消息用动画滚动，流式内容更新用瞬时滚动以避免动画堆叠卡顿
             if (chatItems.size != previousItemCount) {
                 listState.animateScrollToItem(0)
-            } else {
+            } else if (isGenerating) {
                 listState.scrollToItem(0)
             }
         }

@@ -147,21 +147,18 @@ class ConversationsViewModel(
             )
 
             conversationRepository.insert(clonedConversation)
-            messageRepository.getByConversationId(source.id).first().forEach { message ->
-                messageRepository.insert(
-                    message.copy(
-                        id = UUID.randomUUID().toString(),
-                        conversationId = clonedConversationId,
-                        // A clone is a completed snapshot; an in-flight message
-                        // must not remain stuck in the sending state.
-                        status = if (message.status == MessageStatus.SENDING) {
-                            MessageStatus.SENT
-                        } else {
-                            message.status
-                        }
-                    )
+            val clonedMessages = messageRepository.getByConversationId(source.id).first().map { message ->
+                message.copy(
+                    id = UUID.randomUUID().toString(),
+                    conversationId = clonedConversationId,
+                    status = if (message.status == MessageStatus.SENDING) {
+                        MessageStatus.SENT
+                    } else {
+                        message.status
+                    }
                 )
             }
+            messageRepository.insertAll(clonedMessages)
             onCloned(clonedConversationId)
         }
     }
