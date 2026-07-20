@@ -131,8 +131,8 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
   - `ModelEntity` - Available models per provider
   - `AgentEntity` - AI agent configurations
   - `ConversationEntity` - Chat conversations
-  - `MessageEntity` - Chat messages
-- Database version: 6 (with `fallbackToDestructiveMigration`)
+  - `MessageEntity` - Chat messages (`partsJson` column stores multimodal `ContentPart` payloads)
+- Database version: 7 (with `fallbackToDestructiveMigration`)
 
 ### Navigation
 
@@ -150,6 +150,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - Auth header interceptor for API keys
 - Gson converter for JSON serialization
 - Wear chat requests are forwarded to the phone over a WebSocket on TCP `18765` (`MobileHttpServer` / `WearNetworkBridge`, discovered via NSD mDNS) instead of calling providers directly from the watch
+- **Multimodal messages**: `ChatMessageDto.content` is a `JsonElement` so a single DTO carries both the legacy text-string shape and the OpenAI `[{type,text|image_url}]` array shape. `ApiRepositoryImpl` picks the wire format based on `Message.hasImages`. Picked images are downscaled to 1568px on the longest side, EXIF-rotated, cached as PNGs under `filesDir/chat_images/`, and the cache is reaped on message delete. The local DB keeps the bitmap path/URI stable so the cloud sync layer and the UI never depend on a content:// URI re-issuing.
 
 ### Cloud Account Server
 
