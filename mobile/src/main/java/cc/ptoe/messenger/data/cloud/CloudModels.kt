@@ -55,6 +55,13 @@ data class CloudMessageDocument(
     val id: String,
     val role: String,
     val content: String,
+    /**
+     * JSON-encoded [cc.ptoe.messenger.domain.model.ContentPart] list,
+     * identical in shape to the local [cc.ptoe.messenger.data.local.entity.MessageEntity.partsJson]
+     * column. Null for text-only messages and for documents from
+     * pre-multimodal server builds.
+     */
+    val partsJson: String? = null,
     val timestamp: Long,
     val status: String,
     val errorMessage: String? = null

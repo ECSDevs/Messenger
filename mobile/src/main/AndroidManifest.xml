@@ -8,6 +8,18 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!--
+        Photo picker (Android 13+) doesn't need READ_MEDIA_IMAGES, but
+        the legacy ACTION_PICK fallback we use on older devices does.
+        Declared with maxSdkVersion so it disappears on Android 13+ and
+        doesn't bloat the manifest there.
+    -->
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_IMAGES"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
 
     <application
         android:name=".MessengerApplication"
@@ -34,6 +46,22 @@
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
             android:theme="@style/Theme.AppCompat.DayNight.NoActionBar" />
+
+        <!--
+            FileProvider for chat attachments. We hand out URIs for the
+            camera capture flow and let UCrop read the picked bitmap.
+            authority matches the value in ChatImageStore / FileProvider
+            callers; do not rename without updating those call sites.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <service
             android:name=".data.wear.MobileHttpServer"

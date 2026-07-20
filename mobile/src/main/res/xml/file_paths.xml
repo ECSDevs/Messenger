@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!--
+        Internal storage for chat attachments. Used by ChatImageStore to
+        cache user-picked images so the chat UI can load them via Coil
+        without re-issuing a content:// URI each time. FileProvider also
+        hands out read-only URIs for the camera capture flow.
+    -->
+    <files-path name="chat_images" path="chat_images/" />
+    <cache-path name="chat_images_cache" path="chat_images/" />
+</paths>

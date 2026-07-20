@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.room.Room
 import cc.ptoe.messenger.data.cloud.CloudSyncRepository
 import cc.ptoe.messenger.data.local.AppPreferences
+import cc.ptoe.messenger.data.local.ChatImageStore
 import cc.ptoe.messenger.data.local.MessengerDatabase
 import cc.ptoe.messenger.data.local.ThemePreferences
 import cc.ptoe.messenger.data.repository.AgentRepositoryImpl
@@ -76,6 +77,9 @@ class MessengerApplication : Application(), ImageLoaderFactory {
     lateinit var cloudSyncRepository: CloudSyncRepository
         private set
 
+    lateinit var chatImageStore: ChatImageStore
+        private set
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val localDataMutex = Mutex()
 
@@ -85,6 +89,7 @@ class MessengerApplication : Application(), ImageLoaderFactory {
         initDatabase()
         initPreferences()
         initRepositories()
+        initImageStore()
         initializeLocalAndCloudData()
         startWearSync()
     }
@@ -103,6 +108,10 @@ class MessengerApplication : Application(), ImageLoaderFactory {
     private fun startWearSync() {
         val intent = Intent(this, MobileHttpServer::class.java)
         runCatching { startForegroundService(intent) }
+    }
+
+    private fun initImageStore() {
+        chatImageStore = ChatImageStore(this)
     }
 
     private fun initDatabase() {

@@ -128,6 +128,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.transition)
     implementation(libs.ucrop)
+    implementation(libs.androidx.exifinterface)
 
     implementation(libs.llm.typewriter)
 

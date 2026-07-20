@@ -12,7 +12,9 @@ import cc.ptoe.messenger.data.local.entity.ModelEntity
 import cc.ptoe.messenger.data.local.entity.ProviderEntity
 import cc.ptoe.messenger.domain.model.Agent
 import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.google.gson.JsonParser
+import com.google.gson.JsonSyntaxException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -165,7 +167,13 @@ private data class CloudMessageRequest(
     val content: String,
     val timestamp: Long,
     val status: String,
-    val errorMessage: String?
+    val errorMessage: String?,
+    /**
+     * JSON array mirroring the local [cc.ptoe.messenger.data.local.ContentPartCodec]
+     * wire format. Absent (null) for pure-text messages so legacy
+     * server payloads stay compatible.
+     */
+    val parts: JsonElement? = null
 )
 
 private data class CloudConversationRequest(
@@ -1432,7 +1440,17 @@ private fun ConversationEntity.toCloudRequest(messages: List<MessageEntity>) = C
     overrideTemperature = overrideTemperature?.toDouble(),
     overrideTopP = overrideTopP?.toDouble(),
     overrideMaxTokens = overrideMaxTokens,
-    messages = messages.map { CloudMessageRequest(it.id, it.role.lowercase(), it.content, it.timestamp, it.status.uppercase(), it.errorMessage) },
+    messages = messages.map { message ->
+        CloudMessageRequest(
+            id = message.id,
+            role = message.role.lowercase(),
+            content = message.content,
+            timestamp = message.timestamp,
+            status = message.status.uppercase(),
+            errorMessage = message.errorMessage,
+            parts = parseStoredParts(message.partsJson)
+        )
+    },
     createdAt = createdAt,
     updatedAt = updatedAt
 )
@@ -1505,7 +1523,24 @@ private fun CloudMessageDocument.toEntity(conversationId: String) = MessageEntit
     conversationId = conversationId,
     role = role.lowercase(),
     content = content,
+    partsJson = partsJson,
     timestamp = timestamp,
     status = status.lowercase(),
     errorMessage = errorMessage
 )
+
+/**
+ * Pass-through for the locally-encoded parts column. Returning the raw
+ * string keeps the local column and the cloud document byte-identical
+ * so a server round-trip never mutates the JSON. We deliberately do
+ * NOT re-encode through [cc.ptoe.messenger.data.local.ContentPartCodec]
+ * here because that would re-order keys and break delta diffing.
+ */
+private fun parseStoredParts(json: String?): JsonElement? {
+    if (json.isNullOrBlank()) return null
+    return try {
+        JsonParser.parseString(json)
+    } catch (_: JsonSyntaxException) {
+        null
+    }
+}

@@ -7,10 +7,15 @@ import cc.ptoe.messenger.data.remote.sse.ChatStreamEvent
 import cc.ptoe.messenger.data.remote.sse.ChatStreamParser
 import cc.ptoe.messenger.data.remote.sse.SSEParser
 import cc.ptoe.messenger.domain.model.ChatModel
+import cc.ptoe.messenger.domain.model.ContentPart
 import cc.ptoe.messenger.domain.model.Message
 import cc.ptoe.messenger.domain.model.MessageRole
 import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.domain.repository.ApiRepository
+import com.google.gson.Gson
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.json.JSONObject
@@ -18,6 +23,8 @@ import retrofit2.HttpException
 import java.util.UUID
 
 class ApiRepositoryImpl : ApiRepository {
+
+    private val gson = Gson()
 
     override suspend fun fetchModels(provider: Provider): List<ChatModel> {
         return try {
@@ -106,7 +113,7 @@ class ApiRepositoryImpl : ApiRepository {
                 id = UUID.randomUUID().toString(),
                 conversationId = "",
                 role = MessageRole.ASSISTANT,
-                content = choice.message.content,
+                content = extractResponseContent(choice.message.content),
                 timestamp = System.currentTimeMillis(),
                 status = cc.ptoe.messenger.domain.model.MessageStatus.SENT
             )
@@ -117,26 +124,107 @@ class ApiRepositoryImpl : ApiRepository {
         }
     }
 
+    /**
+     * Build the request payload for the chat completion API.
+     *
+     * Pure-text messages are sent as a `content` string (the legacy
+     * shape that every provider accepts). Multimodal messages are sent
+     * as a `content` array using the OpenAI image_url / text parts so
+     * vision-capable models can read the bitmap.
+     *
+     * The role string is converted here so the DTO stays independent of
+     * the domain enum.
+     */
     private fun buildRequestMessages(
         messages: List<Message>,
         systemPrompt: String?
     ): List<ChatMessageDto> {
         val result = mutableListOf<ChatMessageDto>()
         if (!systemPrompt.isNullOrEmpty()) {
-            result.add(ChatMessageDto(role = "system", content = systemPrompt))
+            result.add(ChatMessageDto(role = "system", content = JsonPrimitive(systemPrompt)))
         }
-        result.addAll(messages.map { message ->
-            ChatMessageDto(
-                role = when (message.role) {
-                    MessageRole.USER -> "user"
-                    MessageRole.ASSISTANT -> "assistant"
-                    MessageRole.SYSTEM -> "system"
-                    MessageRole.TOOL -> "tool"
-                },
-                content = message.content
-            )
-        })
+        messages.forEach { message ->
+            val role = when (message.role) {
+                MessageRole.USER -> "user"
+                MessageRole.ASSISTANT -> "assistant"
+                MessageRole.SYSTEM -> "system"
+                MessageRole.TOOL -> "tool"
+            }
+            val parts = message.parts
+            if (message.hasImages && parts.any { it is ContentPart.Image }) {
+                result.add(ChatMessageDto(role = role, content = buildMultipartContent(parts)))
+            } else {
+                // Text-only path: fall back to the legacy `content` string
+                // so providers that don't accept arrays (or that mirror
+                // OpenAI without vision) still get a working request.
+                val text = if (parts.isNotEmpty()) {
+                    parts.filterIsInstance<ContentPart.Text>().joinToString("\n") { it.text }
+                } else {
+                    message.content
+                }
+                result.add(ChatMessageDto(role = role, content = JsonPrimitive(text)))
+            }
+        }
         return result
+    }
+
+    /**
+     * Translate the domain [ContentPart] list to the OpenAI multipart
+     * shape. We always emit `image_url` parts (with the data: URI
+     * captured at send time) because that's the only variant the spec
+     * defines for vision inputs. Text segments pass through as `text`.
+     */
+    private fun buildMultipartContent(parts: List<ContentPart>): JsonArray {
+        val array = JsonArray()
+        parts.forEach { part ->
+            val obj = JsonObject()
+            when (part) {
+                is ContentPart.Text -> {
+                    obj.addProperty("type", "text")
+                    obj.addProperty("text", part.text)
+                }
+                is ContentPart.Image -> {
+                    obj.addProperty("type", "image_url")
+                    val imageUrl = JsonObject()
+                    imageUrl.addProperty("url", part.image.dataUri)
+                    imageUrl.addProperty("detail", "auto")
+                    obj.add("image_url", imageUrl)
+                }
+            }
+            array.add(obj)
+        }
+        return array
+    }
+
+    /**
+     * Coerce a [com.google.gson.JsonElement] reply (string OR multipart
+     * array) into a flat string the existing text bubble can render.
+     * For multipart responses we keep the text segments verbatim and
+     * skip image parts (they're displayed by the bubble separately if
+     * we ever add an inline image renderer). Markdown image syntax
+     * like `![alt](url)` from a model is preserved by leaving the raw
+     * markdown in text parts.
+     */
+    private fun extractResponseContent(content: com.google.gson.JsonElement): String {
+        val primitive = content.asJsonPrimitive
+        if (primitive != null && primitive.isString) {
+            return primitive.asString
+        }
+        val array = content.asJsonArray
+        if (array != null) {
+            val parts = array.mapNotNull { element ->
+                val obj = element.asJsonObject ?: return@mapNotNull null
+                when (obj.get("type")?.asString) {
+                    "text" -> obj.get("text")?.asString
+                    "image_url" -> obj.get("image_url")?.asJsonObject
+                        ?.get("url")?.asString
+                        ?.let { "![image]($it)" }
+                    else -> null
+                }
+            }
+            return parts.joinToString("\n")
+        }
+        return content.toString()
     }
 
     private fun extractHttpErrorMessage(e: HttpException): String {

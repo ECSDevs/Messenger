@@ -1,6 +1,9 @@
 package cc.ptoe.messenger.presentation.ui.chat
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -74,7 +77,8 @@ fun ChatScreen(
             agentRepository = MessengerApplication.instance.agentRepository,
             apiRepository = MessengerApplication.instance.apiRepository,
             modelRepository = MessengerApplication.instance.modelRepository,
-            providerRepository = MessengerApplication.instance.providerRepository
+            providerRepository = MessengerApplication.instance.providerRepository,
+            chatImageStore = MessengerApplication.instance.chatImageStore
         )
     )
 ) {
@@ -86,6 +90,8 @@ fun ChatScreen(
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val needsModelSetup by viewModel.needsModelSetup.collectAsStateWithLifecycle()
     val streamingMessageId by viewModel.streamingMessageId.collectAsStateWithLifecycle()
+    val pendingImages by viewModel.pendingImages.collectAsStateWithLifecycle()
+    val isAttachingImage by viewModel.isAttachingImage.collectAsStateWithLifecycle()
     val userAvatar by MessengerApplication.instance.appPreferences.userAvatar.collectAsStateWithLifecycle(initialValue = null)
 
     var inputText by remember { mutableStateOf("") }
@@ -96,6 +102,18 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+
+    // Photo Picker (Android 13+) / ACTION_PICK (legacy) launcher.
+    // Returns null when the user backs out without choosing anything,
+    // so we have to guard against launching viewModel.attachImage
+    // with a null Uri.
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.attachImage(uri)
+        }
+    }
 
     // 是否已完成初次滚动到底部（切换会话时重置）
     var hasInitiallyScrolled by remember(conversationId) { mutableStateOf(false) }
@@ -199,7 +217,7 @@ fun ChatScreen(
                     text = inputText,
                     onTextChange = { inputText = it },
                     onSendClick = {
-                        if (inputText.isNotBlank()) {
+                        if (inputText.isNotBlank() || pendingImages.isNotEmpty()) {
                             viewModel.sendMessage(inputText)
                             inputText = ""
                         }
@@ -207,7 +225,17 @@ fun ChatScreen(
                     onStopClick = {
                         viewModel.stopGeneration()
                     },
-                    isGenerating = isGenerating
+                    isGenerating = isGenerating,
+                    pendingImages = pendingImages,
+                    isAttachingImage = isAttachingImage,
+                    onAddClick = {
+                        pickImageLauncher.launch(
+                            PickVisualMediaRequest(
+                                mediaType = ActivityResultContracts.PickVisualMedia.ImageOnly
+                            )
+                        )
+                    },
+                    onRemoveImage = { viewModel.removePendingImage(it) }
                 )
             }
         },

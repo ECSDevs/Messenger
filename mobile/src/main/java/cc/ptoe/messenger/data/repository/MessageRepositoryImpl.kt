@@ -1,7 +1,9 @@
 package cc.ptoe.messenger.data.repository
 
+import cc.ptoe.messenger.data.local.ContentPartCodec
 import cc.ptoe.messenger.data.local.dao.MessageDao
 import cc.ptoe.messenger.data.local.entity.MessageEntity
+import cc.ptoe.messenger.domain.model.ContentPart
 import cc.ptoe.messenger.domain.model.Message
 import cc.ptoe.messenger.domain.model.MessageRole
 import cc.ptoe.messenger.domain.model.MessageStatus
@@ -55,11 +57,23 @@ class MessageRepositoryImpl(
     }
 
     private fun MessageEntity.toDomain(): Message {
+        val decodedParts = ContentPartCodec.decode(partsJson)
+        val parts = if (decodedParts.isNotEmpty()) {
+            decodedParts
+        } else if (content.isNotEmpty()) {
+            // Legacy row from before the parts column existed — wrap
+            // the stored text into a single text part so callers can
+            // treat the message uniformly.
+            listOf(ContentPart.Text(content))
+        } else {
+            emptyList()
+        }
         return Message(
             id = id,
             conversationId = conversationId,
             role = MessageRole.valueOf(role.uppercase()),
             content = content,
+            parts = parts,
             timestamp = timestamp,
             status = MessageStatus.valueOf(status.uppercase()),
             errorMessage = errorMessage
@@ -67,11 +81,22 @@ class MessageRepositoryImpl(
     }
 
     private fun Message.toEntity(): MessageEntity {
+        // If `parts` was never populated (e.g. callers that only pass
+        // `content`), build a single text part so the encoded column
+        // stays consistent with the in-memory model.
+        val effectiveParts = if (parts.isNotEmpty()) {
+            parts
+        } else if (content.isNotEmpty()) {
+            listOf(ContentPart.Text(content))
+        } else {
+            emptyList()
+        }
         return MessageEntity(
             id = id,
             conversationId = conversationId,
             role = role.name.lowercase(),
             content = content,
+            partsJson = ContentPartCodec.encode(effectiveParts),
             timestamp = timestamp,
             status = status.name.lowercase(),
             errorMessage = errorMessage

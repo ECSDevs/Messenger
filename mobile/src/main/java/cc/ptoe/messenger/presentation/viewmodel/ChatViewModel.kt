@@ -3,17 +3,21 @@ package cc.ptoe.messenger.presentation.viewmodel
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.net.Uri
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import cc.ptoe.llmtypewriter.StreamingTypewriterState
 import cc.ptoe.llmtypewriter.TypewriterPhase
+import cc.ptoe.messenger.data.local.ChatImageStore
 import cc.ptoe.messenger.data.remote.sse.ChatStreamEvent
 import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.model.ChatModel
+import cc.ptoe.messenger.domain.model.ContentPart
 import cc.ptoe.messenger.domain.model.Conversation
 import cc.ptoe.messenger.domain.model.Message
+import cc.ptoe.messenger.domain.model.MessageImage
 import cc.ptoe.messenger.domain.model.MessageRole
 import cc.ptoe.messenger.domain.model.MessageStatus
 import cc.ptoe.messenger.domain.model.Provider
@@ -45,7 +49,8 @@ class ChatViewModel(
     private val agentRepository: AgentRepository,
     private val apiRepository: ApiRepository,
     private val modelRepository: ModelRepository,
-    private val providerRepository: ProviderRepository
+    private val providerRepository: ProviderRepository,
+    private val chatImageStore: ChatImageStore
 ) : ViewModel() {
 
     private val _conversationId = MutableStateFlow<String?>(null)
@@ -100,6 +105,22 @@ class ChatViewModel(
 
     private val _needsModelSetup = MutableStateFlow(false)
     val needsModelSetup: StateFlow<Boolean> = _needsModelSetup.asStateFlow()
+
+    /**
+     * Images the user has picked but not yet sent. They are rendered
+     * as a preview strip in the input bar and cleared on send /
+     * conversation switch.
+     */
+    private val _pendingImages = MutableStateFlow<List<MessageImage>>(emptyList())
+    val pendingImages: StateFlow<List<MessageImage>> = _pendingImages.asStateFlow()
+
+    /**
+     * True while [attachImages] is reading a content:// URI into the
+     * chat image cache. The input bar disables the picker button to
+     * avoid double-taps during the bitmap decode.
+     */
+    private val _isAttachingImage = MutableStateFlow(false)
+    val isAttachingImage: StateFlow<Boolean> = _isAttachingImage.asStateFlow()
 
     /**
      * The shared typewriter state driving the currently-streaming AI message bubble.
@@ -162,12 +183,60 @@ class ChatViewModel(
     }
 
     fun loadConversation(conversationId: String) {
+        // Switching conversations implicitly discards any unsent
+        // images: the pending preview is bound to the input bar of a
+        // single chat, not a global draft.
+        _pendingImages.value = emptyList()
         _conversationId.value = conversationId
     }
 
+    /**
+     * Reads a content:// (or file://) URI returned by the photo picker
+     * / system camera into a [MessageImage] and queues it as a
+     * pending attachment. Errors are surfaced through the existing
+     * snackbar so the user knows why the picker didn't take.
+     */
+    fun attachImage(uri: Uri) {
+        if (_isAttachingImage.value) return
+        _isAttachingImage.value = true
+        viewModelScope.launch {
+            try {
+                val image = chatImageStore.importImage(uri)
+                _pendingImages.value = _pendingImages.value + image
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                setError("无法读取图片: ${e.message ?: "未知错误"}")
+            } finally {
+                _isAttachingImage.value = false
+            }
+        }
+    }
+
+    fun removePendingImage(image: MessageImage) {
+        _pendingImages.value = _pendingImages.value.filterNot { it.localPath == image.localPath }
+        // The image was already cached to disk; the next time the same
+        // bitmap is needed it will be re-decoded from the source URI.
+        // We only delete the cached copy on actual message delete.
+    }
+
+    fun clearPendingImages() {
+        _pendingImages.value = emptyList()
+    }
+
+    /**
+     * Sends a chat message. If [pendingImages] is non-empty the
+     * resulting message becomes multimodal: the text is the last
+     * text part and the queued images are emitted as image parts in
+     * the order the user picked them.
+     *
+     * Mirrors the original text-only contract: refuses to fire while
+     * another generation is in flight, prompts for a model when
+     * [Agent.defaultModelId] is unset, and updates the conversation's
+     * last-message preview / auto-title from the text payload.
+     */
     fun sendMessage(text: String) {
         val convId = _conversationId.value ?: return
-        if (text.isBlank()) return
+        if (text.isBlank() && _pendingImages.value.isEmpty()) return
         if (_isGenerating.value) return
 
         viewModelScope.launch {
@@ -183,6 +252,8 @@ class ChatViewModel(
                 return@launch
             }
 
+            val images = _pendingImages.value
+            val parts = buildMultimodalParts(text, images)
             val userMessageId = UUID.randomUUID().toString()
             val now = System.currentTimeMillis()
 
@@ -191,21 +262,37 @@ class ChatViewModel(
                 conversationId = convId,
                 role = MessageRole.USER,
                 content = text,
+                parts = parts,
                 timestamp = now,
                 status = MessageStatus.SENDING
             )
             messageRepository.insert(userMessage)
 
-            updateConversationLastMessage(convId, text, now)
+            updateConversationLastMessage(convId, text.ifBlank { "[图片]" }, now)
 
-            if (isNewConversation(conv.title)) {
+            if (isNewConversation(conv.title) && text.isNotBlank()) {
                 updateConversationTitle(convId, generateTitle(text))
             }
 
             messageRepository.update(userMessage.copy(status = MessageStatus.SENT))
+            // Drop the local preview now that the message is persisted
+            // — the bubble's image parts take over visually.
+            _pendingImages.value = emptyList()
 
             generateResponse(convId, currentAgent)
         }
+    }
+
+    private fun buildMultimodalParts(text: String, images: List<MessageImage>): List<ContentPart> {
+        if (images.isEmpty()) {
+            return listOf(ContentPart.Text(text))
+        }
+        val parts = mutableListOf<ContentPart>()
+        if (text.isNotBlank()) {
+            parts += ContentPart.Text(text)
+        }
+        parts.addAll(images.map { ContentPart.Image(it) })
+        return parts
     }
 
     private suspend fun generateResponse(
@@ -482,7 +569,15 @@ class ChatViewModel(
 
     fun deleteMessage(messageId: String) {
         viewModelScope.launch {
+            // Capture the image paths before the row is gone so we can
+            // reap the cached bitmaps from disk.
+            val target = messages.value.find { it.id == messageId }
             messageRepository.delete(messageId)
+            target?.parts?.forEach { part ->
+                if (part is ContentPart.Image) {
+                    chatImageStore.deleteIfExists(part.image.localPath)
+                }
+            }
 
             val convId = _conversationId.value ?: return@launch
             val remainingMessages = messageRepository.getByConversationId(convId).first()
@@ -597,7 +692,8 @@ class ChatViewModel(
             agentRepository: AgentRepository,
             apiRepository: ApiRepository,
             modelRepository: ModelRepository,
-            providerRepository: ProviderRepository
+            providerRepository: ProviderRepository,
+            chatImageStore: ChatImageStore
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -607,7 +703,8 @@ class ChatViewModel(
                     agentRepository,
                     apiRepository,
                     modelRepository,
-                    providerRepository
+                    providerRepository,
+                    chatImageStore
                 ) as T
             }
         }

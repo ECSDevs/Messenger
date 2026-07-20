@@ -1,6 +1,7 @@
 package cc.ptoe.messenger.presentation.ui.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
@@ -26,10 +30,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import cc.ptoe.messenger.domain.model.ContentPart
 import cc.ptoe.messenger.domain.model.Message
 import cc.ptoe.messenger.domain.model.MessageStatus
 import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
 import cc.ptoe.messenger.presentation.utils.DateTimeUtils
+import coil.compose.AsyncImage
 
 @Composable
 fun UserMessageBubble(
@@ -53,6 +59,14 @@ fun UserMessageBubble(
         bottomEnd = if (isLastInGroup) 4.dp else 18.dp
     )
 
+    val imageParts = message.parts.filterIsInstance<ContentPart.Image>()
+    val textParts = message.parts.filterIsInstance<ContentPart.Text>()
+    val displayText = if (textParts.isNotEmpty()) {
+        textParts.joinToString("\n") { it.text }
+    } else {
+        message.content
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -72,21 +86,34 @@ fun UserMessageBubble(
                 modifier = Modifier.weight(1f),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .clip(bubbleShape)
                         .background(bubbleColor)
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.Bottom
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                        .wrapContentWidth(),
+                    horizontalAlignment = Alignment.End
                 ) {
-                    Text(
-                        text = message.content,
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    if (imageParts.isNotEmpty()) {
+                        // Caption-then-images matches the natural reading
+                        // order in chat UIs (Google Messages does the same).
+                        UserMessageImageRow(images = imageParts)
+                    }
+                    if (displayText.isNotEmpty()) {
+                        if (imageParts.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        Text(
+                            text = displayText,
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                     // 行内状态指示（Google Messages 风格：放气泡右下角，半透明）
-                    Spacer(modifier = Modifier.width(8.dp))
-                    MessageStatusIndicator(message = message, tint = Color.White.copy(alpha = 0.75f))
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        MessageStatusIndicator(message = message, tint = Color.White.copy(alpha = 0.75f))
+                    }
                 }
             }
             if (isLastInGroup) {
@@ -108,6 +135,31 @@ fun UserMessageBubble(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 fontSize = 11.sp,
                 modifier = Modifier.padding(end = 36.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun UserMessageImageRow(
+    images: List<ContentPart.Image>,
+    modifier: Modifier = Modifier
+) {
+    // Horizontal row, capped at a reasonable width so a 6-image
+    // attachment doesn't push the bubble to the screen edge. Each
+    // thumbnail is square and 96dp; Coil decodes the cached PNG copy.
+    LazyRow(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        items(images, key = { it.image.localPath }) { part ->
+            AsyncImage(
+                model = part.image.localPath,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.18f))
             )
         }
     }
