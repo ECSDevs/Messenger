@@ -361,7 +361,13 @@ class MobileHttpServer : Service() {
                                 MessageRole.SYSTEM -> "system"
                                 else -> "user"
                             })
-                            put("content", msg.content)
+                            put("content", msg.content.ifBlank {
+                                // Pure-image messages have blank content on the phone
+                                // (text is empty and only image parts exist). Wear can't
+                                // display images, so send a placeholder so the bubble
+                                // doesn't render as "No response."
+                                if (msg.hasImages) "[图片]" else ""
+                            })
                             put("timestamp", msg.timestamp)
                             put("isError", msg.status == MessageStatus.ERROR)
                             put("isPending", msg.status == MessageStatus.SENDING)
