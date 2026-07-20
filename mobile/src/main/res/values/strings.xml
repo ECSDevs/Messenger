@@ -1,6 +1,11 @@
 <resources>
     <string name="app_name">Messenger</string>
 
+    <!-- Bottom Navigation -->
+    <string name="bottom_nav_conversations">Chats</string>
+    <string name="bottom_nav_agents">Agents</string>
+    <string name="bottom_nav_settings">Settings</string>
+
     <!-- Common Actions -->
     <string name="action_save">Save</string>
     <string name="action_cancel">Cancel</string>

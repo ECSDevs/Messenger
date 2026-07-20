@@ -1,6 +1,11 @@
 <resources>
     <string name="app_name">Messenger</string>
 
+    <!-- Bottom Navigation -->
+    <string name="bottom_nav_conversations">对话</string>
+    <string name="bottom_nav_agents">Agent</string>
+    <string name="bottom_nav_settings">设置</string>
+
     <!-- Common Actions -->
     <string name="action_save">保存</string>
     <string name="action_cancel">取消</string>
