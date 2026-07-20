@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -18,6 +19,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.presentation.ui.agents.AgentEditScreen
 import cc.ptoe.messenger.presentation.ui.agents.AgentsScreen
 import cc.ptoe.messenger.presentation.ui.agents.AgentMarketDetailScreen
@@ -208,7 +210,7 @@ fun NavGraph(
         ) { backStackEntry ->
             val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
             SimplePlaceholderScreen(
-                text = "重命名对话: $conversationId"
+                text = stringResource(R.string.conversations_rename_title) + ": $conversationId"
             )
         }
 

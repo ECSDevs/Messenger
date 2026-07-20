@@ -50,7 +50,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import cc.ptoe.messenger.R
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -171,7 +173,7 @@ fun ChatScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = conversation?.title ?: "对话",
+                                text = conversation?.title ?: stringResource(R.string.chat_title_default),
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 18.sp,
                                 maxLines = 1
@@ -189,7 +191,7 @@ fun ChatScreen(
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = stringResource(R.string.action_back)
                         )
                     }
                 },
@@ -197,7 +199,7 @@ fun ChatScreen(
                     IconButton(onClick = onSettingsClick) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "对话设置"
+                            contentDescription = stringResource(R.string.conversation_settings_title)
                         )
                     }
                 },
@@ -341,7 +343,7 @@ fun ChatScreen(
             val message = messages.find { it.id == selectedMessageId }
             if (message != null) {
                 viewModel.copyMessage(context, message.content)
-                Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.chat_copied_toast), Toast.LENGTH_SHORT).show()
             }
         },
         onRegenerateClick = {
@@ -359,19 +361,19 @@ fun ChatScreen(
     if (needsModelSetup) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissModelSetupPrompt() },
-            title = { Text("未设置模型") },
-            text = { Text("当前 Agent 未设置模型，请先设置模型后再开始聊天。") },
+            title = { Text(stringResource(R.string.chat_no_model_title)) },
+            text = { Text(stringResource(R.string.chat_no_model_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.dismissModelSetupPrompt()
                     onSettingsClick()
                 }) {
-                    Text("去设置")
+                    Text(stringResource(R.string.action_go_settings))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissModelSetupPrompt() }) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -454,13 +456,13 @@ private fun EmptyChatState(
         AgentAvatar(avatar = avatar, size = 72.dp)
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = agentName?.takeIf { it.isNotBlank() } ?: "开始对话吧",
+            text = agentName?.takeIf { it.isNotBlank() } ?: stringResource(R.string.chat_start_hint),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "输入消息开始与 AI 聊天",
+            text = stringResource(R.string.chat_empty_hint),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )

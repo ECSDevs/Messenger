@@ -44,9 +44,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.MessengerApplication
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
@@ -74,6 +77,7 @@ fun ProviderDetailScreen(
     val models by viewModel.models.collectAsStateWithLifecycle(initialValue = emptyList())
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<ChatModel?>(null) }
@@ -97,7 +101,7 @@ fun ProviderDetailScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = uiState.provider?.name ?: "模型管理",
+                        text = uiState.provider?.name ?: stringResource(R.string.providers_model_management),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -106,7 +110,7 @@ fun ProviderDetailScreen(
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = stringResource(R.string.action_back)
                         )
                     }
                 }
@@ -124,7 +128,7 @@ fun ProviderDetailScreen(
         } else if (uiState.error != null) {
             EmptyState(
                 icon = Icons.Default.Cloud,
-                message = uiState.error ?: "加载失败",
+                message = uiState.error ?: stringResource(R.string.error_load_failed),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
@@ -162,7 +166,7 @@ fun ProviderDetailScreen(
                 if (models.isEmpty()) {
                     EmptyState(
                         icon = Icons.Default.Cloud,
-                        message = "暂无模型\n点击上方「同步模型」从 API 拉取\n或点击「手动添加」输入模型 ID",
+                        message = stringResource(R.string.providers_no_models),
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
@@ -193,7 +197,7 @@ fun ProviderDetailScreen(
         if (uiState.syncStatus == SyncStatus.LOADING) {
             AlertDialog(
                 onDismissRequest = {},
-                title = { Text("同步模型") },
+                title = { Text(stringResource(R.string.providers_sync_models_title)) },
                 text = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically
@@ -203,7 +207,7 @@ fun ProviderDetailScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.width(16.dp))
-                        Text("正在获取模型列表...")
+                        Text(stringResource(R.string.providers_syncing))
                     }
                 },
                 confirmButton = {},
@@ -219,7 +223,7 @@ fun ProviderDetailScreen(
                         showAddDialog = false
                     } else {
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar("模型 ID 不能为空")
+                            snackbarHostState.showSnackbar(context.getString(R.string.providers_model_id_empty))
                         }
                     }
                 },
@@ -229,10 +233,10 @@ fun ProviderDetailScreen(
 
         if (showDeleteDialog != null) {
             ConfirmationDialog(
-                title = "删除模型",
-                text = "确定要删除模型 \"${showDeleteDialog?.displayName}\" 吗？",
-                confirmButtonText = "删除",
-                dismissButtonText = "取消",
+                title = stringResource(R.string.providers_delete_model_title),
+                text = stringResource(R.string.providers_delete_model_confirm, showDeleteDialog?.displayName ?: ""),
+                confirmButtonText = stringResource(R.string.action_delete),
+                dismissButtonText = stringResource(R.string.action_cancel),
                 onConfirm = {
                     showDeleteDialog?.let { model ->
                         viewModel.deleteModel(model.id)
@@ -258,7 +262,7 @@ fun ProviderDetailScreen(
                     coroutineScope.launch {
                         viewModel.saveSelectedModels(selectedModelIds.toList())
                         showSyncDialog = false
-                        snackbarHostState.showSnackbar("模型已保存")
+                        snackbarHostState.showSnackbar(context.getString(R.string.providers_model_saved))
                     }
                 },
                 onDismiss = {
@@ -314,7 +318,7 @@ private fun ModelListHeader(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "模型列表",
+            text = stringResource(R.string.providers_model_list),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
@@ -326,7 +330,7 @@ private fun ModelListHeader(
                 modifier = Modifier.width(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("同步模型")
+            Text(stringResource(R.string.action_sync_models))
         }
         OutlinedButton(onClick = onAddClick) {
             Icon(
@@ -335,7 +339,7 @@ private fun ModelListHeader(
                 modifier = Modifier.width(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("手动添加")
+            Text(stringResource(R.string.action_manual_add))
         }
     }
 }
@@ -380,7 +384,7 @@ private fun ModelListItem(
         IconButton(onClick = onDeleteClick) {
             Icon(
                 imageVector = Icons.Default.Delete,
-                contentDescription = "删除",
+                contentDescription = stringResource(R.string.action_delete),
                 tint = MaterialTheme.colorScheme.error
             )
         }
@@ -397,14 +401,14 @@ private fun AddModelDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("手动添加模型") },
+        title = { Text(stringResource(R.string.providers_manual_add_title)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = modelId,
                     onValueChange = { modelId = it },
-                    label = { Text("模型 ID") },
-                    placeholder = { Text("gpt-3.5-turbo") },
+                    label = { Text(stringResource(R.string.providers_model_id_label)) },
+                    placeholder = { Text(stringResource(R.string.providers_model_id_placeholder)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -412,8 +416,8 @@ private fun AddModelDialog(
                 OutlinedTextField(
                     value = displayName,
                     onValueChange = { displayName = it },
-                    label = { Text("显示名称（可选）") },
-                    placeholder = { Text("默认与模型 ID 相同") },
+                    label = { Text(stringResource(R.string.providers_model_display_name_label)) },
+                    placeholder = { Text(stringResource(R.string.providers_model_display_name_placeholder)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -424,12 +428,12 @@ private fun AddModelDialog(
                 onClick = { onConfirm(modelId.trim(), displayName.trim()) },
                 enabled = modelId.isNotBlank()
             ) {
-                Text("添加")
+                Text(stringResource(R.string.action_add))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )
@@ -445,14 +449,14 @@ private fun SyncModelSelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("选择要保存的模型") },
+        title = { Text(stringResource(R.string.providers_select_models_title)) },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
             ) {
                 Text(
-                    text = "共 ${models.size} 个模型可用",
+                    text = stringResource(R.string.providers_models_available, models.size),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -495,12 +499,12 @@ private fun SyncModelSelectionDialog(
                 onClick = onConfirm,
                 enabled = selectedModelIds.isNotEmpty()
             ) {
-                Text("保存选中 (${selectedModelIds.size})")
+                Text(stringResource(R.string.providers_save_selected, selectedModelIds.size))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )

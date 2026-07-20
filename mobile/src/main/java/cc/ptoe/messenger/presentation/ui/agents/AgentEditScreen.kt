@@ -55,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -69,8 +70,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.Locale
 import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
@@ -110,6 +111,17 @@ fun AgentEditScreen(
     var showPushDialog by remember { mutableStateOf(false) }
     var showUnpublishDialog by remember { mutableStateOf(false) }
     var showPullDialog by remember { mutableStateOf(false) }
+
+    val strPublishedSuccess = stringResource(R.string.agent_edit_published_success)
+    val strPublishFailed = stringResource(R.string.agent_edit_publish_failed)
+    val strPushedSuccess = stringResource(R.string.agent_edit_pushed_success)
+    val strPushFailed = stringResource(R.string.agent_edit_push_failed)
+    val strUnpublishedSuccess = stringResource(R.string.agent_edit_unpublished_success)
+    val strUnpublishFailed = stringResource(R.string.agent_edit_unpublish_failed)
+    val strUpdatedSuccess = stringResource(R.string.agent_edit_updated_success)
+    val strUpdateFailed = stringResource(R.string.agent_edit_update_failed)
+    val strAlreadyUpToDate = stringResource(R.string.agent_edit_already_up_to_date)
+    val strGetUpdateFailed = stringResource(R.string.agent_edit_get_update_failed)
 
     // 裁剪结果：uCrop 输出到缓存 URI，再复制到内部存储持久化
     val cropLauncher = rememberLauncherForActivityResult(
@@ -158,9 +170,9 @@ fun AgentEditScreen(
                 title = {
                     Text(
                         text = when {
-                            uiState.isDefault -> "默认 Agent"
-                            uiState.isEditing -> "编辑 Agent"
-                            else -> "新建 Agent"
+                            uiState.isDefault -> stringResource(R.string.agent_edit_title_default)
+                            uiState.isEditing -> stringResource(R.string.agent_edit_title_edit)
+                            else -> stringResource(R.string.agent_edit_title_new)
                         }
                     )
                 },
@@ -168,7 +180,7 @@ fun AgentEditScreen(
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = stringResource(R.string.action_back)
                         )
                     }
                 },
@@ -177,7 +189,7 @@ fun AgentEditScreen(
                         if (viewModel.save()) {
                         }
                     }) {
-                        Text("保存")
+                        Text(stringResource(R.string.action_save))
                     }
                 }
             )
@@ -224,7 +236,7 @@ fun AgentEditScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.AddAPhoto,
-                            contentDescription = "更换头像",
+                            contentDescription = stringResource(R.string.agent_edit_change_avatar),
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
@@ -241,7 +253,7 @@ fun AgentEditScreen(
                     },
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
-                    Text("移除头像")
+                    Text(stringResource(R.string.agent_edit_remove_avatar))
                 }
             }
 
@@ -250,7 +262,7 @@ fun AgentEditScreen(
             OutlinedTextField(
                 value = uiState.name,
                 onValueChange = { viewModel.onNameChange(it) },
-                label = { Text("名称") },
+                label = { Text(stringResource(R.string.agent_edit_name_label)) },
                 isError = uiState.nameError != null,
                 supportingText = {
                     uiState.nameError?.let { error ->
@@ -270,7 +282,7 @@ fun AgentEditScreen(
             // 系统提示词
             if (showFollowToggles) {
                 FollowToggleRow(
-                    label = "系统提示词跟随默认 Agent",
+                    label = stringResource(R.string.agent_edit_follow_system_prompt),
                     checked = uiState.followDefaultSystemPrompt,
                     onCheckedChange = { viewModel.onFollowSystemPromptChange(it) }
                 )
@@ -284,8 +296,8 @@ fun AgentEditScreen(
             OutlinedTextField(
                 value = systemPromptValue,
                 onValueChange = { viewModel.onSystemPromptChange(it) },
-                label = { Text("系统提示词") },
-                placeholder = { Text("You are a helpful assistant.") },
+                label = { Text(stringResource(R.string.agent_edit_system_prompt_label)) },
+                placeholder = { Text(stringResource(R.string.agent_edit_system_prompt_placeholder)) },
                 minLines = 3,
                 maxLines = 8,
                 enabled = !showFollowToggles || !uiState.followDefaultSystemPrompt,
@@ -297,7 +309,7 @@ fun AgentEditScreen(
             // Provider + Model
             if (showFollowToggles) {
                 FollowToggleRow(
-                    label = "模型跟随默认 Agent",
+                    label = stringResource(R.string.agent_edit_follow_model),
                     checked = uiState.followDefaultModel,
                     onCheckedChange = { viewModel.onFollowModelChange(it) }
                 )
@@ -320,21 +332,21 @@ fun AgentEditScreen(
             } else {
                 // 跟随默认 Agent：只读展示默认 Agent 的模型信息
                 FollowedValueBox(
-                    label = "Provider / 模型",
-                    value = "使用默认 Agent 的模型设置"
+                    label = stringResource(R.string.agent_edit_followed_model_label),
+                    value = stringResource(R.string.agent_edit_followed_model_value)
                 )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            SectionHeader(title = "高级设置")
+            SectionHeader(title = stringResource(R.string.agent_edit_advanced_settings))
 
             Spacer(modifier = Modifier.height(8.dp))
 
             // Temperature
             if (showFollowToggles) {
                 FollowToggleRow(
-                    label = "Temperature 跟随默认 Agent",
+                    label = stringResource(R.string.agent_edit_follow_temperature),
                     checked = uiState.followDefaultTemperature,
                     onCheckedChange = { viewModel.onFollowTemperatureChange(it) }
                 )
@@ -347,7 +359,7 @@ fun AgentEditScreen(
                 uiState.temperature
             }
             Text(
-                text = "Temperature: ${String.format(Locale.US, "%.1f", tempValue)}",
+                text = stringResource(R.string.agent_edit_temperature_label, tempValue),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (tempEnabled) MaterialTheme.colorScheme.onSurface
                 else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -367,7 +379,7 @@ fun AgentEditScreen(
             // Max Tokens
             if (showFollowToggles) {
                 FollowToggleRow(
-                    label = "Max Tokens 跟随默认 Agent",
+                    label = stringResource(R.string.agent_edit_follow_max_tokens),
                     checked = uiState.followDefaultMaxTokens,
                     onCheckedChange = { viewModel.onFollowMaxTokensChange(it) }
                 )
@@ -384,8 +396,8 @@ fun AgentEditScreen(
                 onValueChange = { value ->
                     viewModel.onMaxTokensChange(value.ifBlank { null })
                 },
-                label = { Text("Max Tokens") },
-                placeholder = { Text("不限") },
+                label = { Text(stringResource(R.string.agent_edit_max_tokens_label)) },
+                placeholder = { Text(stringResource(R.string.agent_edit_max_tokens_placeholder)) },
                 singleLine = true,
                 enabled = maxTokensEnabled,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -396,7 +408,7 @@ fun AgentEditScreen(
 
             if (cloudUser != null && uiState.isEditing && !uiState.isDefault) {
                 Spacer(modifier = Modifier.height(24.dp))
-                SectionHeader(title = "Agent 市场")
+                SectionHeader(title = stringResource(R.string.agent_edit_market_section))
                 Spacer(modifier = Modifier.height(8.dp))
                 when (uiState.marketAgentRole) {
                     "publisher" -> {
@@ -407,7 +419,7 @@ fun AgentEditScreen(
                         ) {
                             Icon(Icons.Default.FileUpload, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("推送更新")
+                            Text(stringResource(R.string.agent_edit_push_update))
                         }
                         TextButton(
                             onClick = { showUnpublishDialog = true },
@@ -416,7 +428,7 @@ fun AgentEditScreen(
                         ) {
                             Icon(Icons.Default.DeleteOutline, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("从市场下架")
+                            Text(stringResource(R.string.agent_edit_unpublish))
                         }
                     }
                     "importer" -> {
@@ -426,9 +438,9 @@ fun AgentEditScreen(
                                     coroutineScope.launch {
                                         result.onSuccess { update ->
                                             if (update.hasUpdate) showPullDialog = true
-                                            else snackbarHostState.showSnackbar("已是最新版本")
+                                            else snackbarHostState.showSnackbar(strAlreadyUpToDate)
                                         }.onFailure { error ->
-                                            snackbarHostState.showSnackbar(error.message ?: "获取更新失败")
+                                            snackbarHostState.showSnackbar(error.message ?: strGetUpdateFailed)
                                         }
                                     }
                                 }
@@ -438,7 +450,7 @@ fun AgentEditScreen(
                         ) {
                             Icon(Icons.Default.SystemUpdateAlt, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("获取更新")
+                            Text(stringResource(R.string.agent_edit_get_update))
                         }
                     }
                     else -> Button(
@@ -448,7 +460,7 @@ fun AgentEditScreen(
                     ) {
                         Icon(Icons.Default.FileUpload, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("发布到市场")
+                        Text(stringResource(R.string.agent_edit_publish_to_market))
                     }
                 }
             }
@@ -457,15 +469,15 @@ fun AgentEditScreen(
 
     if (showPublishDialog) {
         ConfirmationDialog(
-            title = "发布 Agent",
-            text = "将公开名称、头像、系统提示词和采样参数。不会公开模型、Provider 或 API Key。",
-            confirmButtonText = "发布",
-            dismissButtonText = "取消",
+            title = stringResource(R.string.agent_edit_publish_title),
+            text = stringResource(R.string.agent_edit_publish_desc),
+            confirmButtonText = stringResource(R.string.agent_edit_publish_confirm),
+            dismissButtonText = stringResource(R.string.action_cancel),
             onConfirm = {
                 showPublishDialog = false
                 viewModel.publishMarketAgent { result ->
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar(result.fold({ "已发布到 Agent 市场" }, { it.message ?: "发布失败" }))
+                        snackbarHostState.showSnackbar(result.fold({ strPublishedSuccess }, { it.message ?: strPublishFailed }))
                     }
                 }
             },
@@ -474,15 +486,15 @@ fun AgentEditScreen(
     }
     if (showPushDialog) {
         ConfirmationDialog(
-            title = "推送更新",
-            text = "将用当前 Agent 的公开配置覆盖市场版本。",
-            confirmButtonText = "推送",
-            dismissButtonText = "取消",
+            title = stringResource(R.string.agent_edit_push_title),
+            text = stringResource(R.string.agent_edit_push_desc),
+            confirmButtonText = stringResource(R.string.action_push),
+            dismissButtonText = stringResource(R.string.action_cancel),
             onConfirm = {
                 showPushDialog = false
                 viewModel.pushMarketAgentUpdate { result ->
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar(result.fold({ "市场版本已更新" }, { it.message ?: "推送失败" }))
+                        snackbarHostState.showSnackbar(result.fold({ strPushedSuccess }, { it.message ?: strPushFailed }))
                     }
                 }
             },
@@ -491,15 +503,15 @@ fun AgentEditScreen(
     }
     if (showUnpublishDialog) {
         ConfirmationDialog(
-            title = "从市场下架",
-            text = "下架后其他用户将无法再浏览或导入此 Agent。",
-            confirmButtonText = "下架",
-            dismissButtonText = "取消",
+            title = stringResource(R.string.agent_edit_unpublish_title),
+            text = stringResource(R.string.agent_edit_unpublish_desc),
+            confirmButtonText = stringResource(R.string.action_unpublish),
+            dismissButtonText = stringResource(R.string.action_cancel),
             onConfirm = {
                 showUnpublishDialog = false
                 viewModel.removeMarketAgent { result ->
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar(result.fold({ "已从市场下架" }, { it.message ?: "下架失败" }))
+                        snackbarHostState.showSnackbar(result.fold({ strUnpublishedSuccess }, { it.message ?: strUnpublishFailed }))
                     }
                 }
             },
@@ -508,15 +520,15 @@ fun AgentEditScreen(
     }
     if (showPullDialog) {
         ConfirmationDialog(
-            title = "获取市场更新",
-            text = "更新会覆盖名称、头像、系统提示词和采样参数，但会保留本地模型设置。",
-            confirmButtonText = "更新",
-            dismissButtonText = "取消",
+            title = stringResource(R.string.agent_edit_get_update_title),
+            text = stringResource(R.string.agent_edit_get_update_desc),
+            confirmButtonText = stringResource(R.string.action_update),
+            dismissButtonText = stringResource(R.string.action_cancel),
             onConfirm = {
                 showPullDialog = false
                 viewModel.applyMarketAgentUpdate { result ->
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar(result.fold({ "已获取市场更新" }, { it.message ?: "更新失败" }))
+                        snackbarHostState.showSnackbar(result.fold({ strUpdatedSuccess }, { it.message ?: strUpdateFailed }))
                     }
                 }
             },
@@ -576,7 +588,7 @@ private fun ProviderDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedProvider = providers.find { it.id == selectedProviderId }
-    val displayText = selectedProvider?.name ?: "请选择 Provider"
+    val displayText = selectedProvider?.name ?: stringResource(R.string.agent_edit_select_provider)
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -586,7 +598,7 @@ private fun ProviderDropdown(
             value = displayText,
             onValueChange = { },
             readOnly = true,
-            label = { Text("Provider") },
+            label = { Text(stringResource(R.string.agent_edit_provider_label)) },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
@@ -602,7 +614,7 @@ private fun ProviderDropdown(
         ) {
             if (providers.isEmpty()) {
                 Text(
-                    text = "暂无 Provider，请先在设置中添加",
+                    text = stringResource(R.string.agent_edit_no_provider),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp)
@@ -633,7 +645,7 @@ private fun ModelDropdown(
     var expanded by remember { mutableStateOf(false) }
     val selectedModel = models.find { it.id == selectedModelId }
     val displayText = selectedModel?.displayName
-        ?: if (enabled) "请选择模型" else "请先选择 Provider"
+        ?: if (enabled) stringResource(R.string.agent_edit_select_model) else stringResource(R.string.agent_edit_select_provider_first)
 
     ExposedDropdownMenuBox(
         expanded = expanded && enabled,
@@ -646,7 +658,7 @@ private fun ModelDropdown(
             onValueChange = { },
             readOnly = true,
             enabled = enabled,
-            label = { Text("模型") },
+            label = { Text(stringResource(R.string.agent_edit_model_label)) },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
@@ -662,7 +674,7 @@ private fun ModelDropdown(
         ) {
             if (models.isEmpty()) {
                 Text(
-                    text = "该 Provider 下暂无模型，请先在「模型提供商」中添加",
+                    text = stringResource(R.string.agent_edit_no_model),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp)

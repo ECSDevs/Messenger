@@ -25,7 +25,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.presentation.theme.ThemeMode
 
 data class ThemeOption(
@@ -43,15 +45,15 @@ fun ThemePickerDialog(
     var selectedTheme by remember { mutableStateOf(currentTheme) }
 
     val themeOptions = listOf(
-        ThemeOption(ThemeMode.SYSTEM, "跟随系统", Icons.Default.SettingsBrightness),
-        ThemeOption(ThemeMode.LIGHT, "浅色", Icons.Default.LightMode),
-        ThemeOption(ThemeMode.DARK, "深色", Icons.Default.DarkMode)
+        ThemeOption(ThemeMode.SYSTEM, stringResource(R.string.settings_theme_system), Icons.Default.SettingsBrightness),
+        ThemeOption(ThemeMode.LIGHT, stringResource(R.string.settings_theme_light), Icons.Default.LightMode),
+        ThemeOption(ThemeMode.DARK, stringResource(R.string.settings_theme_dark), Icons.Default.DarkMode)
     )
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(text = "选择主题")
+            Text(text = stringResource(R.string.theme_picker_title))
         },
         text = {
             Column {
@@ -84,12 +86,12 @@ fun ThemePickerDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(selectedTheme) }) {
-                Text("确定")
+                Text(stringResource(R.string.action_confirm))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )

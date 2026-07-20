@@ -45,11 +45,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.data.cloud.CloudMarketAgent
 import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
 import cc.ptoe.messenger.presentation.ui.components.EmptyState
@@ -84,15 +86,15 @@ fun AgentMarketScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Agent 市场") },
+                title = { Text(stringResource(R.string.agent_market_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh(query) }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
                 }
             )
@@ -111,7 +113,7 @@ fun AgentMarketScreen(
                     if (it.isEmpty()) viewModel.refresh()
                 },
                 singleLine = true,
-                label = { Text("搜索 Agent") },
+                label = { Text(stringResource(R.string.agent_market_search_label)) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -125,16 +127,17 @@ fun AgentMarketScreen(
                 ) { CircularProgressIndicator() }
                 uiState.error != null && uiState.agents.isEmpty() -> EmptyState(
                     icon = Icons.Default.Storefront,
-                    message = uiState.error ?: "加载失败",
-                    actionLabel = "重试",
+                    message = uiState.error ?: stringResource(R.string.error_load_failed),
+                    actionLabel = stringResource(R.string.action_retry),
                     onActionClick = { viewModel.refresh(query) }
                 )
                 uiState.agents.isEmpty() -> EmptyState(
                     icon = Icons.Default.Storefront,
-                    message = "暂无匹配的 Agent"
+                    message = stringResource(R.string.agent_market_empty)
                 )
                 else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.agents, key = { it.id }) { agent ->
+                        val strImportFailed = stringResource(R.string.agent_market_import_failed)
                         MarketAgentListItem(
                             agent = agent,
                             onClick = { onAgentClick(agent.id) },
@@ -143,7 +146,7 @@ fun AgentMarketScreen(
                                 viewModel.importAgent(agent.id) { result ->
                                     scope.launch {
                                         result.onSuccess { onImported() }.onFailure {
-                                            snackbarHostState.showSnackbar(it.message ?: "导入失败")
+                                            snackbarHostState.showSnackbar(it.message ?: strImportFailed)
                                         }
                                     }
                                 }
@@ -162,7 +165,7 @@ fun AgentMarketScreen(
                                 if (uiState.isLoadingMore) {
                                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                                 } else {
-                                    Text("加载更多")
+                                    Text(stringResource(R.string.action_load_more))
                                 }
                             }
                         }
@@ -193,7 +196,7 @@ private fun MarketAgentListItem(
             Text(agent.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(2.dp))
             Text(
-                agent.systemPrompt.ifBlank { "无系统提示词" },
+                agent.systemPrompt.ifBlank { stringResource(R.string.agents_no_system_prompt) },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
@@ -211,7 +214,7 @@ private fun MarketAgentListItem(
                 Icon(Icons.Default.Download, contentDescription = null)
             }
             Spacer(Modifier.width(4.dp))
-            Text("导入")
+            Text(stringResource(R.string.agent_market_import_button))
         }
     }
 }
@@ -232,14 +235,15 @@ fun AgentMarketDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val strImportFailed = stringResource(R.string.agent_market_import_failed)
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Agent 详情") },
+                title = { Text(stringResource(R.string.agent_market_detail_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
             )
@@ -254,9 +258,9 @@ fun AgentMarketDetailScreen(
             ) { CircularProgressIndicator() }
             uiState.agent == null -> EmptyState(
                 icon = Icons.Default.Storefront,
-                message = uiState.error ?: "Agent 不存在",
+                message = uiState.error ?: stringResource(R.string.error_agent_not_found),
                 modifier = Modifier.padding(innerPadding),
-                actionLabel = "重试",
+                actionLabel = stringResource(R.string.action_retry),
                 onActionClick = viewModel::load
             )
             else -> {
@@ -275,20 +279,20 @@ fun AgentMarketDetailScreen(
                     }
                     Spacer(Modifier.height(24.dp))
                     ListItem(
-                        headlineContent = { Text("系统提示词") },
+                        headlineContent = { Text(stringResource(R.string.agent_market_system_prompt)) },
                         supportingContent = {
-                            Text(agent.systemPrompt.ifBlank { "无系统提示词" })
+                            Text(agent.systemPrompt.ifBlank { stringResource(R.string.agents_no_system_prompt) })
                         }
                     )
                     ListItem(
-                        headlineContent = { Text("Temperature") },
+                        headlineContent = { Text(stringResource(R.string.agent_market_temperature)) },
                         supportingContent = {
                             Text(String.format(Locale.US, "%.1f", agent.temperature))
                         }
                     )
                     ListItem(
-                        headlineContent = { Text("Max Tokens") },
-                        supportingContent = { Text(agent.maxTokens?.toString() ?: "不限") }
+                        headlineContent = { Text(stringResource(R.string.agent_market_max_tokens)) },
+                        supportingContent = { Text(agent.maxTokens?.toString() ?: stringResource(R.string.agent_edit_max_tokens_placeholder)) }
                     )
                     Spacer(Modifier.height(24.dp))
                     Button(
@@ -296,7 +300,7 @@ fun AgentMarketDetailScreen(
                             viewModel.importAgent { result ->
                                 scope.launch {
                                     result.onSuccess { onImported() }.onFailure {
-                                        snackbarHostState.showSnackbar(it.message ?: "导入失败")
+                                        snackbarHostState.showSnackbar(it.message ?: strImportFailed)
                                     }
                                 }
                             }
@@ -306,7 +310,7 @@ fun AgentMarketDetailScreen(
                     ) {
                         Icon(Icons.Default.Download, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text(if (uiState.isImporting) "正在导入" else "导入 Agent")
+                        Text(if (uiState.isImporting) stringResource(R.string.agent_market_importing) else stringResource(R.string.agent_market_import_agent))
                     }
                 }
             }

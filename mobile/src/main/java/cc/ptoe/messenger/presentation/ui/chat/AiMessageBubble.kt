@@ -32,6 +32,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import cc.ptoe.messenger.R
 import cc.ptoe.llmtypewriter.SpeedCurve
 import cc.ptoe.llmtypewriter.StreamingTypewriter
 import cc.ptoe.llmtypewriter.StreamingTypewriterState
@@ -201,7 +203,7 @@ private fun ErrorContent(
 ) {
     Column {
         Text(
-            text = "发送失败",
+            text = stringResource(R.string.chat_send_failed),
             color = textColor,
             style = MaterialTheme.typography.bodyMedium,
             fontSize = 14.sp
@@ -227,7 +229,7 @@ private fun ErrorContent(
                     tint = textColor
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("重试", color = textColor, style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.action_retry), color = textColor, style = MaterialTheme.typography.labelMedium)
             }
         }
     }

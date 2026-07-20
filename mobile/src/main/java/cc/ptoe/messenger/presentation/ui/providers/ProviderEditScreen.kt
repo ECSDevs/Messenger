@@ -30,9 +30,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.MessengerApplication
 import cc.ptoe.messenger.presentation.viewmodel.ProviderEditViewModel
 
@@ -63,14 +65,14 @@ fun ProviderEditScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = if (uiState.isEditing) "编辑提供商" else "新建提供商"
+                        text = if (uiState.isEditing) stringResource(R.string.providers_edit_title) else stringResource(R.string.providers_new_title)
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = stringResource(R.string.action_back)
                         )
                     }
                 },
@@ -79,7 +81,7 @@ fun ProviderEditScreen(
                         if (viewModel.save()) {
                         }
                     }) {
-                        Text("保存")
+                        Text(stringResource(R.string.action_save))
                     }
                 }
             )
@@ -95,7 +97,7 @@ fun ProviderEditScreen(
             OutlinedTextField(
                 value = uiState.name,
                 onValueChange = { viewModel.onNameChange(it) },
-                label = { Text("名称") },
+                label = { Text(stringResource(R.string.providers_name_label)) },
                 isError = uiState.nameError != null,
                 supportingText = {
                     uiState.nameError?.let { error ->
@@ -114,8 +116,8 @@ fun ProviderEditScreen(
             OutlinedTextField(
                 value = uiState.baseUrl,
                 onValueChange = { viewModel.onBaseUrlChange(it) },
-                label = { Text("API 地址") },
-                placeholder = { Text("https://api.openai.com/v1") },
+                label = { Text(stringResource(R.string.providers_api_url_label)) },
+                placeholder = { Text(stringResource(R.string.providers_api_url_placeholder)) },
                 isError = uiState.baseUrlError != null,
                 supportingText = {
                     uiState.baseUrlError?.let { error ->
@@ -135,7 +137,7 @@ fun ProviderEditScreen(
             OutlinedTextField(
                 value = uiState.apiKey,
                 onValueChange = { viewModel.onApiKeyChange(it) },
-                label = { Text("API Key") },
+                label = { Text(stringResource(R.string.providers_api_key_label)) },
                 isError = uiState.apiKeyError != null,
                 supportingText = {
                     uiState.apiKeyError?.let { error ->
@@ -159,7 +161,7 @@ fun ProviderEditScreen(
                             } else {
                                 Icons.Filled.Visibility
                             },
-                            contentDescription = if (apiKeyVisible) "隐藏" else "显示"
+                            contentDescription = if (apiKeyVisible) stringResource(R.string.action_hide) else stringResource(R.string.action_show)
                         )
                     }
                 },

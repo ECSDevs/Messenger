@@ -7,7 +7,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.data.cloud.CloudLoginOutcome
 
 @Composable
@@ -19,21 +21,21 @@ fun CloudSyncChoiceDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("选择同步方向") },
+        title = { Text(stringResource(R.string.sync_choice_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("本地和云端都已有数据，请选择要保留的数据源。")
+                Text(stringResource(R.string.sync_choice_message))
                 Text(
-                    "使用本地数据会覆盖云端；使用云端数据会覆盖本地。",
+                    stringResource(R.string.sync_choice_warning),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = onUseLocal) { Text("使用本地数据") }
+            TextButton(onClick = onUseLocal) { Text(stringResource(R.string.sync_choice_use_local)) }
         },
         dismissButton = {
-            TextButton(onClick = onUseCloud) { Text("使用云端数据") }
+            TextButton(onClick = onUseCloud) { Text(stringResource(R.string.sync_choice_use_cloud)) }
         }
     )
 }

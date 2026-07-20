@@ -34,6 +34,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import cc.ptoe.messenger.R
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -105,7 +107,7 @@ fun ChatInputBar(
                 } else {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "添加图片",
+                        contentDescription = stringResource(R.string.chat_add_image),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -118,9 +120,9 @@ fun ChatInputBar(
                 placeholder = {
                     Text(
                         text = if (pendingImages.isNotEmpty() && text.isBlank()) {
-                            "添加描述…"
+                            stringResource(R.string.chat_image_description_hint)
                         } else {
-                            "发消息"
+                            stringResource(R.string.chat_message_hint)
                         }
                     )
                 },
@@ -158,7 +160,7 @@ fun ChatInputBar(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Stop,
-                        contentDescription = "停止",
+                        contentDescription = stringResource(R.string.action_stop),
                         tint = MaterialTheme.colorScheme.onError
                     )
                 }
@@ -179,7 +181,7 @@ fun ChatInputBar(
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "发送",
+                        contentDescription = stringResource(R.string.action_send),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -244,7 +246,7 @@ private fun PendingImageTile(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "移除",
+                    contentDescription = stringResource(R.string.chat_remove_image),
                     tint = Color.White,
                     modifier = Modifier.size(14.dp)
                 )

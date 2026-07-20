@@ -3,6 +3,8 @@ package cc.ptoe.messenger.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.data.cloud.CloudMarketAgent
 import cc.ptoe.messenger.data.cloud.CloudSyncRepository
 import kotlinx.coroutines.Job
@@ -46,7 +48,7 @@ class AgentMarketViewModel(
                     )
                 }
                 .onFailure { error ->
-                    _uiState.value = AgentMarketUiState(isLoading = false, error = error.message ?: "加载 Agent 市场失败")
+                    _uiState.value = AgentMarketUiState(isLoading = false, error = error.message ?: MessengerApplication.instance.getString(R.string.error_load_market_failed))
                 }
         }
     }
@@ -67,7 +69,7 @@ class AgentMarketViewModel(
                 .onFailure { error ->
                     _uiState.value = _uiState.value.copy(
                         isLoadingMore = false,
-                        error = error.message ?: "加载更多 Agent 失败"
+                        error = error.message ?: MessengerApplication.instance.getString(R.string.error_load_more_failed)
                     )
                 }
         }
@@ -117,7 +119,7 @@ class AgentMarketDetailViewModel(
             runCatching { cloudSyncRepository.marketAgent(marketAgentId) }
                 .onSuccess { agent -> _uiState.value = AgentMarketDetailUiState(isLoading = false, agent = agent) }
                 .onFailure { error ->
-                    _uiState.value = AgentMarketDetailUiState(isLoading = false, error = error.message ?: "加载 Agent 失败")
+                    _uiState.value = AgentMarketDetailUiState(isLoading = false, error = error.message ?: MessengerApplication.instance.getString(R.string.error_load_agent_failed))
                 }
         }
     }

@@ -8,6 +8,8 @@ import cc.ptoe.messenger.data.cloud.CloudSyncRepository
 import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Provider
+import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.domain.repository.AgentRepository
 import cc.ptoe.messenger.domain.repository.ModelRepository
 import cc.ptoe.messenger.domain.repository.ProviderRepository
@@ -192,7 +194,7 @@ class AgentEditViewModel(
         var hasError = false
 
         val nameError = if (currentState.name.isBlank()) {
-            "名称不能为空"
+            MessengerApplication.instance.getString(R.string.error_name_required)
         } else null
 
         if (nameError != null) {

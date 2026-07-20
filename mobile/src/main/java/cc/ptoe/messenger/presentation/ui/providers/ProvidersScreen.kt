@@ -36,9 +36,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.MessengerApplication
 import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
 import cc.ptoe.messenger.presentation.ui.components.EmptyState
@@ -68,12 +70,12 @@ fun ProvidersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "模型提供商") },
+                title = { Text(text = stringResource(R.string.providers_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = stringResource(R.string.action_back)
                         )
                     }
                 }
@@ -81,7 +83,7 @@ fun ProvidersScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddClick) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "添加")
+                Icon(imageVector = Icons.Default.Add, contentDescription = stringResource(R.string.action_add))
             }
         },
         modifier = Modifier.fillMaxSize()
@@ -89,7 +91,7 @@ fun ProvidersScreen(
         if (providers.isEmpty()) {
             EmptyState(
                 icon = Icons.Default.Cloud,
-                message = "暂无提供商，点击右下角添加",
+                message = stringResource(R.string.providers_empty),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
@@ -113,10 +115,10 @@ fun ProvidersScreen(
 
         if (showDeleteDialog != null) {
             ConfirmationDialog(
-                title = "删除提供商",
-                text = "确定要删除这个提供商吗？相关的模型也会被删除。",
-                confirmButtonText = "删除",
-                dismissButtonText = "取消",
+                title = stringResource(R.string.providers_delete_title),
+                text = stringResource(R.string.providers_delete_confirm),
+                confirmButtonText = stringResource(R.string.action_delete),
+                dismissButtonText = stringResource(R.string.action_cancel),
                 onConfirm = {
                     showDeleteDialog?.let { id ->
                         viewModel.deleteProvider(id)
@@ -173,7 +175,7 @@ private fun ProviderListItem(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "${item.modelCount} 个模型 · 点击管理模型",
+                text = stringResource(R.string.providers_model_count, item.modelCount),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -181,21 +183,21 @@ private fun ProviderListItem(
         IconButton(onClick = { expanded = true }) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
-                contentDescription = "更多"
+                contentDescription = stringResource(R.string.action_more)
             )
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text("编辑") },
+                    text = { Text(stringResource(R.string.action_edit)) },
                     onClick = {
                         expanded = false
                         onEditClick()
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("删除") },
+                    text = { Text(stringResource(R.string.action_delete)) },
                     onClick = {
                         expanded = false
                         onDeleteClick()
@@ -205,7 +207,7 @@ private fun ProviderListItem(
         }
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = "查看模型",
+            contentDescription = stringResource(R.string.providers_view_models),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }

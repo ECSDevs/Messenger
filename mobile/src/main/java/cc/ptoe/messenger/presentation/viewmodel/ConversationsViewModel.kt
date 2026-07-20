@@ -3,6 +3,8 @@ package cc.ptoe.messenger.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Conversation
@@ -69,7 +71,7 @@ class ConversationsViewModel(
         )
 
     fun createNewConversation(
-        title: String = "新对话",
+        title: String = MessengerApplication.instance.getString(R.string.conversations_new_chat),
         agentId: String? = null,
         onCreated: (String) -> Unit = {}
     ) {
@@ -141,7 +143,7 @@ class ConversationsViewModel(
             val now = System.currentTimeMillis()
             val clonedConversation = source.copy(
                 id = clonedConversationId,
-                title = "${source.title}（副本）",
+                title = source.title + MessengerApplication.instance.getString(R.string.conversations_clone_suffix),
                 createdAt = now,
                 updatedAt = now
             )

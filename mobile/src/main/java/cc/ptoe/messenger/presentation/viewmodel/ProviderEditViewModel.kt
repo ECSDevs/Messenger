@@ -3,6 +3,8 @@ package cc.ptoe.messenger.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.domain.repository.ProviderRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,17 +80,17 @@ class ProviderEditViewModel(
         var hasError = false
 
         val nameError = if (currentState.name.isBlank()) {
-            "名称不能为空"
+            MessengerApplication.instance.getString(R.string.error_name_required)
         } else null
 
         val baseUrlError = when {
-            currentState.baseUrl.isBlank() -> "API 地址不能为空"
-            !isValidUrl(currentState.baseUrl) -> "请输入有效的 URL"
+            currentState.baseUrl.isBlank() -> MessengerApplication.instance.getString(R.string.error_api_url_required)
+            !isValidUrl(currentState.baseUrl) -> MessengerApplication.instance.getString(R.string.error_invalid_url)
             else -> null
         }
 
         val apiKeyError = if (currentState.apiKey.isBlank()) {
-            "API Key 不能为空"
+            MessengerApplication.instance.getString(R.string.error_api_key_required)
         } else null
 
         if (nameError != null || baseUrlError != null || apiKeyError != null) {

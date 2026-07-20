@@ -35,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -42,6 +43,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import java.util.Locale
 import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.presentation.ui.components.SectionHeader
@@ -77,18 +79,18 @@ fun ConversationSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("对话设置") },
+                title = { Text(stringResource(R.string.conversation_settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = stringResource(R.string.action_back)
                         )
                     }
                 },
                 actions = {
                     TextButton(onClick = { viewModel.save() }) {
-                        Text("保存")
+                        Text(stringResource(R.string.action_save))
                     }
                 }
             )
@@ -105,14 +107,14 @@ fun ConversationSettingsScreen(
             OutlinedTextField(
                 value = uiState.title,
                 onValueChange = { viewModel.onTitleChange(it) },
-                label = { Text("对话标题") },
+                label = { Text(stringResource(R.string.conversation_settings_title_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "所属 Agent: ${agent?.name ?: ""}",
+                text = stringResource(R.string.conversation_settings_agent_label, agent?.name ?: ""),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -120,9 +122,9 @@ fun ConversationSettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            SectionHeader(title = "参数覆盖")
+            SectionHeader(title = stringResource(R.string.conversation_settings_override_section))
             Text(
-                text = "开启后，本对话将使用以下参数覆盖 Agent 设置",
+                text = stringResource(R.string.conversation_settings_override_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -132,7 +134,7 @@ fun ConversationSettingsScreen(
 
             // 模型覆盖
             OverrideToggleRow(
-                label = "覆盖模型",
+                label = stringResource(R.string.conversation_settings_override_model),
                 checked = uiState.overrideModelEnabled,
                 onCheckedChange = { checked ->
                     viewModel.onOverrideModelChange(checked)
@@ -158,7 +160,7 @@ fun ConversationSettingsScreen(
 
             // Temperature 覆盖
             OverrideToggleRow(
-                label = "覆盖 Temperature",
+                label = stringResource(R.string.conversation_settings_override_temperature),
                 checked = uiState.overrideTemperatureEnabled,
                 onCheckedChange = { checked ->
                     viewModel.onOverrideTemperatureChange(checked, agent?.temperature)
@@ -167,7 +169,7 @@ fun ConversationSettingsScreen(
             if (uiState.overrideTemperatureEnabled) {
                 val tempValue = uiState.overrideTemperatureValue ?: 0.7f
                 Text(
-                    text = "Temperature: ${String.format(Locale.US, "%.1f", tempValue)}",
+                    text = stringResource(R.string.conversation_settings_temperature_value, tempValue),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 16.dp)
@@ -185,7 +187,7 @@ fun ConversationSettingsScreen(
 
             // Top P 覆盖
             OverrideToggleRow(
-                label = "覆盖 Top P",
+                label = stringResource(R.string.conversation_settings_override_top_p),
                 checked = uiState.overrideTopPEnabled,
                 onCheckedChange = { checked ->
                     viewModel.onOverrideTopPChange(checked, agent?.topP)
@@ -194,7 +196,7 @@ fun ConversationSettingsScreen(
             if (uiState.overrideTopPEnabled) {
                 val topPValue = uiState.overrideTopPValue ?: 1.0f
                 Text(
-                    text = "Top P: ${String.format(Locale.US, "%.2f", topPValue)}",
+                    text = stringResource(R.string.conversation_settings_top_p_value, topPValue),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 16.dp)
@@ -212,7 +214,7 @@ fun ConversationSettingsScreen(
 
             // Max Tokens 覆盖
             OverrideToggleRow(
-                label = "覆盖 Max Tokens",
+                label = stringResource(R.string.conversation_settings_override_max_tokens),
                 checked = uiState.overrideMaxTokensEnabled,
                 onCheckedChange = { checked ->
                     viewModel.onOverrideMaxTokensChange(checked, agent?.maxTokens)
@@ -225,8 +227,8 @@ fun ConversationSettingsScreen(
                     onValueChange = { value ->
                         viewModel.onMaxTokensChange(value.toIntOrNull())
                     },
-                    label = { Text("Max Tokens") },
-                    placeholder = { Text("不限") },
+                    label = { Text(stringResource(R.string.agent_edit_max_tokens_label)) },
+                    placeholder = { Text(stringResource(R.string.agent_edit_max_tokens_placeholder)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier
@@ -273,7 +275,7 @@ private fun ProviderDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedProvider = providers.find { it.id == selectedProviderId }
-    val displayText = selectedProvider?.name ?: "请选择 Provider"
+    val displayText = selectedProvider?.name ?: stringResource(R.string.conversation_settings_select_provider)
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -283,7 +285,7 @@ private fun ProviderDropdown(
             value = displayText,
             onValueChange = { },
             readOnly = true,
-            label = { Text("Provider") },
+            label = { Text(stringResource(R.string.agent_edit_provider_label)) },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
@@ -300,7 +302,7 @@ private fun ProviderDropdown(
         ) {
             if (providers.isEmpty()) {
                 Text(
-                    text = "暂无 Provider，请先在设置中添加",
+                    text = stringResource(R.string.conversation_settings_no_provider),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp)
@@ -330,8 +332,7 @@ private fun ModelDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedModel = models.find { it.id == selectedModelId }
-    val displayText = selectedModel?.displayName
-        ?: if (enabled) "请选择模型" else "请先选择 Provider"
+    val displayText = selectedModel?.displayName ?: if (enabled) stringResource(R.string.conversation_settings_select_model) else stringResource(R.string.conversation_settings_select_provider_first)
 
     ExposedDropdownMenuBox(
         expanded = expanded && enabled,
@@ -344,7 +345,7 @@ private fun ModelDropdown(
             onValueChange = { },
             readOnly = true,
             enabled = enabled,
-            label = { Text("模型") },
+            label = { Text(stringResource(R.string.agent_edit_model_label)) },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
@@ -361,7 +362,7 @@ private fun ModelDropdown(
         ) {
             if (models.isEmpty()) {
                 Text(
-                    text = "该 Provider 下暂无模型",
+                    text = stringResource(R.string.conversation_settings_no_model),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp)

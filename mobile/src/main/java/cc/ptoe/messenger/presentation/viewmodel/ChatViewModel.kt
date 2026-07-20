@@ -10,6 +10,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import cc.ptoe.llmtypewriter.StreamingTypewriterState
 import cc.ptoe.llmtypewriter.TypewriterPhase
+import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.data.local.ChatImageStore
 import cc.ptoe.messenger.data.remote.sse.ChatStreamEvent
 import cc.ptoe.messenger.domain.model.Agent
@@ -205,7 +207,7 @@ class ChatViewModel(
                 _pendingImages.value = _pendingImages.value + image
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                setError("无法读取图片: ${e.message ?: "未知错误"}")
+                setError(MessengerApplication.instance.getString(R.string.error_read_image_failed, e.message ?: MessengerApplication.instance.getString(R.string.error_unknown)))
             } finally {
                 _isAttachingImage.value = false
             }
@@ -242,7 +244,7 @@ class ChatViewModel(
         viewModelScope.launch {
             val conv = conversation.value ?: return@launch
             val rawAgent = agent.value ?: run {
-                setError("Agent not found")
+                setError(MessengerApplication.instance.getString(R.string.error_agent_not_found_chat))
                 return@launch
             }
             val currentAgent = resolveEffectiveAgent(rawAgent, conv)
@@ -268,7 +270,7 @@ class ChatViewModel(
             )
             messageRepository.insert(userMessage)
 
-            updateConversationLastMessage(convId, text.ifBlank { "[图片]" }, now)
+            updateConversationLastMessage(convId, text.ifBlank { MessengerApplication.instance.getString(R.string.chat_picture) }, now)
 
             if (isNewConversation(conv.title) && text.isNotBlank()) {
                 updateConversationTitle(convId, generateTitle(text))
@@ -302,7 +304,7 @@ class ChatViewModel(
         val conv = conversation.value ?: return
         val result = getActiveModelAndProvider(conv, agent)
         if (result == null) {
-            setError("No available model. Please configure a provider and model first.")
+            setError(MessengerApplication.instance.getString(R.string.error_configure_model_first))
             return
         }
 
@@ -367,7 +369,7 @@ class ChatViewModel(
                     }
                 if (!hasFinished) {
                     typewriterState.stop()
-                    val errorMsg = "API 未返回有效响应，请检查 API 配置和参数"
+                    val errorMsg = MessengerApplication.instance.getString(R.string.error_api_no_valid_response)
                     saveStreamResult(aiMessage, currentContent, conversationId, errorMsg)
                     setError(errorMsg)
                     _streamingMessageId.value = null
@@ -379,7 +381,7 @@ class ChatViewModel(
                     return@launch
                 }
                 typewriterState.stop()
-                val errorMsg = e.message ?: "Unknown error"
+                val errorMsg = e.message ?: MessengerApplication.instance.getString(R.string.error_unknown)
                 saveStreamResult(aiMessage, currentContent, conversationId, errorMsg)
                 setError(errorMsg)
                 _streamingMessageId.value = null
@@ -458,11 +460,11 @@ class ChatViewModel(
             )
             val result = getActiveModelAndProvider(conv, currentAgent)
             if (result == null) {
-                setError("No available model. Please configure a provider and model first.")
+                setError(MessengerApplication.instance.getString(R.string.error_configure_model_first))
                 messageRepository.update(
                     message.copy(
                         status = MessageStatus.ERROR,
-                        errorMessage = "No available model"
+                        errorMessage = MessengerApplication.instance.getString(R.string.error_no_available_model)
                     )
                 )
                 return@launch
@@ -516,7 +518,7 @@ class ChatViewModel(
                     }
                     if (!hasFinished) {
                         typewriterState.stop()
-                        val errorMsg = "API 未返回有效响应，请检查 API 配置和参数"
+                        val errorMsg = MessengerApplication.instance.getString(R.string.error_api_no_valid_response)
                         saveStreamResult(message, currentContent, message.conversationId, errorMsg)
                         setError(errorMsg)
                         _streamingMessageId.value = null
@@ -528,7 +530,7 @@ class ChatViewModel(
                         return@launch
                     }
                     typewriterState.stop()
-                    val errorMsg = e.message ?: "Unknown error"
+                    val errorMsg = e.message ?: MessengerApplication.instance.getString(R.string.error_unknown)
                     saveStreamResult(message, currentContent, message.conversationId, errorMsg)
                     setError(errorMsg)
                     _streamingMessageId.value = null

@@ -17,7 +17,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.domain.model.MessageRole
 import kotlinx.coroutines.launch
 
@@ -48,7 +50,7 @@ fun MessageActionMenu(
                 .padding(bottom = 16.dp)
         ) {
             ListItem(
-                headlineContent = { Text("复制") },
+                headlineContent = { Text(stringResource(R.string.action_copy)) },
                 leadingContent = {
                     Icon(
                         imageVector = Icons.Default.ContentCopy,
@@ -64,7 +66,7 @@ fun MessageActionMenu(
             )
             if (messageRole == MessageRole.ASSISTANT) {
                 ListItem(
-                    headlineContent = { Text("重新生成") },
+                    headlineContent = { Text(stringResource(R.string.action_regenerate)) },
                     leadingContent = {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -80,7 +82,7 @@ fun MessageActionMenu(
                 )
             }
             ListItem(
-                headlineContent = { Text("删除") },
+                headlineContent = { Text(stringResource(R.string.action_delete)) },
                 leadingContent = {
                     Icon(
                         imageVector = Icons.Default.Delete,

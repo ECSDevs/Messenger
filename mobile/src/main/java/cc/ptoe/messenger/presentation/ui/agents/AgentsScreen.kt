@@ -36,11 +36,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
 import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
 import cc.ptoe.messenger.presentation.ui.components.EmptyState
@@ -72,7 +74,7 @@ fun AgentsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "Agents") }
+                title = { Text(text = stringResource(R.string.agents_title)) }
             )
         },
         floatingActionButton = {
@@ -82,14 +84,14 @@ fun AgentsScreen(
                         fabExpanded = false
                         onMarketClick()
                     }) {
-                        Icon(imageVector = Icons.Default.Storefront, contentDescription = "Agent 市场")
+                        Icon(imageVector = Icons.Default.Storefront, contentDescription = stringResource(R.string.agents_market))
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     SmallFloatingActionButton(onClick = {
                         fabExpanded = false
                         onAddClick()
                     }) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = "新建 Agent")
+                        Icon(imageVector = Icons.Default.Add, contentDescription = stringResource(R.string.agents_new_agent))
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                 }
@@ -98,7 +100,7 @@ fun AgentsScreen(
                 }) {
                     Icon(
                         imageVector = if (fabExpanded) Icons.Default.Close else Icons.Default.Add,
-                        contentDescription = if (fabExpanded) "关闭操作菜单" else "添加"
+                        contentDescription = if (fabExpanded) stringResource(R.string.agents_close_menu) else stringResource(R.string.action_add)
                     )
                 }
             }
@@ -108,7 +110,7 @@ fun AgentsScreen(
         if (agents.isEmpty()) {
             EmptyState(
                 icon = Icons.Default.SmartToy,
-                message = "暂无 Agent\n创建你的第一个 Agent 吧",
+                message = stringResource(R.string.agents_empty_message),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
@@ -138,10 +140,10 @@ fun AgentsScreen(
 
         if (showDeleteDialog != null) {
             ConfirmationDialog(
-                title = "删除 Agent",
-                text = "确定要删除这个 Agent 吗？",
-                confirmButtonText = "删除",
-                dismissButtonText = "取消",
+                title = stringResource(R.string.agents_delete_title),
+                text = stringResource(R.string.agents_delete_confirm),
+                confirmButtonText = stringResource(R.string.action_delete),
+                dismissButtonText = stringResource(R.string.action_cancel),
                 onConfirm = {
                     showDeleteDialog?.let { id ->
                         viewModel.deleteAgent(id)
@@ -192,7 +194,7 @@ private fun AgentListItem(
                 if (item.agent.isDefault) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "默认",
+                        text = stringResource(R.string.agents_default_badge),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -200,7 +202,7 @@ private fun AgentListItem(
             }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = item.agent.systemPrompt.ifBlank { "无系统提示词" },
+                text = item.agent.systemPrompt.ifBlank { stringResource(R.string.agents_no_system_prompt) },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -208,7 +210,7 @@ private fun AgentListItem(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "模型: ${item.model?.displayName ?: "默认"}",
+                text = stringResource(R.string.agents_model_label, item.model?.displayName ?: stringResource(R.string.agents_model_default)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -216,21 +218,21 @@ private fun AgentListItem(
         IconButton(onClick = { expanded = true }) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
-                contentDescription = "更多"
+                contentDescription = stringResource(R.string.action_more)
             )
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text("编辑") },
+                    text = { Text(stringResource(R.string.action_edit)) },
                     onClick = {
                         expanded = false
                         onEditClick()
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("克隆") },
+                    text = { Text(stringResource(R.string.action_clone)) },
                     onClick = {
                         expanded = false
                         onCloneClick()
@@ -238,7 +240,7 @@ private fun AgentListItem(
                 )
                 if (canDelete) {
                     DropdownMenuItem(
-                        text = { Text("删除") },
+                        text = { Text(stringResource(R.string.action_delete)) },
                         onClick = {
                             expanded = false
                             onDeleteClick()

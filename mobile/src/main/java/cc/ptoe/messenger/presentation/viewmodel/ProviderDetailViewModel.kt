@@ -3,6 +3,8 @@ package cc.ptoe.messenger.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import cc.ptoe.messenger.MessengerApplication
+import cc.ptoe.messenger.R
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.domain.repository.ApiRepository
@@ -67,7 +69,7 @@ class ProviderDetailViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    error = e.message ?: "加载失败"
+                    error = e.message ?: MessengerApplication.instance.getString(R.string.error_load_failed)
                 )
             }
         }
@@ -90,7 +92,7 @@ class ProviderDetailViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     syncStatus = SyncStatus.ERROR,
-                    syncError = e.message ?: "同步失败"
+                    syncError = e.message ?: MessengerApplication.instance.getString(R.string.error_sync_failed)
                 )
             }
         }

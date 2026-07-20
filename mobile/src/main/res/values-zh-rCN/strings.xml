@@ -1,0 +1,305 @@
+<resources>
+    <string name="app_name">Messenger</string>
+
+    <!-- Common Actions -->
+    <string name="action_save">保存</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_delete">删除</string>
+    <string name="action_edit">编辑</string>
+    <string name="action_clone">克隆</string>
+    <string name="action_rename">重命名</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_add">添加</string>
+    <string name="action_back">返回</string>
+    <string name="action_refresh">刷新</string>
+    <string name="action_close">关闭</string>
+    <string name="action_more">更多</string>
+    <string name="action_stop">停止</string>
+    <string name="action_send">发送</string>
+    <string name="action_copy">复制</string>
+    <string name="action_remove">移除</string>
+    <string name="action_push">推送</string>
+    <string name="action_unpublish">下架</string>
+    <string name="action_update">更新</string>
+    <string name="action_publish">发布</string>
+    <string name="action_import">导入</string>
+    <string name="action_upload">上传</string>
+    <string name="action_restore">恢复</string>
+    <string name="action_login">登录</string>
+    <string name="action_register">注册</string>
+    <string name="action_search">搜索</string>
+    <string name="action_retry">重试</string>
+    <string name="action_go_settings">去设置</string>
+    <string name="action_change_avatar">更换头像</string>
+    <string name="action_show">显示</string>
+    <string name="action_hide">隐藏</string>
+    <string name="action_load_more">加载更多</string>
+    <string name="action_regenerate">重新生成</string>
+    <string name="action_sync_models">同步模型</string>
+    <string name="action_manual_add">手动添加</string>
+
+    <!-- Agents -->
+    <string name="agents_title">Agents</string>
+    <string name="agents_new_agent">新建 Agent</string>
+    <string name="agents_market">Agent 市场</string>
+    <string name="agents_empty_message">暂无 Agent\n创建你的第一个 Agent 吧</string>
+    <string name="agents_delete_title">删除 Agent</string>
+    <string name="agents_delete_confirm">确定要删除这个 Agent 吗？</string>
+    <string name="agents_default_badge">默认</string>
+    <string name="agents_no_system_prompt">无系统提示词</string>
+    <string name="agents_model_label">模型: %s</string>
+    <string name="agents_model_default">默认</string>
+    <string name="agents_close_menu">关闭操作菜单</string>
+
+    <!-- Agent Edit -->
+    <string name="agent_edit_save">保存</string>
+    <string name="agent_edit_remove_avatar">移除头像</string>
+    <string name="agent_edit_name_label">名称</string>
+    <string name="agent_edit_system_prompt_label">系统提示词</string>
+    <string name="agent_edit_system_prompt_placeholder">You are a helpful assistant.</string>
+    <string name="agent_edit_advanced_settings">高级设置</string>
+    <string name="agent_edit_temperature_label">Temperature: %.1f</string>
+    <string name="agent_edit_max_tokens_label">Max Tokens</string>
+    <string name="agent_edit_max_tokens_placeholder">不限</string>
+    <string name="agent_edit_market_section">Agent 市场</string>
+    <string name="agent_edit_push_update">推送更新</string>
+    <string name="agent_edit_unpublish">从市场下架</string>
+    <string name="agent_edit_get_update">获取更新</string>
+    <string name="agent_edit_publish_to_market">发布到市场</string>
+    <string name="agent_edit_publish_title">发布 Agent</string>
+    <string name="agent_edit_publish_desc">将公开名称、头像、系统提示词和采样参数。不会公开模型、Provider 或 API Key。</string>
+    <string name="agent_edit_publish_confirm">发布</string>
+    <string name="agent_edit_push_title">推送更新</string>
+    <string name="agent_edit_push_desc">将用当前 Agent 的公开配置覆盖市场版本。</string>
+    <string name="agent_edit_unpublish_title">从市场下架</string>
+    <string name="agent_edit_unpublish_desc">下架后其他用户将无法再浏览或导入此 Agent。</string>
+    <string name="agent_edit_get_update_title">获取市场更新</string>
+    <string name="agent_edit_get_update_desc">更新会覆盖名称、头像、系统提示词和采样参数，但会保留本地模型设置。</string>
+    <string name="agent_edit_provider_label">Provider</string>
+    <string name="agent_edit_no_provider">暂无 Provider，请先在设置中添加</string>
+    <string name="agent_edit_model_label">模型</string>
+    <string name="agent_edit_no_model">该 Provider 下暂无模型，请先在「模型提供商」中添加</string>
+    <string name="agent_edit_title_default">默认 Agent</string>
+    <string name="agent_edit_title_edit">编辑 Agent</string>
+    <string name="agent_edit_title_new">新建 Agent</string>
+    <string name="agent_edit_change_avatar">更换头像</string>
+    <string name="agent_edit_follow_system_prompt">系统提示词跟随默认 Agent</string>
+    <string name="agent_edit_follow_model">模型跟随默认 Agent</string>
+    <string name="agent_edit_followed_model_label">Provider / 模型</string>
+    <string name="agent_edit_followed_model_value">使用默认 Agent 的模型设置</string>
+    <string name="agent_edit_follow_temperature">Temperature 跟随默认 Agent</string>
+    <string name="agent_edit_follow_max_tokens">Max Tokens 跟随默认 Agent</string>
+    <string name="agent_edit_published_success">已发布到 Agent 市场</string>
+    <string name="agent_edit_publish_failed">发布失败</string>
+    <string name="agent_edit_pushed_success">市场版本已更新</string>
+    <string name="agent_edit_push_failed">推送失败</string>
+    <string name="agent_edit_unpublished_success">已从市场下架</string>
+    <string name="agent_edit_unpublish_failed">下架失败</string>
+    <string name="agent_edit_updated_success">已获取市场更新</string>
+    <string name="agent_edit_update_failed">更新失败</string>
+    <string name="agent_edit_already_up_to_date">已是最新版本</string>
+    <string name="agent_edit_get_update_failed">获取更新失败</string>
+    <string name="agent_edit_select_provider">请选择 Provider</string>
+    <string name="agent_edit_select_model">请选择模型</string>
+    <string name="agent_edit_select_provider_first">请先选择 Provider</string>
+
+    <!-- Agent Market -->
+    <string name="agent_market_title">Agent 市场</string>
+    <string name="agent_market_search_label">搜索 Agent</string>
+    <string name="agent_market_empty">暂无匹配的 Agent</string>
+    <string name="agent_market_detail_title">Agent 详情</string>
+    <string name="agent_market_system_prompt">系统提示词</string>
+    <string name="agent_market_temperature">Temperature</string>
+    <string name="agent_market_max_tokens">Max Tokens</string>
+    <string name="agent_market_importing">正在导入</string>
+    <string name="agent_market_import_agent">导入 Agent</string>
+    <string name="agent_market_import_button">导入</string>
+    <string name="agent_market_import_failed">导入失败</string>
+
+    <!-- Chat -->
+    <string name="chat_send_failed">发送失败</string>
+    <string name="chat_add_image">添加图片</string>
+    <string name="chat_image_description_hint">添加描述…</string>
+    <string name="chat_message_hint">发消息</string>
+    <string name="chat_remove_image">移除</string>
+    <string name="chat_copied_toast">已复制</string>
+    <string name="chat_no_model_title">未设置模型</string>
+    <string name="chat_no_model_message">当前 Agent 未设置模型，请先设置模型后再开始聊天。</string>
+    <string name="chat_empty_hint">输入消息开始与 AI 聊天</string>
+    <string name="chat_start_hint">开始对话吧</string>
+    <string name="chat_title_default">对话</string>
+    <string name="chat_picture">[图片]</string>
+
+    <!-- Conversations -->
+    <string name="conversations_all_agents">全部 Agent</string>
+    <string name="conversations_title">对话</string>
+    <string name="conversations_new">新建对话</string>
+    <string name="conversations_switch_agent">切换 Agent</string>
+    <string name="conversations_empty">暂无对话\n点击右下角开始新对话</string>
+    <string name="conversations_rename_title">重命名对话</string>
+    <string name="conversations_rename_hint">请输入新标题</string>
+    <string name="conversations_delete_title">删除对话</string>
+    <string name="conversations_delete_confirm">确定要删除这个对话吗？</string>
+    <string name="conversations_select_agent_title">选择 Agent</string>
+    <string name="conversations_no_message">暂无消息</string>
+    <string name="conversations_new_chat">新对话</string>
+    <string name="conversations_clone_suffix">（副本）</string>
+
+    <!-- Conversation Settings -->
+    <string name="conversation_settings_title">对话设置</string>
+    <string name="conversation_settings_title_label">对话标题</string>
+    <string name="conversation_settings_agent_label">所属 Agent: %s</string>
+    <string name="conversation_settings_override_section">参数覆盖</string>
+    <string name="conversation_settings_override_desc">开启后，本对话将使用以下参数覆盖 Agent 设置</string>
+    <string name="conversation_settings_override_model">覆盖模型</string>
+    <string name="conversation_settings_override_temperature">覆盖 Temperature</string>
+    <string name="conversation_settings_temperature_value">Temperature: %.1f</string>
+    <string name="conversation_settings_override_top_p">覆盖 Top P</string>
+    <string name="conversation_settings_top_p_value">Top P: %.2f</string>
+    <string name="conversation_settings_override_max_tokens">覆盖 Max Tokens</string>
+    <string name="conversation_settings_no_provider">暂无 Provider，请先在设置中添加</string>
+    <string name="conversation_settings_no_model">该 Provider 下暂无模型</string>
+    <string name="conversation_settings_select_provider">请选择 Provider</string>
+    <string name="conversation_settings_select_provider_first">请先选择 Provider</string>
+    <string name="conversation_settings_select_model">请选择模型</string>
+
+    <!-- Providers -->
+    <string name="providers_title">模型提供商</string>
+    <string name="providers_empty">暂无提供商，点击右下角添加</string>
+    <string name="providers_delete_title">删除提供商</string>
+    <string name="providers_delete_confirm">确定要删除这个提供商吗？相关的模型也会被删除。</string>
+    <string name="providers_model_count">%d 个模型 · 点击管理模型</string>
+    <string name="providers_edit_title">编辑提供商</string>
+    <string name="providers_new_title">新建提供商</string>
+    <string name="providers_name_label">名称</string>
+    <string name="providers_api_url_label">API 地址</string>
+    <string name="providers_api_url_placeholder">https://api.openai.com/v1</string>
+    <string name="providers_api_key_label">API Key</string>
+    <string name="providers_model_management">模型管理</string>
+    <string name="providers_load_failed">加载失败</string>
+    <string name="providers_no_models">暂无模型\n点击上方「同步模型」从 API 拉取\n或点击「手动添加」输入模型 ID</string>
+    <string name="providers_sync_models_title">同步模型</string>
+    <string name="providers_syncing">正在获取模型列表…</string>
+    <string name="providers_model_id_empty">模型 ID 不能为空</string>
+    <string name="providers_delete_model_title">删除模型</string>
+    <string name="providers_delete_model_confirm">确定要删除模型 "%s" 吗？</string>
+    <string name="providers_model_saved">模型已保存</string>
+    <string name="providers_model_list">模型列表</string>
+    <string name="providers_manual_add_title">手动添加模型</string>
+    <string name="providers_model_id_label">模型 ID</string>
+    <string name="providers_model_id_placeholder">gpt-3.5-turbo</string>
+    <string name="providers_model_display_name_label">显示名称（可选）</string>
+    <string name="providers_model_display_name_placeholder">默认与模型 ID 相同</string>
+    <string name="providers_models_available">共 %d 个模型可用</string>
+    <string name="providers_save_selected">保存选中 (%d)</string>
+    <string name="providers_select_models_title">选择要保存的模型</string>
+    <string name="providers_view_models">查看模型</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置</string>
+    <string name="settings_personal">个人</string>
+    <string name="settings_my_avatar">我的头像</string>
+    <string name="settings_avatar_desc">用于聊天中的用户消息</string>
+    <string name="settings_appearance">外观</string>
+    <string name="settings_theme">主题</string>
+    <string name="settings_data">数据</string>
+    <string name="settings_cloud">Messenger Cloud</string>
+    <string name="settings_cloud_not_logged_in">未登录 · %s</string>
+    <string name="settings_providers">模型提供商</string>
+    <string name="settings_providers_desc">管理 AI 模型提供商和 API Key</string>
+    <string name="settings_clear_data">清除所有数据</string>
+    <string name="settings_clear_data_desc">删除所有对话、Agent 和 Provider</string>
+    <string name="settings_clear_data_confirm">此操作会清除本应用的本地数据、账户、同步游标、设置和缓存，效果类似 Android 设置中的“清除存储”。云端账户和数据不会被删除。确定要继续吗？</string>
+    <string name="settings_clear_data_button">清除</string>
+    <string name="settings_about">关于</string>
+    <string name="settings_version">版本</string>
+    <string name="settings_licenses">开源许可</string>
+    <string name="settings_theme_system">跟随系统</string>
+    <string name="settings_theme_light">浅色</string>
+    <string name="settings_theme_dark">深色</string>
+    <string name="settings_version_unknown">未知</string>
+
+    <!-- Cloud Settings -->
+    <string name="cloud_settings_title">Messenger Cloud</string>
+    <string name="cloud_settings_account_sync">云端账户与同步</string>
+    <string name="cloud_settings_sync_desc">在设备之间安全同步 Agent、对话和模型提供商。</string>
+    <string name="cloud_settings_server">服务器</string>
+    <string name="cloud_settings_server_desc">云端服务地址决定数据发送到哪里。</string>
+    <string name="cloud_settings_server_url_label">服务器地址</string>
+    <string name="cloud_settings_use_default_server">使用默认服务器</string>
+    <string name="cloud_settings_create_account">创建云端账户</string>
+    <string name="cloud_settings_login_account">登录云端账户</string>
+    <string name="cloud_settings_create_account_desc">创建账户后，可以在其他设备上恢复你的数据。</string>
+    <string name="cloud_settings_login_account_desc">登录后即可同步你的 Messenger 数据。</string>
+    <string name="cloud_settings_email_label">邮箱</string>
+    <string name="cloud_settings_password_label">密码</string>
+    <string name="cloud_settings_register_and_login">注册并登录</string>
+    <string name="cloud_settings_have_account">已有账户？登录</string>
+    <string name="cloud_settings_no_account">没有账户？注册</string>
+    <string name="cloud_settings_login_success">登录成功</string>
+    <string name="cloud_settings_local_data_uploaded">本地数据已上传</string>
+    <string name="cloud_settings_login_failed">登录失败</string>
+    <string name="cloud_settings_account">账户</string>
+    <string name="cloud_settings_connected">已连接到 Messenger Cloud</string>
+    <string name="cloud_settings_sync_data">同步数据</string>
+    <string name="cloud_settings_sync_data_desc">上传会以本地数据覆盖云端；恢复会以云端数据覆盖本地。</string>
+    <string name="cloud_settings_upload_sync">上传并同步本地数据</string>
+    <string name="cloud_settings_restore">从云端恢复数据</string>
+    <string name="cloud_settings_account_security">账户安全</string>
+    <string name="cloud_settings_change_password">更改密码</string>
+    <string name="cloud_settings_logout">退出登录</string>
+    <string name="cloud_settings_logout_success">已退出登录</string>
+    <string name="cloud_settings_delete_account">删除云端账户</string>
+    <string name="cloud_settings_delete_account_desc">永久删除云端账户及其同步数据，本地数据不会受到影响。</string>
+    <string name="cloud_settings_permanently_delete">永久注销账户</string>
+    <string name="cloud_settings_change_password_title">更改密码</string>
+    <string name="cloud_settings_current_password_label">当前密码</string>
+    <string name="cloud_settings_new_password_label">新密码</string>
+    <string name="cloud_settings_password_min_length">至少 8 个字符</string>
+    <string name="cloud_settings_password_updated">密码已更新</string>
+    <string name="cloud_settings_delete_account_title">永久注销账户</string>
+    <string name="cloud_settings_delete_account_confirm">此操作会永久删除云端账户、所有同步数据和头像，无法恢复。本地对话、设置和头像不会受到影响。</string>
+    <string name="cloud_settings_current_password">当前密码</string>
+    <string name="cloud_settings_permanently_delete_button">永久注销</string>
+    <string name="cloud_settings_account_deleted">账户已注销</string>
+    <string name="cloud_settings_operation_failed">操作失败</string>
+    <string name="cloud_settings_cloud_data_restored">云端数据已恢复</string>
+
+    <!-- Cloud Sync Choice Dialog -->
+    <string name="sync_choice_title">选择同步方向</string>
+    <string name="sync_choice_message">本地和云端都已有数据，请选择要保留的数据源。</string>
+    <string name="sync_choice_warning">使用本地数据会覆盖云端；使用云端数据会覆盖本地。</string>
+    <string name="sync_choice_use_local">使用本地数据</string>
+    <string name="sync_choice_use_cloud">使用云端数据</string>
+
+    <!-- Theme Picker -->
+    <string name="theme_picker_title">选择主题</string>
+
+    <!-- DateTime -->
+    <string name="datetime_today">今天</string>
+    <string name="datetime_yesterday">昨天</string>
+    <string name="datetime_pattern_same_year">M月d日</string>
+    <string name="datetime_pattern_other_year">yyyy年M月d日</string>
+
+    <!-- Errors / Validation -->
+    <string name="error_name_required">名称不能为空</string>
+    <string name="error_agent_not_found">Agent 不存在</string>
+    <string name="error_save_agent_first">Save the Agent before checking updates.</string>
+    <string name="error_agent_up_to_date">This Agent is already up to date.</string>
+    <string name="error_save_agent_before_market">Save the Agent before using the market.</string>
+    <string name="error_load_market_failed">加载 Agent 市场失败</string>
+    <string name="error_load_more_failed">加载更多 Agent 失败</string>
+    <string name="error_load_agent_failed">加载 Agent 失败</string>
+    <string name="error_read_image_failed">无法读取图片: %s</string>
+    <string name="error_unknown">未知错误</string>
+    <string name="error_agent_not_found_chat">Agent not found</string>
+    <string name="error_api_no_valid_response">API 未返回有效响应，请检查 API 配置和参数</string>
+    <string name="error_no_available_model">No available model</string>
+    <string name="error_configure_model_first">No available model. Please configure a provider and model first.</string>
+    <string name="error_api_url_required">API 地址不能为空</string>
+    <string name="error_invalid_url">请输入有效的 URL</string>
+    <string name="error_api_key_required">API Key 不能为空</string>
+    <string name="error_sync_failed">同步失败</string>
+    <string name="error_load_failed">加载失败</string>
+
+</resources>
