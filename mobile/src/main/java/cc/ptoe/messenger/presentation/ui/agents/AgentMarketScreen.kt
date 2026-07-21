@@ -294,6 +294,12 @@ fun AgentMarketDetailScreen(
                         headlineContent = { Text(stringResource(R.string.agent_market_max_tokens)) },
                         supportingContent = { Text(agent.maxTokens?.toString() ?: stringResource(R.string.agent_edit_max_tokens_placeholder)) }
                     )
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.agent_market_thinking)) },
+                        supportingContent = {
+                            Text(if (agent.thinkingEnabled) "On" else "Off")
+                        }
+                    )
                     Spacer(Modifier.height(24.dp))
                     Button(
                         onClick = {

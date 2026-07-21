@@ -52,7 +52,8 @@ class ApiRepositoryImpl : ApiRepository {
         systemPrompt: String?,
         temperature: Float,
         topP: Float,
-        maxTokens: Int?
+        maxTokens: Int?,
+        thinkingEnabled: Boolean
     ): Flow<ChatStreamEvent> = flow {
         try {
             val api = NetworkClient.createOpenAiApi(provider.baseUrl, provider.apiKey)
@@ -63,6 +64,7 @@ class ApiRepositoryImpl : ApiRepository {
                 temperature = temperature,
                 topP = topP,
                 maxTokens = maxTokens,
+                reasoningEffort = if (thinkingEnabled) "medium" else null,
                 stream = true
             )
             val responseBody = api.createChatCompletionStream(request)
@@ -93,7 +95,8 @@ class ApiRepositoryImpl : ApiRepository {
         systemPrompt: String?,
         temperature: Float,
         topP: Float,
-        maxTokens: Int?
+        maxTokens: Int?,
+        thinkingEnabled: Boolean
     ): Message {
         return try {
             val api = NetworkClient.createOpenAiApi(provider.baseUrl, provider.apiKey)
@@ -104,6 +107,7 @@ class ApiRepositoryImpl : ApiRepository {
                 temperature = temperature,
                 topP = topP,
                 maxTokens = maxTokens,
+                reasoningEffort = if (thinkingEnabled) "medium" else null,
                 stream = false
             )
             val response = api.createChatCompletion(request)
@@ -187,7 +191,6 @@ class ApiRepositoryImpl : ApiRepository {
                     obj.addProperty("type", "image_url")
                     val imageUrl = JsonObject()
                     imageUrl.addProperty("url", part.image.dataUri)
-                    imageUrl.addProperty("detail", "auto")
                     obj.add("image_url", imageUrl)
                 }
             }

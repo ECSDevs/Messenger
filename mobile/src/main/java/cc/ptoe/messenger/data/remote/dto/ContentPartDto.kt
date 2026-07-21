@@ -21,8 +21,10 @@ data class ImageUrlDto(
      */
     @SerializedName("url") val url: String,
     /**
-     * Optional detail hint (`auto` / `low` / `high`). We default to
-     * "auto" and let the server choose.
+     * Optional detail hint (`low` / `high`). Default is server-side
+     * (typically `auto`); we omit the field to maximize provider
+     * compatibility since some compatible APIs reject an explicit
+     * `auto` value.
      */
-    @SerializedName("detail") val detail: String? = "auto"
+    @SerializedName("detail") val detail: String? = null
 )

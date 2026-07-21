@@ -48,6 +48,7 @@ import cc.ptoe.messenger.presentation.ui.components.InputDialog
 import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
 import cc.ptoe.messenger.presentation.ui.components.SingleChoiceDialog
 import cc.ptoe.messenger.presentation.utils.DateTimeUtils
+import cc.ptoe.messenger.presentation.utils.stripThinkBlock
 import cc.ptoe.messenger.presentation.viewmodel.ConversationsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -274,8 +275,11 @@ private fun ConversationListItem(
                 )
             }
             Spacer(modifier = Modifier.height(2.dp))
+            val noMessage = stringResource(R.string.conversations_no_message)
             Text(
-                text = conversation.lastMessage ?: stringResource(R.string.conversations_no_message),
+                text = remember(conversation.lastMessage, noMessage) {
+                    conversation.lastMessage?.let { stripThinkBlock(it) }?.ifBlank { null } ?: noMessage
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

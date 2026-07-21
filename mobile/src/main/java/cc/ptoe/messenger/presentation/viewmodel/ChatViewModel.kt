@@ -170,7 +170,8 @@ class ChatViewModel(
                 defaultModelId = if (agent.followDefaultModel) default.defaultModelId else agent.defaultModelId,
                 temperature = if (agent.followDefaultTemperature) default.temperature else agent.temperature,
                 topP = if (agent.followDefaultTopP) default.topP else agent.topP,
-                maxTokens = if (agent.followDefaultMaxTokens) default.maxTokens else agent.maxTokens
+                maxTokens = if (agent.followDefaultMaxTokens) default.maxTokens else agent.maxTokens,
+                thinkingEnabled = if (agent.followDefaultThinking) default.thinkingEnabled else agent.thinkingEnabled
             )
         }
 
@@ -342,7 +343,8 @@ class ChatViewModel(
                     systemPrompt = agent.systemPrompt,
                     temperature = agent.temperature,
                     topP = agent.topP,
-                    maxTokens = agent.maxTokens
+                    maxTokens = agent.maxTokens,
+                    thinkingEnabled = agent.thinkingEnabled
                 ).collect { event ->
                         when (event) {
                             is ChatStreamEvent.Content -> {
@@ -491,7 +493,8 @@ class ChatViewModel(
                         systemPrompt = currentAgent.systemPrompt,
                         temperature = currentAgent.temperature,
                         topP = currentAgent.topP,
-                        maxTokens = currentAgent.maxTokens
+                        maxTokens = currentAgent.maxTokens,
+                        thinkingEnabled = currentAgent.thinkingEnabled
                     ).collect { event ->
                         when (event) {
                             is ChatStreamEvent.Content -> {

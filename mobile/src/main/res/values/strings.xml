@@ -94,6 +94,8 @@
     <string name="agent_edit_followed_model_value">Uses default Agent model settings</string>
     <string name="agent_edit_follow_temperature">Follow default Agent Temperature</string>
     <string name="agent_edit_follow_max_tokens">Follow default Agent Max Tokens</string>
+    <string name="agent_edit_follow_thinking">Follow default Agent Thinking mode</string>
+    <string name="agent_edit_thinking_label">Thinking mode</string>
     <string name="agent_edit_published_success">Published to Agent Market</string>
     <string name="agent_edit_publish_failed">Publish failed</string>
     <string name="agent_edit_pushed_success">Market version updated</string>
@@ -116,6 +118,7 @@
     <string name="agent_market_system_prompt">System prompt</string>
     <string name="agent_market_temperature">Temperature</string>
     <string name="agent_market_max_tokens">Max Tokens</string>
+    <string name="agent_market_thinking">Thinking mode</string>
     <string name="agent_market_importing">Importing…</string>
     <string name="agent_market_import_agent">Import Agent</string>
     <string name="agent_market_import_button">Import</string>

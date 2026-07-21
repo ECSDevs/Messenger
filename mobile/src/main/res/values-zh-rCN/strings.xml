@@ -94,6 +94,8 @@
     <string name="agent_edit_followed_model_value">使用默认 Agent 的模型设置</string>
     <string name="agent_edit_follow_temperature">Temperature 跟随默认 Agent</string>
     <string name="agent_edit_follow_max_tokens">Max Tokens 跟随默认 Agent</string>
+    <string name="agent_edit_follow_thinking">思维模式跟随默认 Agent</string>
+    <string name="agent_edit_thinking_label">思维模式</string>
     <string name="agent_edit_published_success">已发布到 Agent 市场</string>
     <string name="agent_edit_publish_failed">发布失败</string>
     <string name="agent_edit_pushed_success">市场版本已更新</string>
@@ -116,6 +118,7 @@
     <string name="agent_market_system_prompt">系统提示词</string>
     <string name="agent_market_temperature">Temperature</string>
     <string name="agent_market_max_tokens">Max Tokens</string>
+    <string name="agent_market_thinking">思维模式</string>
     <string name="agent_market_importing">正在导入</string>
     <string name="agent_market_import_agent">导入 Agent</string>
     <string name="agent_market_import_button">导入</string>

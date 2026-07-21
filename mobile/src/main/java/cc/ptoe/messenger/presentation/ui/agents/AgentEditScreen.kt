@@ -406,6 +406,43 @@ fun AgentEditScreen(
                     .padding(horizontal = 16.dp)
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Thinking Mode
+            if (showFollowToggles) {
+                FollowToggleRow(
+                    label = stringResource(R.string.agent_edit_follow_thinking),
+                    checked = uiState.followDefaultThinking,
+                    onCheckedChange = { viewModel.onFollowThinkingChange(it) }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+            val thinkingEnabled = !showFollowToggles || !uiState.followDefaultThinking
+            val thinkingValue = if (showFollowToggles && uiState.followDefaultThinking) {
+                uiState.defaultAgent?.thinkingEnabled ?: false
+            } else {
+                uiState.thinkingEnabled
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = stringResource(R.string.agent_edit_thinking_label),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (thinkingEnabled) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Switch(
+                    checked = thinkingValue,
+                    onCheckedChange = { viewModel.onThinkingChange(it) },
+                    enabled = thinkingEnabled
+                )
+            }
+
             if (cloudUser != null && uiState.isEditing && !uiState.isDefault) {
                 Spacer(modifier = Modifier.height(24.dp))
                 SectionHeader(title = stringResource(R.string.agent_edit_market_section))
