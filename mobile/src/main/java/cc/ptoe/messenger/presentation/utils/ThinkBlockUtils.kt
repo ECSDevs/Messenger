@@ -10,3 +10,21 @@ fun stripThinkBlock(content: String): String {
         .replace(Regex("^<think(?:ing)?>[\\s\\S]*?</think(?:ing)?>"), "")
         .trim()
 }
+
+/**
+ * 从 content 中提取首个 think 块的内部文本和剩余正文。
+ * 用于将显示用的 `<think>` 标签还原为 `reasoning_content` 字段发送给 API。
+ *
+ * @return Pair(reasoningContent, remainingContent)
+ */
+fun extractThinkContent(content: String): Pair<String?, String> {
+    val regex = Regex("^<think(?:ing)?>([\\s\\S]*?)</think(?:ing)?>\\s*")
+    val match = regex.find(content)
+    return if (match != null) {
+        val reasoning = match.groupValues[1]
+        val remaining = content.substring(match.range.last + 1).trimStart()
+        Pair(reasoning, remaining)
+    } else {
+        Pair(null, content)
+    }
+}

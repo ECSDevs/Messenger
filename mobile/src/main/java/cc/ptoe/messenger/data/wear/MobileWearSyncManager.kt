@@ -124,6 +124,7 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
 
             var currentContent = ""
             var hasFinished = false
+            var detectedFormat: String? = conversation.reasoningFormat
             try {
                 app.apiRepository.streamChatCompletion(
                     provider = activeModel.first,
@@ -132,9 +133,16 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
                     systemPrompt = resolvedAgent.systemPrompt,
                     temperature = resolvedAgent.temperature,
                     topP = resolvedAgent.topP,
-                    maxTokens = resolvedAgent.maxTokens
+                    maxTokens = resolvedAgent.maxTokens,
+                    reasoningEffort = resolvedAgent.reasoningEffort,
+                    reasoningFormat = detectedFormat
                 ).collect { event ->
                     when (event) {
+                        is ChatStreamEvent.ReasoningDetected -> {
+                            if (detectedFormat == null) {
+                                detectedFormat = "reasoning_content"
+                            }
+                        }
                         is ChatStreamEvent.Content -> {
                             currentContent += event.text
                             app.messageRepository.update(
@@ -144,6 +152,9 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
                         }
                         is ChatStreamEvent.Done -> {
                             hasFinished = true
+                            if (detectedFormat == null && currentContent.contains("<think")) {
+                                detectedFormat = "think_tag"
+                            }
                             app.messageRepository.update(
                                 assistantMessage.copy(
                                     content = currentContent,
@@ -153,7 +164,8 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
                             app.conversationRepository.update(
                                 conversation.copy(
                                     lastMessage = currentContent,
-                                    updatedAt = System.currentTimeMillis()
+                                    updatedAt = System.currentTimeMillis(),
+                                    reasoningFormat = detectedFormat ?: conversation.reasoningFormat
                                 )
                             )
                             frame("chat_done") {
@@ -174,7 +186,8 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
                                 app.conversationRepository.update(
                                     conversation.copy(
                                         lastMessage = currentContent,
-                                        updatedAt = System.currentTimeMillis()
+                                        updatedAt = System.currentTimeMillis(),
+                                        reasoningFormat = detectedFormat ?: conversation.reasoningFormat
                                     )
                                 )
                                 frame("chat_done") {
@@ -194,7 +207,8 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
                                 app.conversationRepository.update(
                                     conversation.copy(
                                         lastMessage = text,
-                                        updatedAt = System.currentTimeMillis()
+                                        updatedAt = System.currentTimeMillis(),
+                                        reasoningFormat = detectedFormat ?: conversation.reasoningFormat
                                     )
                                 )
                                 frame("chat_error") { put("error", event.message) }
@@ -214,7 +228,8 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
                         app.conversationRepository.update(
                             conversation.copy(
                                 lastMessage = currentContent,
-                                updatedAt = System.currentTimeMillis()
+                                updatedAt = System.currentTimeMillis(),
+                                reasoningFormat = detectedFormat ?: conversation.reasoningFormat
                             )
                         )
                         frame("chat_done") {
@@ -245,7 +260,8 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
                     app.conversationRepository.update(
                         conversation.copy(
                             lastMessage = currentContent,
-                            updatedAt = System.currentTimeMillis()
+                            updatedAt = System.currentTimeMillis(),
+                            reasoningFormat = detectedFormat ?: conversation.reasoningFormat
                         )
                     )
                     frame("chat_done") {
@@ -334,7 +350,8 @@ class MobileWearChatHandler(private val app: MessengerApplication) {
             defaultModelId = conversation.overrideModelId ?: withDefault.defaultModelId,
             temperature = conversation.overrideTemperature ?: withDefault.temperature,
             topP = conversation.overrideTopP ?: withDefault.topP,
-            maxTokens = conversation.overrideMaxTokens ?: withDefault.maxTokens
+            maxTokens = conversation.overrideMaxTokens ?: withDefault.maxTokens,
+            reasoningEffort = conversation.overrideReasoningEffort ?: withDefault.reasoningEffort
         )
     }
 

@@ -171,7 +171,7 @@ class ChatViewModel(
                 temperature = if (agent.followDefaultTemperature) default.temperature else agent.temperature,
                 topP = if (agent.followDefaultTopP) default.topP else agent.topP,
                 maxTokens = if (agent.followDefaultMaxTokens) default.maxTokens else agent.maxTokens,
-                thinkingEnabled = if (agent.followDefaultThinking) default.thinkingEnabled else agent.thinkingEnabled
+                reasoningEffort = if (agent.followDefaultReasoningEffort) default.reasoningEffort else agent.reasoningEffort
             )
         }
 
@@ -181,7 +181,8 @@ class ChatViewModel(
             defaultModelId = conversation.overrideModelId ?: agentWithDefault.defaultModelId,
             temperature = conversation.overrideTemperature ?: agentWithDefault.temperature,
             topP = conversation.overrideTopP ?: agentWithDefault.topP,
-            maxTokens = conversation.overrideMaxTokens ?: agentWithDefault.maxTokens
+            maxTokens = conversation.overrideMaxTokens ?: agentWithDefault.maxTokens,
+            reasoningEffort = conversation.overrideReasoningEffort ?: agentWithDefault.reasoningEffort
         )
     }
 
@@ -331,6 +332,7 @@ class ChatViewModel(
         currentGenerationJob = viewModelScope.launch {
             var hasFinished = false
             var currentContent = ""
+            var detectedFormat: String? = conv.reasoningFormat
             try {
                 val historyMessages = messageRepository.getByConversationId(conversationId)
                     .first()
@@ -344,15 +346,26 @@ class ChatViewModel(
                     temperature = agent.temperature,
                     topP = agent.topP,
                     maxTokens = agent.maxTokens,
-                    thinkingEnabled = agent.thinkingEnabled
+                    reasoningEffort = agent.reasoningEffort,
+                    reasoningFormat = detectedFormat
                 ).collect { event ->
                         when (event) {
+                            is ChatStreamEvent.ReasoningDetected -> {
+                                if (detectedFormat == null) {
+                                    detectedFormat = "reasoning_content"
+                                    conversationRepository.update(conv.copy(reasoningFormat = "reasoning_content"))
+                                }
+                            }
                             is ChatStreamEvent.Content -> {
                                 currentContent += event.text
                                 typewriterState.appendToken(event.text)
                             }
                             is ChatStreamEvent.Done -> {
                                 hasFinished = true
+                                if (detectedFormat == null && currentContent.contains("<think")) {
+                                    detectedFormat = "think_tag"
+                                    conversationRepository.update(conv.copy(reasoningFormat = "think_tag"))
+                                }
                                 typewriterState.completeSource()
                                 saveStreamResult(aiMessage, currentContent, conversationId, null)
                                 awaitTypewriterDone()
@@ -481,6 +494,7 @@ class ChatViewModel(
             currentGenerationJob = launch {
                 var hasFinished = false
                 var currentContent = ""
+                var detectedFormat: String? = conv.reasoningFormat
                 try {
                     val historyMessages = messageRepository.getByConversationId(message.conversationId)
                         .first()
@@ -494,15 +508,26 @@ class ChatViewModel(
                         temperature = currentAgent.temperature,
                         topP = currentAgent.topP,
                         maxTokens = currentAgent.maxTokens,
-                        thinkingEnabled = currentAgent.thinkingEnabled
+                        reasoningEffort = currentAgent.reasoningEffort,
+                        reasoningFormat = detectedFormat
                     ).collect { event ->
                         when (event) {
+                            is ChatStreamEvent.ReasoningDetected -> {
+                                if (detectedFormat == null) {
+                                    detectedFormat = "reasoning_content"
+                                    conversationRepository.update(conv.copy(reasoningFormat = "reasoning_content"))
+                                }
+                            }
                             is ChatStreamEvent.Content -> {
                                 currentContent += event.text
                                 typewriterState.appendToken(event.text)
                             }
                             is ChatStreamEvent.Done -> {
                                 hasFinished = true
+                                if (detectedFormat == null && currentContent.contains("<think")) {
+                                    detectedFormat = "think_tag"
+                                    conversationRepository.update(conv.copy(reasoningFormat = "think_tag"))
+                                }
                                 typewriterState.completeSource()
                                 saveStreamResult(message, currentContent, message.conversationId, null)
                                 awaitTypewriterDone()

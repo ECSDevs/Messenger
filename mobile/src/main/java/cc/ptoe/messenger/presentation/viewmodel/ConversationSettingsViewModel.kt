@@ -32,9 +32,9 @@ data class ConversationSettingsUiState(
     // Temperature override
     val overrideTemperatureEnabled: Boolean = false,
     val overrideTemperatureValue: Float? = null,
-    // Top P override
-    val overrideTopPEnabled: Boolean = false,
-    val overrideTopPValue: Float? = null,
+    // Reasoning Effort override
+    val overrideReasoningEffortEnabled: Boolean = false,
+    val overrideReasoningEffortValue: String? = null,
     // Max Tokens override（null 值表示"不限"，需用 boolean 跟踪开关）
     val overrideMaxTokensEnabled: Boolean = false,
     val overrideMaxTokensValue: Int? = null,
@@ -100,8 +100,8 @@ class ConversationSettingsViewModel(
                     overrideModelId = conv.overrideModelId,
                     overrideTemperatureEnabled = conv.overrideTemperature != null,
                     overrideTemperatureValue = conv.overrideTemperature,
-                    overrideTopPEnabled = conv.overrideTopP != null,
-                    overrideTopPValue = conv.overrideTopP,
+                    overrideReasoningEffortEnabled = conv.overrideReasoningEffort != null,
+                    overrideReasoningEffortValue = conv.overrideReasoningEffort,
                     overrideMaxTokensEnabled = conv.overrideMaxTokens != null,
                     overrideMaxTokensValue = conv.overrideMaxTokens,
                     selectedProviderId = conv.overrideModelId?.let { modelId ->
@@ -155,15 +155,15 @@ class ConversationSettingsViewModel(
         _uiState.value = _uiState.value.copy(overrideTemperatureValue = value)
     }
 
-    fun onOverrideTopPChange(override: Boolean, value: Float? = null) {
+    fun onOverrideReasoningEffortChange(override: Boolean, value: String? = null) {
         _uiState.value = _uiState.value.copy(
-            overrideTopPEnabled = override,
-            overrideTopPValue = if (override) value ?: 1.0f else null
+            overrideReasoningEffortEnabled = override,
+            overrideReasoningEffortValue = if (override) value else null
         )
     }
 
-    fun onTopPChange(value: Float) {
-        _uiState.value = _uiState.value.copy(overrideTopPValue = value)
+    fun onReasoningEffortChange(value: String?) {
+        _uiState.value = _uiState.value.copy(overrideReasoningEffortValue = value)
     }
 
     fun onOverrideMaxTokensChange(override: Boolean, value: Int? = null) {
@@ -188,7 +188,7 @@ class ConversationSettingsViewModel(
                     title = state.title,
                     overrideModelId = if (state.overrideModelEnabled) state.overrideModelId else null,
                     overrideTemperature = if (state.overrideTemperatureEnabled) state.overrideTemperatureValue else null,
-                    overrideTopP = if (state.overrideTopPEnabled) state.overrideTopPValue else null,
+                    overrideReasoningEffort = if (state.overrideReasoningEffortEnabled) state.overrideReasoningEffortValue else null,
                     overrideMaxTokens = if (state.overrideMaxTokensEnabled) state.overrideMaxTokensValue else null,
                     updatedAt = now
                 )

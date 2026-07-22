@@ -140,14 +140,14 @@ private data class CloudAgentRequest(
     val temperature: Double,
     val topP: Double,
     val maxTokens: Int? = null,
-    val thinkingEnabled: Boolean = false,
+    val reasoningEffort: String? = null,
     val isDefault: Boolean,
     val followDefaultSystemPrompt: Boolean,
     val followDefaultModel: Boolean,
     val followDefaultTemperature: Boolean,
     val followDefaultTopP: Boolean,
     val followDefaultMaxTokens: Boolean,
-    val followDefaultThinking: Boolean = false,
+    val followDefaultReasoningEffort: Boolean = false,
     val marketAgentId: String? = null,
     val marketAgentVersion: Long? = null,
     val marketAgentRole: String? = null,
@@ -161,7 +161,7 @@ private data class CloudMarketAgentRequest(
     val temperature: Double,
     val topP: Double,
     val maxTokens: Int? = null,
-    val thinkingEnabled: Boolean = false
+    val reasoningEffort: String? = null
 )
 
 private data class CloudMessageRequest(
@@ -188,6 +188,8 @@ private data class CloudConversationRequest(
     val overrideTemperature: Double?,
     val overrideTopP: Double?,
     val overrideMaxTokens: Int?,
+    val overrideReasoningEffort: String?,
+    val reasoningFormat: String?,
     val messages: List<CloudMessageRequest>,
     val createdAt: Long,
     val updatedAt: Long
@@ -448,14 +450,14 @@ class CloudSyncRepository(
                 temperature = market.temperature.toFloat(),
                 topP = market.topP.toFloat(),
                 maxTokens = market.maxTokens,
-                thinkingEnabled = market.thinkingEnabled,
+                reasoningEffort = market.reasoningEffort,
                 isDefault = false,
                 followDefaultSystemPrompt = false,
                 followDefaultModel = false,
                 followDefaultTemperature = false,
                 followDefaultTopP = false,
                 followDefaultMaxTokens = false,
-                followDefaultThinking = false,
+                followDefaultReasoningEffort = false,
                 marketAgentId = market.id,
                 marketAgentVersion = market.version,
                 marketAgentRole = "importer",
@@ -503,13 +505,13 @@ class CloudSyncRepository(
                 temperature = market.temperature.toFloat(),
                 topP = market.topP.toFloat(),
                 maxTokens = market.maxTokens,
-                thinkingEnabled = market.thinkingEnabled,
+                reasoningEffort = market.reasoningEffort,
                 followDefaultSystemPrompt = false,
                 followDefaultModel = false,
                 followDefaultTemperature = false,
                 followDefaultTopP = false,
                 followDefaultMaxTokens = false,
-                followDefaultThinking = false,
+                followDefaultReasoningEffort = false,
                 marketAgentVersion = market.version,
                 updatedAt = System.currentTimeMillis()
             )
@@ -1085,7 +1087,7 @@ class CloudSyncRepository(
             temperature = (if (followDefaultTemperature) defaultAgent?.temperature ?: temperature else temperature).toDouble(),
             topP = (if (followDefaultTopP) defaultAgent?.topP ?: topP else topP).toDouble(),
             maxTokens = if (followDefaultMaxTokens) defaultAgent?.maxTokens ?: maxTokens else maxTokens,
-            thinkingEnabled = if (followDefaultThinking) defaultAgent?.thinkingEnabled ?: thinkingEnabled else thinkingEnabled
+            reasoningEffort = if (followDefaultReasoningEffort) defaultAgent?.reasoningEffort ?: reasoningEffort else reasoningEffort
         )
     }
 
@@ -1401,14 +1403,14 @@ private fun AgentEntity.toCloudRequest() = CloudAgentRequest(
     temperature = temperature.toDouble(),
     topP = topP.toDouble(),
     maxTokens = maxTokens,
-    thinkingEnabled = thinkingEnabled,
+    reasoningEffort = reasoningEffort,
     isDefault = isDefault,
     followDefaultSystemPrompt = followDefaultSystemPrompt,
     followDefaultModel = followDefaultModel,
     followDefaultTemperature = followDefaultTemperature,
     followDefaultTopP = followDefaultTopP,
     followDefaultMaxTokens = followDefaultMaxTokens,
-    followDefaultThinking = followDefaultThinking,
+    followDefaultReasoningEffort = followDefaultReasoningEffort,
     marketAgentId = marketAgentId,
     marketAgentVersion = marketAgentVersion,
     marketAgentRole = marketAgentRole,
@@ -1425,13 +1427,13 @@ private fun AgentEntity.isDefaultAgentBaseline(): Boolean =
         temperature == 0.7f &&
         topP == 1.0f &&
         maxTokens == null &&
-        !thinkingEnabled &&
+        reasoningEffort == null &&
         !followDefaultSystemPrompt &&
         !followDefaultModel &&
         !followDefaultTemperature &&
         !followDefaultTopP &&
         !followDefaultMaxTokens &&
-        !followDefaultThinking
+        !followDefaultReasoningEffort
 
 private fun ProviderEntity.toCloudRequest(models: List<ModelEntity>) = CloudProviderRequest(
     id = id,
@@ -1452,6 +1454,8 @@ private fun ConversationEntity.toCloudRequest(messages: List<MessageEntity>) = C
     overrideTemperature = overrideTemperature?.toDouble(),
     overrideTopP = overrideTopP?.toDouble(),
     overrideMaxTokens = overrideMaxTokens,
+    overrideReasoningEffort = overrideReasoningEffort,
+    reasoningFormat = reasoningFormat,
     messages = messages.map { message ->
         CloudMessageRequest(
             id = message.id,
@@ -1476,14 +1480,14 @@ private fun CloudAgentDocument.toEntity(avatar: String?) = AgentEntity(
     temperature = temperature.toFloat(),
     topP = topP.toFloat(),
     maxTokens = maxTokens,
-    thinkingEnabled = thinkingEnabled,
+    reasoningEffort = reasoningEffort,
     isDefault = isDefault,
     followDefaultSystemPrompt = followDefaultSystemPrompt,
     followDefaultModel = followDefaultModel,
     followDefaultTemperature = followDefaultTemperature,
     followDefaultTopP = followDefaultTopP,
     followDefaultMaxTokens = followDefaultMaxTokens,
-    followDefaultThinking = followDefaultThinking,
+    followDefaultReasoningEffort = followDefaultReasoningEffort,
     marketAgentId = marketAgentId,
     marketAgentVersion = marketAgentVersion,
     marketAgentRole = marketAgentRole,
@@ -1500,14 +1504,14 @@ private fun AgentEntity.toDomain() = Agent(
     temperature = temperature,
     topP = topP,
     maxTokens = maxTokens,
-    thinkingEnabled = thinkingEnabled,
+    reasoningEffort = reasoningEffort,
     isDefault = isDefault,
     followDefaultSystemPrompt = followDefaultSystemPrompt,
     followDefaultModel = followDefaultModel,
     followDefaultTemperature = followDefaultTemperature,
     followDefaultTopP = followDefaultTopP,
     followDefaultMaxTokens = followDefaultMaxTokens,
-    followDefaultThinking = followDefaultThinking,
+    followDefaultReasoningEffort = followDefaultReasoningEffort,
     marketAgentId = marketAgentId,
     marketAgentVersion = marketAgentVersion,
     marketAgentRole = marketAgentRole,
@@ -1529,9 +1533,11 @@ private fun CloudConversationDocument.toEntity() = ConversationEntity(
     overrideTemperature = overrideTemperature?.toFloat(),
     overrideTopP = overrideTopP?.toFloat(),
     overrideMaxTokens = overrideMaxTokens,
+    overrideReasoningEffort = overrideReasoningEffort,
     createdAt = createdAt,
     updatedAt = updatedAt,
-    lastMessage = messages.lastOrNull()?.content
+    lastMessage = messages.lastOrNull()?.content,
+    reasoningFormat = reasoningFormat
 )
 
 private fun CloudMessageDocument.toEntity(conversationId: String) = MessageEntity(

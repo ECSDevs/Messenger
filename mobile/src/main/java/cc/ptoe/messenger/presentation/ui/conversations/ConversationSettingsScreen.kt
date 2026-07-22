@@ -185,28 +185,19 @@ fun ConversationSettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Top P 覆盖
+            // Reasoning Effort 覆盖
             OverrideToggleRow(
-                label = stringResource(R.string.conversation_settings_override_top_p),
-                checked = uiState.overrideTopPEnabled,
+                label = stringResource(R.string.conversation_settings_override_reasoning_effort),
+                checked = uiState.overrideReasoningEffortEnabled,
                 onCheckedChange = { checked ->
-                    viewModel.onOverrideTopPChange(checked, agent?.topP)
+                    viewModel.onOverrideReasoningEffortChange(checked, agent?.reasoningEffort)
                 }
             )
-            if (uiState.overrideTopPEnabled) {
-                val topPValue = uiState.overrideTopPValue ?: 1.0f
-                Text(
-                    text = stringResource(R.string.conversation_settings_top_p_value, topPValue),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                Slider(
-                    value = topPValue,
-                    onValueChange = { viewModel.onTopPChange(it) },
-                    valueRange = 0f..1f,
-                    steps = 99,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+            if (uiState.overrideReasoningEffortEnabled) {
+                Spacer(modifier = Modifier.height(8.dp))
+                ReasoningEffortOverrideDropdown(
+                    selectedEffort = uiState.overrideReasoningEffortValue,
+                    onEffortChange = { viewModel.onReasoningEffortChange(it) }
                 )
             }
 
@@ -263,6 +254,66 @@ private fun OverrideToggleRow(
             checked = checked,
             onCheckedChange = onCheckedChange
         )
+    }
+}
+
+private val reasoningEffortOptions = listOf(
+    Pair(null, "Default"),
+    Pair("none", "None"),
+    Pair("minimal", "Minimal"),
+    Pair("low", "Low"),
+    Pair("medium", "Medium"),
+    Pair("high", "High"),
+    Pair("xhigh", "xHigh"),
+    Pair("max", "Max"),
+    Pair("ultra", "Ultra")
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReasoningEffortOverrideDropdown(
+    selectedEffort: String?,
+    onEffortChange: (String?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val displayText = reasoningEffortOptions.find { it.first == selectedEffort }?.second
+        ?: stringResource(R.string.agent_edit_reasoning_effort_default)
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = displayText,
+            onValueChange = { },
+            readOnly = true,
+            label = { Text(stringResource(R.string.agent_edit_reasoning_effort_label)) },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            modifier = Modifier
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            reasoningEffortOptions.forEach { (value, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        onEffortChange(value)
+                        expanded = false
+                    }
+                )
+            }
+        }
     }
 }
 

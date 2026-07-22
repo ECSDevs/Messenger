@@ -26,7 +26,9 @@ data class ConversationEntity(
     val overrideTemperature: Float? = null,
     val overrideTopP: Float? = null,
     val overrideMaxTokens: Int? = null,
+    val overrideReasoningEffort: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
-    val lastMessage: String?
+    val lastMessage: String?,
+    val reasoningFormat: String? = null
 )

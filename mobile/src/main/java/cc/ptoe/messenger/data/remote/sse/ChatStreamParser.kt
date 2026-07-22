@@ -15,6 +15,7 @@ object ChatStreamParser {
 
     fun parseToEvents(jsonFlow: Flow<String>): Flow<ChatStreamEvent> = flow {
         var inThinkBlock = false
+        var reasoningEmitted = false
         jsonFlow.collect { json ->
             if (json == "[DONE]") {
                 if (inThinkBlock) {
@@ -30,6 +31,10 @@ object ChatStreamParser {
                 if (choice != null) {
                     val reasoning = choice.delta.reasoningContent
                     if (reasoning != null && reasoning.isNotEmpty()) {
+                        if (!reasoningEmitted) {
+                            emit(ChatStreamEvent.ReasoningDetected)
+                            reasoningEmitted = true
+                        }
                         if (!inThinkBlock) {
                             emit(ChatStreamEvent.Content("<think>"))
                             inThinkBlock = true
@@ -38,11 +43,14 @@ object ChatStreamParser {
                     }
                     val content = choice.delta.content
                     if (content != null) {
-                        if (inThinkBlock) {
-                            emit(ChatStreamEvent.Content("</think>\n"))
-                            inThinkBlock = false
+                        val contentText = extractContentText(content)
+                        if (contentText.isNotEmpty()) {
+                            if (inThinkBlock) {
+                                emit(ChatStreamEvent.Content("</think>\n"))
+                                inThinkBlock = false
+                            }
+                            emit(ChatStreamEvent.Content(contentText))
                         }
-                        emit(ChatStreamEvent.Content(extractContentText(content)))
                     }
                     val finishReason = choice.finishReason
                     if (finishReason != null) {
@@ -77,12 +85,12 @@ object ChatStreamParser {
                 }
                 val content = choice?.delta?.content
                 if (content != null) {
-                    if (inThinkBlock) {
-                        emit("</think>\n")
-                        inThinkBlock = false
-                    }
                     val text = extractContentText(content)
                     if (text.isNotEmpty()) {
+                        if (inThinkBlock) {
+                            emit("</think>\n")
+                            inThinkBlock = false
+                        }
                         emit(text)
                     }
                 }

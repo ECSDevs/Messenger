@@ -3,6 +3,7 @@ package cc.ptoe.messenger.data.repository
 import cc.ptoe.messenger.data.remote.NetworkClient
 import cc.ptoe.messenger.data.remote.dto.ChatCompletionRequestDto
 import cc.ptoe.messenger.data.remote.dto.ChatMessageDto
+import cc.ptoe.messenger.data.remote.dto.ThinkingDto
 import cc.ptoe.messenger.data.remote.sse.ChatStreamEvent
 import cc.ptoe.messenger.data.remote.sse.ChatStreamParser
 import cc.ptoe.messenger.data.remote.sse.SSEParser
@@ -12,6 +13,7 @@ import cc.ptoe.messenger.domain.model.Message
 import cc.ptoe.messenger.domain.model.MessageRole
 import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.domain.repository.ApiRepository
+import cc.ptoe.messenger.presentation.utils.extractThinkContent
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
@@ -53,18 +55,21 @@ class ApiRepositoryImpl : ApiRepository {
         temperature: Float,
         topP: Float,
         maxTokens: Int?,
-        thinkingEnabled: Boolean
+        reasoningEffort: String?,
+        reasoningFormat: String?
     ): Flow<ChatStreamEvent> = flow {
         try {
             val api = NetworkClient.createOpenAiApi(provider.baseUrl, provider.apiKey)
-            val requestMessages = buildRequestMessages(messages, systemPrompt)
+            val requestMessages = buildRequestMessages(messages, systemPrompt, reasoningFormat)
+            val (effort, thinking) = buildReasoningParams(reasoningEffort)
             val request = ChatCompletionRequestDto(
                 model = modelId,
                 messages = requestMessages,
                 temperature = temperature,
                 topP = topP,
                 maxTokens = maxTokens,
-                reasoningEffort = if (thinkingEnabled) "medium" else null,
+                reasoningEffort = effort,
+                thinking = thinking,
                 stream = true
             )
             val responseBody = api.createChatCompletionStream(request)
@@ -96,28 +101,38 @@ class ApiRepositoryImpl : ApiRepository {
         temperature: Float,
         topP: Float,
         maxTokens: Int?,
-        thinkingEnabled: Boolean
+        reasoningEffort: String?,
+        reasoningFormat: String?
     ): Message {
         return try {
             val api = NetworkClient.createOpenAiApi(provider.baseUrl, provider.apiKey)
-            val requestMessages = buildRequestMessages(messages, systemPrompt)
+            val requestMessages = buildRequestMessages(messages, systemPrompt, reasoningFormat)
+            val (effort, thinking) = buildReasoningParams(reasoningEffort)
             val request = ChatCompletionRequestDto(
                 model = modelId,
                 messages = requestMessages,
                 temperature = temperature,
                 topP = topP,
                 maxTokens = maxTokens,
-                reasoningEffort = if (thinkingEnabled) "medium" else null,
+                reasoningEffort = effort,
+                thinking = thinking,
                 stream = false
             )
             val response = api.createChatCompletion(request)
             val choice = response.choices.firstOrNull()
                 ?: throw ApiException("No choices in response")
+            val reasoning = choice.message.reasoningContent
+            val contentText = extractResponseContent(choice.message.content)
+            val finalContent = if (!reasoning.isNullOrEmpty()) {
+                "<think>$reasoning</think>\n$contentText"
+            } else {
+                contentText
+            }
             Message(
                 id = UUID.randomUUID().toString(),
                 conversationId = "",
                 role = MessageRole.ASSISTANT,
-                content = extractResponseContent(choice.message.content),
+                content = finalContent,
                 timestamp = System.currentTimeMillis(),
                 status = cc.ptoe.messenger.domain.model.MessageStatus.SENT
             )
@@ -141,7 +156,8 @@ class ApiRepositoryImpl : ApiRepository {
      */
     private fun buildRequestMessages(
         messages: List<Message>,
-        systemPrompt: String?
+        systemPrompt: String?,
+        reasoningFormat: String?
     ): List<ChatMessageDto> {
         val result = mutableListOf<ChatMessageDto>()
         if (!systemPrompt.isNullOrEmpty()) {
@@ -166,7 +182,24 @@ class ApiRepositoryImpl : ApiRepository {
                 } else {
                     message.content
                 }
-                result.add(ChatMessageDto(role = role, content = JsonPrimitive(text)))
+                // 当对话标注为 "reasoning_content" 格式时，将显示用的 <think> 标签
+                // 还原为 reasoning_content 字段，避免把 think 标签作为 content 发送给 API。
+                // 当 reasoningFormat 未定义（老对话）且内容包含 <think> 标签时，也提取推理内容发送，
+                // 让 API 返回它偏好的格式，后续根据首次响应标注对话格式。
+                if ((reasoningFormat == "reasoning_content" || reasoningFormat == null) && role == "assistant") {
+                    val (reasoning, mainContent) = extractThinkContent(text)
+                    if (reasoning != null) {
+                        result.add(ChatMessageDto(
+                            role = role,
+                            content = JsonPrimitive(mainContent),
+                            reasoningContent = reasoning
+                        ))
+                    } else {
+                        result.add(ChatMessageDto(role = role, content = JsonPrimitive(text)))
+                    }
+                } else {
+                    result.add(ChatMessageDto(role = role, content = JsonPrimitive(text)))
+                }
             }
         }
         return result
@@ -228,6 +261,21 @@ class ApiRepositoryImpl : ApiRepository {
             return parts.joinToString("\n")
         }
         return content.toString()
+    }
+
+    /**
+     * Build reasoning parameters for API request.
+     *
+     * - null (Default): do not send any reasoning parameters (API default)
+     * - "none": send both reasoning_effort="none" and thinking.type="disabled" for DeepSeek compatibility
+     * - other: send only reasoning_effort with the specified value
+     */
+    private fun buildReasoningParams(reasoningEffort: String?): Pair<String?, ThinkingDto?> {
+        return when (reasoningEffort) {
+            null -> Pair(null, null)
+            "none" -> Pair("none", ThinkingDto("disabled"))
+            else -> Pair(reasoningEffort, null)
+        }
     }
 
     private fun extractHttpErrorMessage(e: HttpException): String {

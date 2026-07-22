@@ -18,7 +18,8 @@ interface ApiRepository {
         temperature: Float,
         topP: Float,
         maxTokens: Int?,
-        thinkingEnabled: Boolean = false
+        reasoningEffort: String? = null,
+        reasoningFormat: String? = null
     ): Flow<ChatStreamEvent>
 
     suspend fun createChatCompletion(
@@ -29,6 +30,7 @@ interface ApiRepository {
         temperature: Float,
         topP: Float,
         maxTokens: Int?,
-        thinkingEnabled: Boolean = false
+        reasoningEffort: String? = null,
+        reasoningFormat: String? = null
     ): Message
 }

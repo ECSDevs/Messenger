@@ -297,7 +297,7 @@ fun AgentMarketDetailScreen(
                     ListItem(
                         headlineContent = { Text(stringResource(R.string.agent_market_thinking)) },
                         supportingContent = {
-                            Text(if (agent.thinkingEnabled) "On" else "Off")
+                            Text(agent.reasoningEffort?.replaceFirstChar { it.uppercase() } ?: stringResource(R.string.agent_edit_reasoning_effort_default))
                         }
                     )
                     Spacer(Modifier.height(24.dp))

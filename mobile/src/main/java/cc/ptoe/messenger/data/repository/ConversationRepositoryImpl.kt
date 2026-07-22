@@ -60,9 +60,11 @@ class ConversationRepositoryImpl(
             overrideTemperature = overrideTemperature,
             overrideTopP = overrideTopP,
             overrideMaxTokens = overrideMaxTokens,
+            overrideReasoningEffort = overrideReasoningEffort,
             createdAt = createdAt,
             updatedAt = updatedAt,
-            lastMessage = lastMessage
+            lastMessage = lastMessage,
+            reasoningFormat = reasoningFormat
         )
     }
 
@@ -76,9 +78,11 @@ class ConversationRepositoryImpl(
             overrideTemperature = overrideTemperature,
             overrideTopP = overrideTopP,
             overrideMaxTokens = overrideMaxTokens,
+            overrideReasoningEffort = overrideReasoningEffort,
             createdAt = createdAt,
             updatedAt = updatedAt,
-            lastMessage = lastMessage
+            lastMessage = lastMessage,
+            reasoningFormat = reasoningFormat
         )
     }
 }

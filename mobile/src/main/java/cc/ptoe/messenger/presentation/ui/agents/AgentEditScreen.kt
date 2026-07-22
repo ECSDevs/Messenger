@@ -408,40 +408,26 @@ fun AgentEditScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Thinking Mode
+            // Reasoning Effort
             if (showFollowToggles) {
                 FollowToggleRow(
-                    label = stringResource(R.string.agent_edit_follow_thinking),
-                    checked = uiState.followDefaultThinking,
-                    onCheckedChange = { viewModel.onFollowThinkingChange(it) }
+                    label = stringResource(R.string.agent_edit_follow_reasoning_effort),
+                    checked = uiState.followDefaultReasoningEffort,
+                    onCheckedChange = { viewModel.onFollowReasoningEffortChange(it) }
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
-            val thinkingEnabled = !showFollowToggles || !uiState.followDefaultThinking
-            val thinkingValue = if (showFollowToggles && uiState.followDefaultThinking) {
-                uiState.defaultAgent?.thinkingEnabled ?: false
+            val reasoningEnabled = !showFollowToggles || !uiState.followDefaultReasoningEffort
+            val reasoningValue = if (showFollowToggles && uiState.followDefaultReasoningEffort) {
+                uiState.defaultAgent?.reasoningEffort
             } else {
-                uiState.thinkingEnabled
+                uiState.reasoningEffort
             }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = stringResource(R.string.agent_edit_thinking_label),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (thinkingEnabled) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Switch(
-                    checked = thinkingValue,
-                    onCheckedChange = { viewModel.onThinkingChange(it) },
-                    enabled = thinkingEnabled
-                )
-            }
+            ReasoningEffortDropdown(
+                selectedEffort = reasoningValue,
+                enabled = reasoningEnabled,
+                onEffortChange = { viewModel.onReasoningEffortChange(it) }
+            )
 
             if (cloudUser != null && uiState.isEditing && !uiState.isDefault) {
                 Spacer(modifier = Modifier.height(24.dp))
@@ -740,6 +726,70 @@ private fun ModelDropdown(
                         }
                     )
                 }
+            }
+        }
+    }
+}
+
+private val reasoningEffortOptions = listOf(
+    Pair(null, "Default"),
+    Pair("none", "None"),
+    Pair("minimal", "Minimal"),
+    Pair("low", "Low"),
+    Pair("medium", "Medium"),
+    Pair("high", "High"),
+    Pair("xhigh", "xHigh"),
+    Pair("max", "Max"),
+    Pair("ultra", "Ultra")
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReasoningEffortDropdown(
+    selectedEffort: String?,
+    enabled: Boolean,
+    onEffortChange: (String?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val displayText = reasoningEffortOptions.find { it.first == selectedEffort }?.second
+        ?: stringResource(R.string.agent_edit_reasoning_effort_default)
+
+    ExposedDropdownMenuBox(
+        expanded = expanded && enabled,
+        onExpandedChange = { newExpanded ->
+            if (enabled) expanded = newExpanded
+        },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = displayText,
+            onValueChange = { },
+            readOnly = true,
+            enabled = enabled,
+            label = { Text(stringResource(R.string.agent_edit_reasoning_effort_label)) },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            modifier = Modifier
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        )
+        ExposedDropdownMenu(
+            expanded = expanded && enabled,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            reasoningEffortOptions.forEach { (value, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        onEffortChange(value)
+                        expanded = false
+                    }
+                )
             }
         }
     }

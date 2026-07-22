@@ -36,14 +36,14 @@ data class AgentEditUiState(
     val temperature: Float = 0.7f,
     val topP: Float = 1.0f,
     val maxTokens: String? = null,
-    val thinkingEnabled: Boolean = false,
+    val reasoningEffort: String? = null,
     val isDefault: Boolean = false,
     val followDefaultSystemPrompt: Boolean = false,
     val followDefaultModel: Boolean = false,
     val followDefaultTemperature: Boolean = false,
     val followDefaultTopP: Boolean = false,
     val followDefaultMaxTokens: Boolean = false,
-    val followDefaultThinking: Boolean = false,
+    val followDefaultReasoningEffort: Boolean = false,
     val defaultAgent: Agent? = null,
     val nameError: String? = null,
     val isEditing: Boolean = false,
@@ -117,14 +117,14 @@ class AgentEditViewModel(
                         temperature = agent.temperature,
                         topP = agent.topP,
                         maxTokens = agent.maxTokens?.toString(),
-                        thinkingEnabled = agent.thinkingEnabled,
+                        reasoningEffort = agent.reasoningEffort,
                         isDefault = agent.isDefault,
                         followDefaultSystemPrompt = agent.followDefaultSystemPrompt,
                         followDefaultModel = agent.followDefaultModel,
                         followDefaultTemperature = agent.followDefaultTemperature,
                         followDefaultTopP = agent.followDefaultTopP,
                         followDefaultMaxTokens = agent.followDefaultMaxTokens,
-                        followDefaultThinking = agent.followDefaultThinking,
+                        followDefaultReasoningEffort = agent.followDefaultReasoningEffort,
                         marketAgentId = agent.marketAgentId,
                         marketAgentRole = agent.marketAgentRole,
                         isEditing = true
@@ -193,12 +193,12 @@ class AgentEditViewModel(
         _uiState.value = _uiState.value.copy(followDefaultMaxTokens = follow)
     }
 
-    fun onThinkingChange(enabled: Boolean) {
-        _uiState.value = _uiState.value.copy(thinkingEnabled = enabled)
+    fun onReasoningEffortChange(effort: String?) {
+        _uiState.value = _uiState.value.copy(reasoningEffort = effort)
     }
 
-    fun onFollowThinkingChange(follow: Boolean) {
-        _uiState.value = _uiState.value.copy(followDefaultThinking = follow)
+    fun onFollowReasoningEffortChange(follow: Boolean) {
+        _uiState.value = _uiState.value.copy(followDefaultReasoningEffort = follow)
     }
 
     fun save(): Boolean {
@@ -236,13 +236,13 @@ class AgentEditViewModel(
                         temperature = currentState.temperature,
                         topP = currentState.topP,
                         maxTokens = maxTokensInt,
-                        thinkingEnabled = currentState.thinkingEnabled,
+                        reasoningEffort = currentState.reasoningEffort,
                         followDefaultSystemPrompt = currentState.followDefaultSystemPrompt,
                         followDefaultModel = currentState.followDefaultModel,
                         followDefaultTemperature = currentState.followDefaultTemperature,
                         followDefaultTopP = currentState.followDefaultTopP,
                         followDefaultMaxTokens = currentState.followDefaultMaxTokens,
-                        followDefaultThinking = currentState.followDefaultThinking,
+                        followDefaultReasoningEffort = currentState.followDefaultReasoningEffort,
                         updatedAt = now
                     )
                     agentRepository.update(updatedAgent)
@@ -258,14 +258,14 @@ class AgentEditViewModel(
                     temperature = currentState.temperature,
                     topP = currentState.topP,
                     maxTokens = maxTokensInt,
-                    thinkingEnabled = currentState.thinkingEnabled,
+                    reasoningEffort = currentState.reasoningEffort,
                     isDefault = false,
                     followDefaultSystemPrompt = currentState.followDefaultSystemPrompt,
                     followDefaultModel = currentState.followDefaultModel,
                     followDefaultTemperature = currentState.followDefaultTemperature,
                     followDefaultTopP = currentState.followDefaultTopP,
                     followDefaultMaxTokens = currentState.followDefaultMaxTokens,
-                    followDefaultThinking = currentState.followDefaultThinking,
+                    followDefaultReasoningEffort = currentState.followDefaultReasoningEffort,
                     createdAt = now,
                     updatedAt = now
                 )
@@ -335,13 +335,13 @@ class AgentEditViewModel(
                 temperature = currentState.temperature,
                 topP = currentState.topP,
                 maxTokens = currentState.maxTokens?.toIntOrNull(),
-                thinkingEnabled = currentState.thinkingEnabled,
+                reasoningEffort = currentState.reasoningEffort,
                 followDefaultSystemPrompt = currentState.followDefaultSystemPrompt,
                 followDefaultModel = currentState.followDefaultModel,
                 followDefaultTemperature = currentState.followDefaultTemperature,
                 followDefaultTopP = currentState.followDefaultTopP,
                 followDefaultMaxTokens = currentState.followDefaultMaxTokens,
-                followDefaultThinking = currentState.followDefaultThinking,
+                followDefaultReasoningEffort = currentState.followDefaultReasoningEffort,
                 updatedAt = System.currentTimeMillis()
             )
         )

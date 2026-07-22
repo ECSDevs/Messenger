@@ -19,5 +19,6 @@ data class ChatMessageDto(
      * server echoes it back unchanged and we want to stay forward
      * compatible with future part types.
      */
-    @SerializedName("content") val content: JsonElement
+    @SerializedName("content") val content: JsonElement,
+    @SerializedName("reasoning_content") val reasoningContent: String? = null
 )
