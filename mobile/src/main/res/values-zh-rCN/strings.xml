@@ -96,7 +96,6 @@
     <string name="agent_edit_follow_max_tokens">Max Tokens 跟随默认 Agent</string>
     <string name="agent_edit_follow_reasoning_effort">推理强度跟随默认 Agent</string>
     <string name="agent_edit_reasoning_effort_label">推理强度</string>
-    <string name="agent_edit_reasoning_effort_off">关闭</string>
     <string name="agent_edit_published_success">已发布到 Agent 市场</string>
     <string name="agent_edit_publish_failed">发布失败</string>
     <string name="agent_edit_pushed_success">市场版本已更新</string>
