@@ -24,12 +24,14 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/androidApp" />
+            <option value="$PROJECT_DIR$/desktopApp" />
             <option value="$PROJECT_DIR$/llm-typewriter" />
             <option value="$PROJECT_DIR$/llm-typewriter/llm-typewriter" />
             <option value="$PROJECT_DIR$/llm-typewriter/sample" />
             <option value="$PROJECT_DIR$/llm-typewriter/sample/androidApp" />
             <option value="$PROJECT_DIR$/llm-typewriter/sample/composeApp" />
-            <option value="$PROJECT_DIR$/mobile" />
+            <option value="$PROJECT_DIR$/shared" />
             <option value="$PROJECT_DIR$/wear" />
           </set>
         </option>

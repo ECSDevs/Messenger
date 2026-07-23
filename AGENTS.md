@@ -11,7 +11,7 @@ Messenger is a Material 3 designed LLM chat application for Android, focused on 
 - **Language**: Kotlin
 - **UI**: Jetpack Compose (Material 3) + Wear Compose
 - **Architecture**: Clean Architecture (data/domain/presentation layers)
-- **Modules**: `mobile` (phone/tablet), `wear` (Wear OS), `server` (Next.js/Vercel account and incremental cloud sync service)
+- **Modules**: `shared` (KMP library: shared Android/Desktop logic), `androidApp` (Android application shell), `desktopApp` (Desktop application shell), `wear` (Wear OS), `server` (Next.js/Vercel account and incremental cloud sync service)
 
 ## Project Structure
 
@@ -23,132 +23,203 @@ Messenger/
 │   ├── libs.versions.toml      # Version catalog for dependencies
 │   └── wrapper/                # Gradle wrapper
 ├── keyring/                    # Signing keystore
-├── llm-typewriter/             # Git submodule: source build of the llm-typewriter library
-├── mobile/                     # Mobile (phone/tablet) module
-│   ├── proguard-rules.pro      # R8/ProGuard rules for mobile
-│   └── src/main/java/cc/ptoe/messenger/
-│       ├── data/
-│       │   ├── local/          # Room database, DataStore preferences
-│       │   │   ├── dao/
-│       │   │   │   ├── AgentDao.kt
-│       │   │   │   ├── ConversationDao.kt
-│       │   │   │   ├── MessageDao.kt
-│       │   │   │   ├── ModelDao.kt
-│       │   │   │   └── ProviderDao.kt
-│       │   │   ├── entity/
-│       │   │   │   ├── AgentEntity.kt
-│       │   │   │   ├── ConversationEntity.kt
-│       │   │   │   ├── MessageEntity.kt
-│       │   │   │   ├── ModelEntity.kt
-│       │   │   │   └── ProviderEntity.kt
-│       │   │   ├── AppPreferences.kt
-│       │   │   ├── ChatImageStore.kt
-│       │   │   ├── ContentPartCodec.kt
-│       │   │   ├── DataStoreModule.kt
-│       │   │   ├── MessengerDatabase.kt
-│       │   │   └── ThemePreferences.kt
-│       │   ├── cloud/          # Messenger account auth & cloud sync
-│       │   │   ├── CloudModels.kt
-│       │   │   └── CloudSyncRepository.kt
-│       │   ├── remote/         # Network layer (OpenAI-compatible API)
-│       │   │   ├── api/
-│       │   │   │   └── OpenAiApi.kt
-│       │   │   ├── dto/        # Chat & model DTOs
-│       │   │   ├── interceptor/
-│       │   │   │   └── AuthInterceptor.kt
-│       │   │   ├── sse/        # Server-Sent Events parsing
-│       │   │   │   ├── ChatStreamEvent.kt
-│       │   │   │   ├── ChatStreamParser.kt
-│       │   │   │   └── SSEParser.kt
-│       │   │   └── NetworkClient.kt
-│       │   ├── wear/           # Phone-side Wear bridge (HTTP server + WebSocket sync)
-│       │   │   ├── MobileHttpServer.kt
-│       │   │   └── MobileWearSyncManager.kt
-│       │   └── repository/     # Repository implementations
-│       │       ├── AgentRepositoryImpl.kt
-│       │       ├── ApiRepositoryImpl.kt
-│       │       ├── ChatRepositoryImpl.kt
-│       │       ├── ConversationRepositoryImpl.kt
-│       │       ├── CurrentAgentRepositoryImpl.kt
-│       │       ├── MessageRepositoryImpl.kt
-│       │       ├── ModelRepositoryImpl.kt
-│       │       └── ProviderRepositoryImpl.kt
-│       ├── domain/
-│       │   ├── model/          # Domain models (pure Kotlin data classes)
-│       │   │   ├── Agent.kt
-│       │   │   ├── ChatModel.kt
-│       │   │   ├── ContentPart.kt
-│       │   │   ├── Conversation.kt
-│       │   │   ├── Message.kt
-│       │   │   ├── MessageRole.kt
-│       │   │   └── Provider.kt
-│       │   └── repository/     # Repository interfaces
-│       │       ├── AgentRepository.kt
-│       │       ├── ApiRepository.kt
-│       │       ├── ChatRepository.kt
-│       │       ├── ConversationRepository.kt
-│       │       ├── CurrentAgentRepository.kt
-│       │       ├── MessageRepository.kt
-│       │       ├── ModelRepository.kt
-│       │       └── ProviderRepository.kt
-│       ├── presentation/
-│       │   ├── navigation/     # Navigation Compose setup
-│       │   │   ├── BottomLevelRoutes.kt
-│       │   │   ├── NavGraph.kt
-│       │   │   └── Screen.kt
-│       │   ├── theme/
-│       │   │   └── Theme.kt
-│       │   ├── ui/             # Compose screens & components
-│       │   │   ├── agents/
-│       │   │   │   ├── AgentEditScreen.kt
-│       │   │   │   ├── AgentMarketScreen.kt
-│       │   │   │   └── AgentsScreen.kt
-│       │   │   ├── chat/
-│       │   │   │   ├── AiMessageBubble.kt
-│       │   │   │   ├── ChatInputBar.kt
-│       │   │   │   ├── ChatScreen.kt
-│       │   │   │   ├── MessageActionMenu.kt
-│       │   │   │   └── UserMessageBubble.kt
-│       │   │   ├── components/
-│       │   │   │   ├── AgentAvatar.kt
-│       │   │   │   ├── BottomNavBar.kt
-│       │   │   │   ├── ConfirmationDialog.kt
-│       │   │   │   ├── EmptyState.kt
-│       │   │   │   ├── InputDialog.kt
-│       │   │   │   ├── ListItem.kt
-│       │   │   │   ├── LoadingIndicator.kt
-│       │   │   │   ├── MainScaffold.kt
-│       │   │   │   ├── SectionHeader.kt
-│       │   │   │   └── SingleChoiceDialog.kt
-│       │   │   ├── conversations/
-│       │   │   │   ├── ConversationSettingsScreen.kt
-│       │   │   │   └── ConversationsScreen.kt
-│       ��   │   ├── providers/
-│       │   │   │   ├── ProviderDetailScreen.kt
-│       │   │   │   ├── ProviderEditScreen.kt
-│       │   │   │   └── ProvidersScreen.kt
-│       │   │   └── settings/
-│       │   │       ├── CloudSettingsScreen.kt
-│       │   │       ├── CloudSyncChoiceDialog.kt
-│       │   │       ├── LicensesScreen.kt
-│       │   │       ├── SettingsScreen.kt
-│       │   │       └── ThemePickerDialog.kt
-│       │   ├── utils/
-│       │   │   ├── DateTimeUtils.kt
-│       │   │   └── ThinkBlockUtils.kt
-│       │   └── viewmodel/
-│       │       ├── AgentEditViewModel.kt
-│       │       ├── AgentMarketViewModel.kt
-│       │       ├── AgentsViewModel.kt
-│       │       ├── ChatViewModel.kt
-│       │       ├── ConversationSettingsViewModel.kt
-│       │       ├── ConversationsViewModel.kt
-│       │       ├── ProviderDetailViewModel.kt
-│       │       ├── ProviderEditViewModel.kt
-│       │       ├── ProvidersViewModel.kt
-│       │       └── SettingsViewModel.kt
-│       ├── MainActivity.kt
-│       └── MessengerApplication.kt
+├── llm-typewriter/             # Git submodule: source build of the llm-typewriter library (KMP)
+├── shared/                     # KMP library: shared Android/Desktop logic
+│   ├── build.gradle.kts        # kotlin.multiplatform + com.android.kotlin.multiplatform.library
+│   ├── proguard-rules.pro      # R8/ProGuard rules for shared
+│   └── src/
+│       ├── commonMain/         # All shared code (domain/data/presentation/DI)
+│       │   ├── composeResources/
+│       │   │   ├── values/strings.xml
+│       │   │   └── values-zh-rCN/strings.xml
+│       │   └── kotlin/cc/ptoe/messenger/
+│       │       ├── data/
+│       │       │   ├── local/          # Room database, DataStore preferences
+│       │       │   │   ├── dao/
+│       │       │   │   │   ├── AgentDao.kt
+│       │       │   │   │   ├── ConversationDao.kt
+│       │       │   │   │   ├── MessageDao.kt
+│       │       │   │   │   ├── ModelDao.kt
+│       │       │   │   │   └── ProviderDao.kt
+│       │       │   │   ├── entity/
+│       │       │   │   │   ├── AgentEntity.kt
+│       │       │   │   │   ├── ConversationEntity.kt
+│       │       │   │   │   ├── MessageEntity.kt
+│       │       │   │   │   ├── ModelEntity.kt
+│       │       │   │   │   └── ProviderEntity.kt
+│       │       │   │   ├── AppPreferences.kt
+│       │       │   │   ├── ChatImageStore.kt
+│       │       │   │   ├── ContentPartCodec.kt
+│       │       │   │   ├── DataStoreModule.kt
+│       │       │   │   ├── MessengerDatabase.kt
+│       │       │   │   └── ThemePreferences.kt
+│       │       │   ├── cloud/          # Messenger account auth & cloud sync
+│       │       │   │   ├── CloudApiClient.kt
+│       │       │   │   ├── CloudModels.kt
+│       │       │   │   └── CloudSyncRepository.kt
+│       │       │   ├── remote/         # Network layer (OpenAI-compatible API)
+│       │       │   │   ├── api/
+│       │       │   │   │   └── OpenAiClient.kt
+│       │       │   │   ├── dto/        # Chat & model DTOs
+│       │       │   │   ├── sse/        # Server-Sent Events parsing
+│       │       │   │   │   ├── ChatStreamEvent.kt
+│       │       │   │   │   ├── ChatStreamParser.kt
+│       │       │   │   │   └── SSEParser.kt
+│       │       │   │   ├── NetworkClient.kt
+│       │       │   │   └── PlatformHttpClient.kt
+│       │       │   ├── repository/     # Repository implementations
+│       │       │   │   ├── AgentRepositoryImpl.kt
+│       │       │   │   ├── ApiRepositoryImpl.kt
+│       │       │   │   ├── ChatRepositoryImpl.kt
+│       │       │   │   ├── ConversationRepositoryImpl.kt
+│       │       │   │   ├── CurrentAgentRepositoryImpl.kt
+│       │       │   │   ├── MessageRepositoryImpl.kt
+│       │       │   │   ├── ModelRepositoryImpl.kt
+│       │       │   │   └── ProviderRepositoryImpl.kt
+│       │       │   └── util/
+│       │       │       ├── FileKit.kt
+│       │       │       ├── Logger.kt
+│       │       │       └── Uuid.kt
+│       │       ├── di/
+│       │       │   └── AppContainer.kt # Manual DI container (replaces MessengerApplication.initRepositories())
+│       │       ├── domain/
+│       │       │   ├── model/          # Domain models (pure Kotlin data classes)
+│       │       │   │   ├── Agent.kt
+│       │       │   │   ├── ChatModel.kt
+│       │       │   │   ├── ContentPart.kt
+│       │       │   │   ├── Conversation.kt
+│       │       │   │   ├── Message.kt
+│       │       │   │   ├── MessageRole.kt
+│       │       │   │   └── Provider.kt
+│       │       │   └── repository/     # Repository interfaces
+│       │       │       ├── AgentRepository.kt
+│       │       │       ├── ApiRepository.kt
+│       │       │       ├── ChatRepository.kt
+│       │       │       ├── ConversationRepository.kt
+│       │       │       ├── CurrentAgentRepository.kt
+│       │       │       ├── MessageRepository.kt
+│       │       │       ├── ModelRepository.kt
+│       │       │       └── ProviderRepository.kt
+│       │       └── presentation/
+│       │           ├── navigation/     # Navigation Compose setup
+│       │           │   ├── BottomLevelRoutes.kt
+│       │           │   ├── NavGraph.kt
+│       │           │   └── Screen.kt
+│       │           ├── platform/       # expect declarations (ImagePicker, PlatformServices)
+│       │           │   ├── ImagePicker.kt
+│       │           │   └── PlatformServices.kt
+│       │           ├── theme/
+│       │           │   └── Theme.kt
+│       │           ├── ui/             # Compose screens & components
+│       │           │   ├── agents/
+│       │           │   │   ├── AgentEditScreen.kt
+│       │           │   │   ├── AgentMarketScreen.kt
+│       │           │   │   └── AgentsScreen.kt
+│       │           │   ├── chat/
+│       │           │   │   ├── AiMessageBubble.kt
+│       │           │   │   ├── ChatInputBar.kt
+│       │           │   │   ├── ChatScreen.kt
+│       │           │   │   ├── MessageActionMenu.kt
+│       │           │   │   └── UserMessageBubble.kt
+│       │           │   ├── components/
+│       │           │   │   ├── AgentAvatar.kt
+│       │           │   │   ├── BottomNavBar.kt
+│       │           │   │   ├── ConfirmationDialog.kt
+│       │           │   │   ├── EmptyState.kt
+│       │           │   │   ├── InputDialog.kt
+│       │           │   │   ├── ListItem.kt
+│       │           │   │   ├── LoadingIndicator.kt
+│       │           │   │   ├── MainScaffold.kt
+│       │           │   │   ├── SectionHeader.kt
+│       │           │   │   └── SingleChoiceDialog.kt
+│       │           │   ├── conversations/
+│       │           │   │   ├── ConversationSettingsScreen.kt
+│       │           │   │   └── ConversationsScreen.kt
+│       │           │   ├── providers/
+│       │           │   │   ├── ProviderDetailScreen.kt
+│       │           │   │   ├── ProviderEditScreen.kt
+│       │           │   │   └── ProvidersScreen.kt
+│       │           │   └── settings/
+│       │           │       ├── CloudSettingsScreen.kt
+│       │           │       ├── CloudSyncChoiceDialog.kt
+│       │           │       ├── LicensesScreen.kt
+│       │           │       ├── SettingsScreen.kt
+│       │           │       └── ThemePickerDialog.kt
+│       │           ├── utils/
+│       │           │   ├── DateTimeUtils.kt
+│       │           │   ├── FormatUtils.kt
+│       │           │   └── ThinkBlockUtils.kt
+│       │           └── viewmodel/
+│       │               ├── AgentEditViewModel.kt
+│       │               ├── AgentMarketViewModel.kt
+│       │               ├── AgentsViewModel.kt
+│       │               ├── ChatViewModel.kt
+│       │               ├── ConversationSettingsViewModel.kt
+│       │               ├── ConversationsViewModel.kt
+│       │               ├── ProviderDetailViewModel.kt
+│       │               ├── ProviderEditViewModel.kt
+│       │               ├── ProvidersViewModel.kt
+│       │               └── SettingsViewModel.kt
+│       ├── androidMain/         # Android-only platform `actual` implementations
+│       │   ├── AndroidManifest.xml     # Minimal <manifest /> root only
+│       │   └── kotlin/cc/ptoe/messenger/
+│       │       ├── data/
+│       │       │   ├── local/
+│       │       │   │   ├── AndroidChatImageStore.kt
+│       │       │   │   └── DatabaseBuilder.android.kt
+│       │       │   ├── remote/
+│       │       │   │   └── PlatformHttpClient.android.kt
+│       │       │   ├── util/
+│       │       │   │   ├── Logger.android.kt
+│       │       │   │   └── Uuid.androidMain.kt
+│       │       │   └── wear/           # Phone-side Wear bridge (HTTP server + WebSocket sync)
+│       │       │       ├── MobileHttpServer.kt
+│       │       │       └── MobileWearSyncManager.kt
+│       │       └── presentation/
+│       │           ├── platform/
+│       │           │   ├── ImagePicker.android.kt
+│       │           │   └── PlatformServices.android.kt   # AndroidContextHolder
+│       │           └── theme/
+│       │               └── Theme.android.kt
+│       ├── desktopMain/        # Desktop-only platform `actual` implementations
+│       │   └── kotlin/cc/ptoe/messenger/
+│       │       ├── data/
+│       │       │   ├── local/
+│       │       │   │   ├── DatabaseBuilder.desktop.kt
+│       │       │   │   └── DesktopChatImageStore.kt
+│       │       │   ├── remote/
+│       │       │   │   └── PlatformHttpClient.desktop.kt
+│       │       │   └── util/
+│       │       │       ├── Logger.desktop.kt
+│       │       │       └── Uuid.desktopMain.kt
+│       │       └── presentation/
+│       │           ├── platform/
+│       │           │   ├── ImagePicker.desktop.kt        # FileDialog-based
+│       │           │   └── PlatformServices.desktop.kt
+│       │           └── theme/
+│       │               └── Theme.desktop.kt
+│       └── commonTest/
+│           └── kotlin/cc/ptoe/messenger/
+│               ├── ExampleUnitTest.kt
+│               └── presentation/utils/StripThinkBlockTest.kt
+├── androidApp/                 # Android application shell (com.android.application)
+│   ├── build.gradle.kts        # AGP 9 built-in Kotlin + kotlin.compose + kotlin.serialization
+│   ├── proguard-rules.pro      # R8/ProGuard rules for androidApp
+│   └── src/main/
+│       ├── AndroidManifest.xml # Full application manifest (<application>/<activity>/<service>/<provider>)
+│       ├── kotlin/cc/ptoe/messenger/
+│       │   ├── MainActivity.kt
+│       │   └── MessengerApplication.kt
+│       └── res/                # Application-level resources
+│           ├── drawable/
+│           ├── mipmap-*/       # Launcher icons
+│           ├── values/
+│           ├── values-night/
+│           └── xml/            # backup_rules, data_extraction_rules, file_paths
+├── desktopApp/                 # Desktop application shell (org.jetbrains.kotlin.jvm + compose.multiplatform)
+│   ├── build.gradle.kts        # compose.desktop { application { mainClass = "cc.ptoe.messenger.MainKt"; ... } }
+│   └── src/main/kotlin/cc/ptoe/messenger/
+│       └── Main.kt             # Desktop entry point (constructs AppContainer directly)
 ├── server/                     # Git submodule: Next.js account server + admin backend
 │   ├── app/
 │   │   ├── admin/              # Password-protected admin backend
@@ -230,38 +301,50 @@ The project follows Clean Architecture with three main layers:
    - MVVM pattern with ViewModels
    - Navigation Compose for routing
 
+### Module Split (KMP)
+
+The project is split into three modules to share code between Android and Desktop while satisfying AGP 9.3.1 constraints:
+
+- `shared` is a KMP library using `kotlin.multiplatform` + `com.android.kotlin.multiplatform.library` plugins. Contains all shared Android/Desktop code in `commonMain`, platform-specific `actual` implementations in `androidMain` and `desktopMain`. Room KSP registration is per-target: `add("kspAndroid", libs.androidx.room.compiler)` + `add("kspDesktop", libs.androidx.room.compiler)`. The `compose.resources` block stays in `shared`.
+- `androidApp` is the Android application shell using `com.android.application` (AGP 9 built-in Kotlin — does NOT apply `kotlin-android` or `kotlin.multiplatform`) + `kotlin.compose` + `kotlin.serialization`. Hosts `applicationId`, `versionCode`, `versionName`, `signingConfigs`, `buildTypes`, `buildFeatures { compose = true }`, `MainActivity`, `MessengerApplication`, full `AndroidManifest.xml`, application-level `res/`.
+- `desktopApp` is the Desktop application shell using `org.jetbrains.kotlin.jvm` + `compose.multiplatform` + `kotlin.compose`. Hosts `Main.kt` (Desktop entry point) and `compose.desktop { application { ... } }` configuration with `Dmg`/`Msi`/`Deb` native distribution formats.
+- The split was forced by AGP 9.3.1 which does not support `com.android.application` combined with `org.jetbrains.kotlin.multiplatform` in the same module. Path B+C was chosen (split both Android and Desktop into separate application shells).
+
 ### Wear Companion Architecture
 
 - The `wear` module is a phone-backed companion experience with no settings UI (tiny mobile chat-only surface)
 - Wear UI is a two-screen chat flow: **chat list** (mobile conversations with agent avatars + last-message previews) and **chat screen** (messages + input with agent/user avatars)
 - Navigation is state-based (`WearScreen.ChatList` / `WearScreen.Chat`) without Navigation Compose
 - **WebSocket sync over the watch's tether network** (phone → watch): the phone runs a foreground service `MobileHttpServer` that listens on TCP `18765` and registers an NSD (`_messenger._tcp`) mDNS service; the watch discovers it via `WearNetworkBridge` and opens a WebSocket using OkHttp. Wear OS watches tether their network to the phone via Bluetooth PAN, so the watch and phone are always on the same L2 network — no Bluetooth pairing or runtime permissions are required. The previous DataLayer and Bluetooth RFCOMM paths were abandoned because GMS for Wear OS is missing on Samsung China-region Galaxy Watches *and* the Bluetooth path was unreliable. The same line-delimited JSON protocol (`sync` / `chat` / `new_conversation`, all with `requestId` correlation) is spoken on top of WebSocket text frames
+- The `MobileHttpServer` and `MobileWearSyncManager` Wear bridge classes live in `shared/src/androidMain/kotlin/cc/ptoe/messenger/data/wear/`. They are declared in `androidApp/src/main/AndroidManifest.xml` via the fully-qualified `<service android:name="cc.ptoe.messenger.data.wear.MobileHttpServer">` (the class lives in `shared`, not `androidApp`, so the FQN is required).
 - Chat actions use the same WebSocket: the watch sends a `chat` or `new_conversation` JSON request and the phone replies inline. The same `MobileWearChatHandler` that used to back the DataLayer path is reused here, so business logic is identical
 - Wear caches the latest synced snapshot in DataStore for a fast resume path
 
 ### Dependency Injection
 
-The project uses a manual dependency injection approach via `MessengerApplication`:
-- All repositories and data sources are initialized in `MessengerApplication.onCreate()`
-- Access via `MessengerApplication.instance` singleton pattern
+The project uses a manual dependency injection approach via an `AppContainer`:
+- All repositories and data sources are initialized inside `AppContainer` (located in `shared/src/commonMain/kotlin/cc/ptoe/messenger/di/AppContainer.kt`)
+- On Android, `MessengerApplication.onCreate()` (in `androidApp/src/main/kotlin/cc/ptoe/messenger/MessengerApplication.kt`) constructs and owns the `AppContainer` instance; access is via the `MessengerApplication.instance` singleton pattern
+- On Desktop, `Main.kt` (in `desktopApp/src/main/kotlin/cc/ptoe/messenger/Main.kt`) constructs `AppContainer` directly
 - The `wear` module mirrors this approach with `WearMessengerApplication`
 
 ### Database
 
-- **Room Database**: `MessengerDatabase` with 5 entities
+- **Room Database**: `MessengerDatabase` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/local/MessengerDatabase.kt`) with 5 entities
   - `ProviderEntity` - API providers
   - `ModelEntity` - Available models per provider
   - `AgentEntity` - AI agent configurations
   - `ConversationEntity` - Chat conversations
   - `MessageEntity` - Chat messages (`partsJson` column stores multimodal `ContentPart` payloads)
 - Database version: 11 (with `fallbackToDestructiveMigration`)
+- Room compiler is registered per-target via KSP in `shared/build.gradle.kts`: `add("kspAndroid", libs.androidx.room.compiler)` + `add("kspDesktop", libs.androidx.room.compiler)`
 
 ### Navigation
 
 - Uses Navigation Compose
-- Routes defined in `Screen.kt` sealed class
-- NavGraph defined in `NavGraph.kt`
-- Bottom navigation routes defined in `BottomLevelRoutes.kt`
+- Routes defined in `Screen.kt` sealed class (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/navigation/Screen.kt`)
+- NavGraph defined in `NavGraph.kt` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/navigation/NavGraph.kt`); uses `backStackEntry.arguments?.read { getStringOrNull("key") }` for Compose Multiplatform SavedState API compatibility
+- Bottom navigation routes defined in `BottomLevelRoutes.kt` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/navigation/BottomLevelRoutes.kt`)
 - **Important**: `ProviderEdit` and `AgentEdit` routes use optional parameter syntax (`provider_edit?providerId={providerId}`)
 - `AgentMarket` and `AgentMarketDetail` are Cloud-authenticated routes entered from the Agent list FAB; the FAB exposes the market only while a Cloud user is signed in.
 
@@ -269,7 +352,11 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 
 - OpenAI-compatible API via Retrofit
 - SSE (Server-Sent Events) streaming for chat completions
-- Auth header interceptor for API keys
+- Auth header handling is folded into `PlatformHttpClient.kt` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/remote/PlatformHttpClient.kt`) with platform `actual` implementations in `androidMain` and `desktopMain`; the standalone `AuthInterceptor.kt` no longer exists
+- `OpenAiClient.kt` (renamed from `OpenAiApi.kt`) lives in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/remote/api/`
+- `NetworkClient.kt` lives in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/remote/`
+- SSE parser files (`ChatStreamEvent.kt`, `ChatStreamParser.kt`, `SSEParser.kt`) live in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/remote/sse/`
+- DTOs live in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/remote/dto/`
 - Gson converter for JSON serialization
 - Wear chat requests are forwarded to the phone over a WebSocket on TCP `18765` (`MobileHttpServer` / `WearNetworkBridge`, discovered via NSD mDNS) instead of calling providers directly from the watch
 - **Multimodal messages**: `ChatMessageDto.content` is a `JsonElement` so a single DTO carries both the legacy text-string shape and the OpenAI `[{type,text|image_url}]` array shape. `ApiRepositoryImpl` picks the wire format based on `Message.hasImages`. Picked images are downscaled to 1568px on the longest side, EXIF-rotated, cached as PNGs under `filesDir/chat_images/`, and the cache is reaped on message delete. The local DB keeps the bitmap path/URI stable so the cloud sync layer and the UI never depend on a content:// URI re-issuing.
@@ -293,7 +380,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - Account APIs include `PUT /api/auth/password` for authenticated password changes and `DELETE /api/auth/account` for permanent account deletion
 - The admin backend lives under `server/app/admin/` and uses a separate password-based session cookie from app users
 - MongoDB must be deployed as Atlas or a replica set because server writes use transactions to atomically advance the sync clock and update an entity
-- The mobile `CloudSyncRepository` uses the session cookie and a per-account DataStore cursor to pull `GET /api/sync?since=N`; it applies tombstones transactionally, flattens provider models and conversation messages into Room, and pushes complete entity snapshots to the corresponding `PUT` endpoints
+- The `CloudSyncRepository` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/cloud/CloudSyncRepository.kt`) uses the session cookie and a per-account DataStore cursor to pull `GET /api/sync?since=N`; it applies tombstones transactionally, flattens provider models and conversation messages into Room, and pushes complete entity snapshots to the corresponding `PUT` endpoints. Its companions `CloudModels.kt` and `CloudApiClient.kt` live in the same `shared/.../data/cloud/` directory.
 - Multimodal message images ride inside `messages[].partsJson` (base64 `dataUri` per image part) in both directions; the server stores the string verbatim and the client rehydrates missing local files from the `dataUri` after a pull (see "Multimodal image cloud sync" above)
 - Mobile local repository mutations are debounced into cloud synchronization requests; deleted entities are retained as account-scoped pending-delete markers until the server tombstone write succeeds
 - User and agent avatars are uploaded as multipart `file` parts to the dedicated avatar endpoints;
@@ -334,9 +421,9 @@ These constraints MUST be followed at all times:
    - `themes.xml` configures transparent status bar
    - `MainScaffold.kt` only applies bottom padding (for bottom nav), letting each screen handle top/left/right insets via its own Scaffold+TopAppBar
 
-7. **Built-in Kotlin migration**: AGP 9 built-in Kotlin is enabled. Do not apply `org.jetbrains.kotlin.android` or `kotlin("android")` in Android modules. Prefer `com.google.devtools.ksp` for supported processors like Room; use `com.android.legacy-kapt` only if annotation processors cannot yet move to KSP.
+7. **Built-in Kotlin migration**: AGP 9 built-in Kotlin is enabled. Do not apply `org.jetbrains.kotlin.android` or `kotlin("android")` in Android modules. Prefer `com.google.devtools.ksp` for supported processors like Room; use `com.android.legacy-kapt` only if annotation processors cannot yet move to KSP. The `mobile` module has been split into `shared` (KMP library using `com.android.kotlin.multiplatform.library`) + `androidApp` (Android application shell using `com.android.application` with AGP 9 built-in Kotlin) + `desktopApp` (Desktop application shell using `org.jetbrains.kotlin.jvm`). This split is irreversible — do NOT attempt to merge them back into a single `mobile` module. AGP 9.3.1 does not support `com.android.application` combined with `org.jetbrains.kotlin.multiplatform` in the same module.
 
-8. **Wear companion scope**: The Wear app MUST stay focused on chat only. Agents are synced from mobile, and provider/model/settings management stays on mobile.
+8. **Wear companion scope**: The Wear app MUST stay focused on chat only. Agents are synced from mobile, and provider/model/settings management stays on mobile. The `wear` module is unaffected by the KMP split — it remains Android-only using `com.android.application` + `kotlin-compose` (AGP 9 built-in Kotlin) and is NOT a KMP module.
 
 ## Engineering Conventions
 
@@ -350,34 +437,34 @@ These constraints MUST be followed at all times:
 
 5. **Versioning**: Version code is derived from git commit count (or `VERSION_CODE` env var). Version name is `v{yyyyMMdd}` from the latest commit's date for reproducibility (or `VERSION_NAME` env var). Release tags follow `v*` pattern.
 
-6. **Dependency management**: Use version catalog (`gradle/libs.versions.toml`) for all dependency versions.
+6. **Dependency management**: Use version catalog (`gradle/libs.versions.toml`) for all dependency versions. `shared/build.gradle.kts`, `androidApp/build.gradle.kts`, and `desktopApp/build.gradle.kts` all consume the version catalog. Root `build.gradle.kts` applies a global `allprojects { configurations.all { exclude(group = "com.google.guava", module = "listenablefuture") } }` to resolve `checkDebugDuplicateClasses` caused by Guava (transitive via llm-typewriter/AndroidMath) bundling `ListenableFuture` colliding with the standalone `listenablefuture:1.0` stub pulled by `androidx.concurrent:concurrent-futures`.
 
 ## Editing Guidelines
 
 ### Adding a New Screen
 
-1. Add route to `Screen.kt` sealed class with `createRoute()` helper
-2. Add composable destination in `NavGraph.kt`
-3. Create screen composable in `presentation/ui/<feature>/`
-4. Create ViewModel in `presentation/viewmodel/` if needed
+1. Add route to `Screen.kt` sealed class with `createRoute()` helper (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/navigation/Screen.kt`)
+2. Add composable destination in `NavGraph.kt` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/navigation/NavGraph.kt`)
+3. Create screen composable in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/<feature>/`
+4. Create ViewModel in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/viewmodel/` if needed
 5. If it's a bottom-level route, add to `BottomLevelRoutes.kt`
 
 ### Adding a New Database Entity
 
-1. Create entity in `data/local/entity/`
-2. Create DAO in `data/local/dao/`
-3. Add entity to `MessengerDatabase` entities array and add DAO abstract function
-4. Create domain model in `domain/model/`
-5. Create repository interface in `domain/repository/`
-6. Create repository implementation in `data/repository/`
-7. Initialize repository in `MessengerApplication.initRepositories()`
+1. Create entity in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/local/entity/`
+2. Create DAO in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/local/dao/`
+3. Add entity to `MessengerDatabase` entities array and add DAO abstract function (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/local/MessengerDatabase.kt`)
+4. Create domain model in `shared/src/commonMain/kotlin/cc/ptoe/messenger/domain/model/`
+5. Create repository interface in `shared/src/commonMain/kotlin/cc/ptoe/messenger/domain/repository/`
+6. Create repository implementation in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/repository/`
+7. Initialize repository in `AppContainer` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/di/AppContainer.kt`) — NOT `MessengerApplication.initRepositories()` anymore
 
 ### Adding a New API Endpoint
 
-1. Add DTOs in `data/remote/dto/`
-2. Add method to `OpenAiApi` interface
-3. Add repository method in domain repository interface
-4. Implement in `ApiRepositoryImpl`
+1. Add DTOs in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/remote/dto/`
+2. Add method to `OpenAiClient` (note: file is now `OpenAiClient.kt`, not `OpenAiApi.kt`) in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/remote/api/`
+3. Add repository method in domain repository interface (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/domain/repository/`)
+4. Implement in `ApiRepositoryImpl` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/repository/ApiRepositoryImpl.kt`)
 5. Handle `HttpException` and extract error messages properly
 
 ### Updating AGENTS.md
@@ -415,18 +502,26 @@ If a change makes any section of AGENTS.md outdated or incomplete, update it in 
 
 ```bash
 # Build debug APK
-./gradlew :mobile:assembleDebug
+./gradlew :androidApp:assembleDebug
 ./gradlew :wear:assembleDebug
 
 # Build release APK
-./gradlew :mobile:assembleRelease
+./gradlew :androidApp:assembleRelease
 ./gradlew :wear:assembleRelease
 
 # Run unit tests
-./gradlew :mobile:testDebugUnitTest
+./gradlew :shared:allTests
 
 # Run lint
-./gradlew :mobile:lintDebug
+./gradlew :androidApp:lintDebug
+
+# Run Desktop app
+./gradlew :desktopApp:run
+
+# Build Desktop native distributions
+./gradlew :desktopApp:packageReleaseDmg   # macOS
+./gradlew :desktopApp:packageReleaseMsi   # Windows
+./gradlew :desktopApp:packageReleaseDeb   # Linux
 ```
 
 ### Local Development
@@ -474,10 +569,10 @@ verification, or a release/R8 configuration change requires validation:
 1. Reproduce the shrinker output from a clean task run:
 
    ```bash
-   ./gradlew :mobile:assembleRelease :wear:assembleRelease --rerun-tasks
+   ./gradlew :androidApp:assembleRelease :wear:assembleRelease --rerun-tasks
    ```
 
-2. Check `mobile/build/outputs/mapping/release/` and
+2. Check `androidApp/build/outputs/mapping/release/` and
    `wear/build/outputs/mapping/release/`:
    - `mapping.txt` confirms that a class survived and shows its obfuscated name.
    - `usage.txt` lists removed classes and members; distinguish a fully removed class from an optimized-away member listed beneath a surviving class.
@@ -489,7 +584,8 @@ verification, or a release/R8 configuration change requires validation:
    class plus generated or anonymous callback classes are present. For this
    project, pay special attention to Manifest components, Room's generated
    `MessengerDatabase_Impl` and DAO implementations, Retrofit API interfaces
-   and Gson DTOs, the mobile `MobileHttpServer` WebSocket/NSD callbacks, and
+   and Gson DTOs, the `MobileHttpServer` WebSocket/NSD callbacks (declared in
+   `androidApp` manifest but implemented in `shared/androidMain`), and
    the Wear `WearNetworkBridge` WebSocket/NSD callbacks.
 
 4. Identify the reflective or serialized entry point before adding a rule.
@@ -523,7 +619,7 @@ verification, or a release/R8 configuration change requires validation:
 GitHub Actions workflow (`.github/workflows/android.yml`):
 
 - **Trigger**: Push to main, PRs to main, tags matching `v*`
-- **Build job**: Compiles mobile and wear release APKs; computes `VERSION_CODE` from `git rev-list --count HEAD` (full checkout via `fetch-depth: 0`) and initializes git submodules recursively so the `llm-typewriter/` source build is present on CI
+- **Build job**: Compiles androidApp and wear release APKs; computes `VERSION_CODE` from `git rev-list --count HEAD` (full checkout via `fetch-depth: 0`) and initializes git submodules recursively so the `llm-typewriter/` source build is present on CI
 - **Release job**: Creates GitHub release with APK artifacts on tag push
 - **Caching**: Gradle User Home cache + Kotlin/Native compiler cache
 - **Signing**: Uses GitHub secrets for keystore and passwords
@@ -550,12 +646,16 @@ Write clear, concise commit messages describing what was changed and why. Push o
 ## Key Files Reference
 
 - [build.gradle.kts](file:///c:/Users/deskt/Desktop/projects/Messenger/build.gradle.kts) - Root build file with version calculation
-- [settings.gradle.kts](file:///c:/Users/deskt/Desktop/projects/Messenger/settings.gradle.kts) - Module includes
+- [settings.gradle.kts](file:///c:/Users/deskt/Desktop/projects/Messenger/settings.gradle.kts) - Module includes (`:shared`, `:androidApp`, `:desktopApp`, `:wear`)
 - [libs.versions.toml](file:///c:/Users/deskt/Desktop/projects/Messenger/gradle/libs.versions.toml) - Dependency version catalog
-- [MessengerApplication.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/MessengerApplication.kt) - App entry point & DI
-- [MainActivity.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/MainActivity.kt) - Main activity
-- [Screen.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/presentation/navigation/Screen.kt) - Navigation routes
-- [NavGraph.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/presentation/navigation/NavGraph.kt) - Navigation graph
-- [MessengerDatabase.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/data/local/MessengerDatabase.kt) - Room database
-- [MainScaffold.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/presentation/ui/components/MainScaffold.kt) - Main app scaffold
+- [shared/build.gradle.kts](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/build.gradle.kts) - KMP library build config
+- [androidApp/build.gradle.kts](file:///c:/Users/deskt/Desktop/projects/Messenger/androidApp/build.gradle.kts) - Android app shell build config
+- [desktopApp/build.gradle.kts](file:///c:/Users/deskt/Desktop/projects/Messenger/desktopApp/build.gradle.kts) - Desktop app shell build config
+- [AppContainer.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/di/AppContainer.kt) - DI container (replaces `MessengerApplication.initRepositories()`)
+- [MessengerApplication.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/androidApp/src/main/kotlin/cc/ptoe/messenger/MessengerApplication.kt) - App entry point & DI owner (Android)
+- [MainActivity.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/androidApp/src/main/kotlin/cc/ptoe/messenger/MainActivity.kt) - Main activity (Android)
+- [Screen.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/navigation/Screen.kt) - Navigation routes
+- [NavGraph.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/navigation/NavGraph.kt) - Navigation graph
+- [MessengerDatabase.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/data/local/MessengerDatabase.kt) - Room database
+- [MainScaffold.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/components/MainScaffold.kt) - Main app scaffold
 - [android.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/android.yml) - CI/CD workflow

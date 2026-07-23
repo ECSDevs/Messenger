@@ -1,0 +1,171 @@
+# Copyright 2026 ECSDevs
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  android:
+    name: Android (androidApp + wear)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Compute version code from commit count
+        run: |
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          echo "VERSION_CODE=${COMMIT_COUNT}" >> $GITHUB_ENV
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          gradle-home-cache-cleanup: true
+
+      - name: Cache Kotlin/Native compiler
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.konan
+          key: ${{ runner.os }}-konan-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-konan-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Decode keystore (push builds)
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p keyring
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keyring/messenger-release.jks
+
+      - name: Build androidApp release APK
+        env:
+          VERSION_CODE: ${{ env.VERSION_CODE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :androidApp:assembleRelease
+
+      - name: Upload androidApp release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: androidApp-release
+          path: androidApp/build/outputs/apk/release/androidApp-release.apk
+
+      - name: Build wear release APK
+        env:
+          VERSION_CODE: ${{ env.VERSION_CODE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :wear:assembleRelease
+
+      - name: Upload wear release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wear-release
+          path: wear/build/outputs/apk/release/wear-release.apk
+
+  desktop:
+    name: Desktop
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          gradle-home-cache-cleanup: true
+
+      - name: Build Desktop distribution
+        run: ./gradlew :desktopApp:packageReleaseMsi
+
+      - name: Upload Desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-msi
+          path: desktopApp/build/compose/binaries/main/Msi/*.msi
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android, desktop]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download androidApp release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: androidApp-release
+          path: artifacts/androidApp
+
+      - name: Download wear release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wear-release
+          path: artifacts/wear
+
+      - name: Download Desktop artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-msi
+          path: artifacts/desktop-msi
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          generate_release_notes: true
+          files: |
+            artifacts/androidApp/androidApp-release.apk
+            artifacts/wear/wear-release.apk
+            artifacts/desktop-msi/*.msi

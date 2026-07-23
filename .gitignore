@@ -8,7 +8,8 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
-/build
+# Unanchored `build/` covers every Gradle module's build output (root + shared/androidApp/desktopApp/wear).
+build/
 /captures
 .externalNativeBuild
 .cxx
@@ -26,4 +27,11 @@ keyring/
 # Environment variables
 .env
 .env.*
+
+# Heap dumps
+*.hprof
+
+# Native build intermediates (per-module safety net)
+*.so.debug
+
 /specs

@@ -45,5 +45,7 @@ includeBuild("llm-typewriter") {
         substitute(module("cc.ptoe:llm-typewriter")).using(project(":llm-typewriter"))
     }
 }
-include(":mobile")
+include(":shared")
+include(":androidApp")
+include(":desktopApp")
 include(":wear")

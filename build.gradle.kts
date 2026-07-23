@@ -17,8 +17,13 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
     alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.kotlin.multiplatform.library) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.kotlin.multiplatform) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.compose.multiplatform) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
 }
 
 /**
@@ -94,3 +99,17 @@ ext["keystoreFile"] = rootDir.resolve("keyring/messenger-release.jks")
 ext["keystorePassword"] = getEnv("KEYSTORE_PASSWORD") ?: ""
 ext["keyAlias"] = getEnv("KEY_ALIAS") ?: "messenger"
 ext["keyPassword"] = getEnv("KEY_PASSWORD") ?: ""
+
+// guava (transitive via llm-typewriter / AndroidMath, and required at build-time
+// by KSP/Room compiler for com.google.common.collect.ImmutableList) bundles the
+// com.google.common.util.concurrent.ListenableFuture class. The standalone
+// com.google.guava:listenablefuture:1.0 stub (pulled transitively by
+// androidx.concurrent:concurrent-futures via androidx.core) ships the same class
+// and would collide. Excluding only the stub globally keeps AGP's
+// checkDebugDuplicateClasses happy while letting guava itself stay on the
+// build-time classpath so KSP/Room can run.
+allprojects {
+    configurations.all {
+        exclude(group = "com.google.guava", module = "listenablefuture")
+    }
+}
