@@ -880,7 +880,7 @@ class CloudSyncRepository(
         checkSignedIn()
         val account = user.first() ?: error("Please sign in first")
         val since = sinceOverride ?: appPreferences.cloudSyncVersion(account.id)
-        val delta = fetchCloudSync(since)
+        val delta = rehydrateChatImages(fetchCloudSync(since))
         Log.i(
             TAG,
             "Cloud sync account=${account.id} since=$since latest=${delta.latestVersion} " +
@@ -957,6 +957,86 @@ class CloudSyncRepository(
             providers = providers,
             latestVersion = maxOf(agentsLatest, conversationsLatest, providersLatest)
         )
+    }
+
+    /**
+     * 拉取端图片落地(rehydrate):partsJson 里的 localPath 是"源设备"的私有
+     * 文件路径,换设备/重装恢复后该文件并不存在,而 UI(Coil)只用 localPath
+     * 渲染图片。这里在写入 Room 之前把缺失文件的 image part 用其内嵌的
+     * base64 dataUri 解码落地到 filesDir/chat_images/,并把 localPath 改写为
+     * 本机路径,保证多模态图片在云同步后仍可显示。文件名由 messageId、part
+     * 下标和 dataUri 摘要决定,重复同步幂等且不同消息互不共享文件(与
+     * ChatImageStore 每条消息独立文件、删除消息时 reap 文件的约定一致)。
+     */
+    private fun rehydrateChatImages(delta: CloudSyncResponse): CloudSyncResponse {
+        if (delta.conversations.isEmpty()) return delta
+        val conversations = delta.conversations.map { conversation ->
+            if (conversation.deleted || conversation.messages.isEmpty()) return@map conversation
+            var conversationChanged = false
+            val messages = conversation.messages.map { message ->
+                val rewritten = rehydratePartsJson(message.id, message.partsJson) ?: return@map message
+                conversationChanged = true
+                message.copy(partsJson = rewritten)
+            }
+            if (conversationChanged) conversation.copy(messages = messages) else conversation
+        }
+        return delta.copy(conversations = conversations)
+    }
+
+    /** 返回改写后的 JSON;无需改写(纯文本/本地文件仍有效/JSON 非法)时返回 null。 */
+    private fun rehydratePartsJson(messageId: String, partsJson: String?): String? {
+        if (partsJson.isNullOrBlank()) return null
+        val array = try {
+            JsonParser.parseString(partsJson).takeIf { it.isJsonArray }?.asJsonArray
+        } catch (_: JsonSyntaxException) {
+            null
+        } ?: return null
+        var changed = false
+        array.forEachIndexed { index, element ->
+            val part = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@forEachIndexed
+            if (part.get("type")?.takeIf { it.isJsonPrimitive }?.asString != "image") return@forEachIndexed
+            val localPath = part.get("localPath")?.takeIf { it.isJsonPrimitive }?.asString
+            if (localPath != null && File(localPath).isFile && File(localPath).length() > 0L) return@forEachIndexed
+            val dataUri = part.get("dataUri")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEachIndexed
+            val restored = runCatching { persistDataUri(messageId, index, dataUri) }
+                .onFailure { Log.w(TAG, "Failed to rehydrate synced chat image message=$messageId part=$index", it) }
+                .getOrNull() ?: return@forEachIndexed
+            part.addProperty("localPath", restored)
+            changed = true
+        }
+        return if (changed) array.toString() else null
+    }
+
+    /**
+     * 把 base64 data: URI 解码写入 filesDir/chat_images/。文件名是
+     * messageId/part 下标/dataUri 的确定性摘要,重复调用直接命中已有文件。
+     */
+    private fun persistDataUri(messageId: String, partIndex: Int, dataUri: String): String? {
+        val comma = dataUri.indexOf(',')
+        if (!dataUri.startsWith("data:") || comma <= 5) return null
+        val header = dataUri.substring(5, comma)
+        if (!header.contains(";base64", ignoreCase = true)) return null
+        val extension = when (header.substringBefore(';').trim().lowercase()) {
+            "image/jpeg", "image/jpg" -> "jpg"
+            "image/webp" -> "webp"
+            "image/gif" -> "gif"
+            else -> "png"
+        }
+        val directory = File(context.filesDir, CHAT_IMAGES_SUBDIR).apply { mkdirs() }
+        val target = File(directory, "sync_${digest("$messageId|$partIndex|$dataUri")}.$extension")
+        if (target.isFile && target.length() > 0L) return target.absolutePath
+        val bytes = android.util.Base64.decode(dataUri.substring(comma + 1), android.util.Base64.DEFAULT)
+        if (bytes.isEmpty()) return null
+        val temporary = File(directory, "${target.name}.part")
+        try {
+            temporary.writeBytes(bytes)
+            if (!temporary.renameTo(target)) {
+                throw IOException("Unable to persist synced chat image")
+            }
+        } finally {
+            temporary.delete()
+        }
+        return target.absolutePath
     }
 
     private suspend fun syncAgentAvatar(agent: AgentEntity) {
@@ -1372,6 +1452,8 @@ class CloudSyncRepository(
         // messages 时,100 条/页已经接近 serverless 单次响应的舒适区。
         const val SYNC_PAGE_SIZE = 100
         const val ETAG_SIDECAR_SUFFIX = ".etag"
+        /** 与 [cc.ptoe.messenger.data.local.ChatImageStore.CACHE_SUBDIR] 相同的目录。 */
+        const val CHAT_IMAGES_SUBDIR = "chat_images"
     }
 }
 

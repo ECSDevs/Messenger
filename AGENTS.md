@@ -151,6 +151,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - Gson converter for JSON serialization
 - Wear chat requests are forwarded to the phone over a WebSocket on TCP `18765` (`MobileHttpServer` / `WearNetworkBridge`, discovered via NSD mDNS) instead of calling providers directly from the watch
 - **Multimodal messages**: `ChatMessageDto.content` is a `JsonElement` so a single DTO carries both the legacy text-string shape and the OpenAI `[{type,text|image_url}]` array shape. `ApiRepositoryImpl` picks the wire format based on `Message.hasImages`. Picked images are downscaled to 1568px on the longest side, EXIF-rotated, cached as PNGs under `filesDir/chat_images/`, and the cache is reaped on message delete. The local DB keeps the bitmap path/URI stable so the cloud sync layer and the UI never depend on a content:// URI re-issuing.
+- **Multimodal image cloud sync**: each image part is stored in `partsJson` as `{type:"image", dataUri, localPath}` where `dataUri` embeds the full base64 bitmap, so pushing a conversation to the cloud carries the image bytes inside the message document — no separate image upload endpoint exists. On the pull side, `CloudSyncRepository.rehydrateChatImages` runs before the Room write: any image part whose `localPath` does not exist on this device (fresh install / another device) is decoded from its `dataUri` into `filesDir/chat_images/sync_{sha256(messageId|partIndex|dataUri)}.{ext}` and the part's `localPath` is rewritten to the local copy, keeping Coil rendering purely file-based. The deterministic file name makes repeated syncs idempotent, and per-message files preserve the delete-reaping convention of `ChatImageStore`.
 
 ### Cloud Account Server
 
@@ -171,6 +172,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
 - The admin backend lives under `server/app/admin/` and uses a separate password-based session cookie from app users
 - MongoDB must be deployed as Atlas or a replica set because server writes use transactions to atomically advance the sync clock and update an entity
 - The mobile `CloudSyncRepository` uses the session cookie and a per-account DataStore cursor to pull `GET /api/sync?since=N`; it applies tombstones transactionally, flattens provider models and conversation messages into Room, and pushes complete entity snapshots to the corresponding `PUT` endpoints
+- Multimodal message images ride inside `messages[].partsJson` (base64 `dataUri` per image part) in both directions; the server stores the string verbatim and the client rehydrates missing local files from the `dataUri` after a pull (see "Multimodal image cloud sync" above)
 - Mobile local repository mutations are debounced into cloud synchronization requests; deleted entities are retained as account-scoped pending-delete markers until the server tombstone write succeeds
 - User and agent avatars are uploaded as multipart `file` parts to the dedicated avatar endpoints;
   authenticated GET endpoints proxy private Blob content. Mobile avatar URLs are downloaded during
