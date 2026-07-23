@@ -49,7 +49,7 @@ fun MainScaffold(
         bottomBar = {
             if (showBottomBar) {
                 BottomNavBar(
-                    currentRoute = currentDestination?.route,
+                    currentRoute = currentDestination.route,
                     onItemClick = { item ->
                         navController.navigate(item.screen.route) {
                             popUpTo(navController.graph.findStartDestination().id) {
