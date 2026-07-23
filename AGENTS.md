@@ -17,73 +17,195 @@ Messenger is a Material 3 designed LLM chat application for Android, focused on 
 
 ```
 Messenger/
-├── .github/workflows/       # GitHub Actions CI/CD
-│   └── android.yml          # Android build & release pipeline
+├── .github/workflows/          # GitHub Actions CI/CD
+│   └── android.yml             # Android build & release pipeline
 ├── gradle/
-│   └── libs.versions.toml   # Version catalog for dependencies
-├── llm-typewriter/           # Git submodule: source build of the llm-typewriter library (tracks upstream main)
-├── mobile/                   # Mobile (phone/tablet) module
+│   ├── libs.versions.toml      # Version catalog for dependencies
+│   └── wrapper/                # Gradle wrapper
+├── keyring/                    # Signing keystore
+├── llm-typewriter/             # Git submodule: source build of the llm-typewriter library
+├── mobile/                     # Mobile (phone/tablet) module
+│   ├── proguard-rules.pro      # R8/ProGuard rules for mobile
 │   └── src/main/java/cc/ptoe/messenger/
 │       ├── data/
-│       │   ├── local/        # Room database, DataStore preferences
-│       │   ├── cloud/        # Messenger account authentication and cloud synchronization
-│       │   │   ├── dao/      # Data Access Objects
-│       │   │   ├── entity/   # Room entities
+│       │   ├── local/          # Room database, DataStore preferences
+│       │   │   ├── dao/
+│       │   │   │   ├── AgentDao.kt
+│       │   │   │   ├── ConversationDao.kt
+│       │   │   │   ├── MessageDao.kt
+│       │   │   │   ├── ModelDao.kt
+│       │   │   │   └── ProviderDao.kt
+│       │   │   ├── entity/
+│       │   │   │   ├── AgentEntity.kt
+│       │   │   │   ├── ConversationEntity.kt
+│       │   │   │   ├── MessageEntity.kt
+│       │   │   │   ├── ModelEntity.kt
+│       │   │   │   └── ProviderEntity.kt
 │       │   │   ├── AppPreferences.kt
+│       │   │   ├── ChatImageStore.kt
+│       │   │   ├── ContentPartCodec.kt
 │       │   │   ├── DataStoreModule.kt
 │       │   │   ├── MessengerDatabase.kt
 │       │   │   └── ThemePreferences.kt
-│       │   ├── remote/       # Network layer
-│       │   │   ├── api/      # Retrofit API interfaces
-│       │   │   ├── dto/      # Data Transfer Objects
-│       │   │   ├── interceptor/ # OkHttp interceptors
-│       │   │   ├── sse/      # Server-Sent Events parsing
+│       │   ├── cloud/          # Messenger account auth & cloud sync
+│       │   │   ├── CloudModels.kt
+│       │   │   └── CloudSyncRepository.kt
+│       │   ├── remote/         # Network layer (OpenAI-compatible API)
+│       │   │   ├── api/
+│       │   │   │   └── OpenAiApi.kt
+│       │   │   ├── dto/        # Chat & model DTOs
+│       │   │   ├── interceptor/
+│       │   │   │   └── AuthInterceptor.kt
+│       │   │   ├── sse/        # Server-Sent Events parsing
+│       │   │   │   ├── ChatStreamEvent.kt
+│       │   │   │   ├── ChatStreamParser.kt
+│       │   │   │   └── SSEParser.kt
 │       │   │   └── NetworkClient.kt
-│       │   └── repository/   # Repository implementations
+│       │   ├── wear/           # Phone-side Wear bridge (HTTP server + WebSocket sync)
+│       │   │   ├── MobileHttpServer.kt
+│       │   │   └── MobileWearSyncManager.kt
+│       │   └── repository/     # Repository implementations
+│       │       ├── AgentRepositoryImpl.kt
+│       │       ├── ApiRepositoryImpl.kt
+│       │       ├── ChatRepositoryImpl.kt
+│       │       ├── ConversationRepositoryImpl.kt
+│       │       ├── CurrentAgentRepositoryImpl.kt
+│       │       ├── MessageRepositoryImpl.kt
+│       │       ├── ModelRepositoryImpl.kt
+│       │       └── ProviderRepositoryImpl.kt
 │       ├── domain/
-│       │   ├── model/        # Domain models (pure Kotlin data classes)
-│       │   └── repository/   # Repository interfaces
+│       │   ├── model/          # Domain models (pure Kotlin data classes)
+│       │   │   ├── Agent.kt
+│       │   │   ├── ChatModel.kt
+│       │   │   ├── ContentPart.kt
+│       │   │   ├── Conversation.kt
+│       │   │   ├── Message.kt
+│       │   │   ├── MessageRole.kt
+│       │   │   └── Provider.kt
+│       │   └── repository/     # Repository interfaces
+│       │       ├── AgentRepository.kt
+│       │       ├── ApiRepository.kt
+│       │       ├── ChatRepository.kt
+│       │       ├── ConversationRepository.kt
+│       │       ├── CurrentAgentRepository.kt
+│       │       ├── MessageRepository.kt
+│       │       ├── ModelRepository.kt
+│       │       └── ProviderRepository.kt
 │       ├── presentation/
-│       │   ├── navigation/   # Navigation Compose setup
+│       │   ├── navigation/     # Navigation Compose setup
 │       │   │   ├── BottomLevelRoutes.kt
 │       │   │   ├── NavGraph.kt
 │       │   │   └── Screen.kt
-│       │   ├── theme/        # Material 3 theme
-│       │   ├── ui/           # Compose screens & components
+│       │   ├── theme/
+│       │   │   └── Theme.kt
+│       │   ├── ui/             # Compose screens & components
 │       │   │   ├── agents/
+│       │   │   │   ├── AgentEditScreen.kt
+│       │   │   │   ├── AgentMarketScreen.kt
+│       │   │   │   └── AgentsScreen.kt
 │       │   │   ├── chat/
+│       │   │   │   ├── AiMessageBubble.kt
+│       │   │   │   ├── ChatInputBar.kt
+│       │   │   │   ├── ChatScreen.kt
+│       │   │   │   ├── MessageActionMenu.kt
+│       │   │   │   └── UserMessageBubble.kt
 │       │   │   ├── components/
+│       │   │   │   ├── AgentAvatar.kt
+│       │   │   │   ├── BottomNavBar.kt
+│       │   │   │   ├── ConfirmationDialog.kt
+│       │   │   │   ├── EmptyState.kt
+│       │   │   │   ├── InputDialog.kt
+│       │   │   │   ├── ListItem.kt
+│       │   │   │   ├── LoadingIndicator.kt
+│       │   │   │   ├── MainScaffold.kt
+│       │   │   │   ├── SectionHeader.kt
+│       │   │   │   └── SingleChoiceDialog.kt
 │       │   │   ├── conversations/
-│       │   │   ├── providers/
+│       │   │   │   ├── ConversationSettingsScreen.kt
+│       │   │   │   └── ConversationsScreen.kt
+│       ��   │   ├── providers/
+│       │   │   │   ├── ProviderDetailScreen.kt
+│       │   │   │   ├── ProviderEditScreen.kt
+│       │   │   │   └── ProvidersScreen.kt
 │       │   │   └── settings/
-│       │   ├── utils/        # Presentation utilities
-│       │   └── viewmodel/    # ViewModels
+│       │   │       ├── CloudSettingsScreen.kt
+│       │   │       ├── CloudSyncChoiceDialog.kt
+│       │   │       ├── LicensesScreen.kt
+│       │   │       ├── SettingsScreen.kt
+│       │   │       └── ThemePickerDialog.kt
+│       │   ├── utils/
+│       │   │   ├── DateTimeUtils.kt
+│       │   │   └── ThinkBlockUtils.kt
+│       │   └── viewmodel/
+│       │       ├── AgentEditViewModel.kt
+│       │       ├── AgentMarketViewModel.kt
+│       │       ├── AgentsViewModel.kt
+│       │       ├── ChatViewModel.kt
+│       │       ├── ConversationSettingsViewModel.kt
+│       │       ├── ConversationsViewModel.kt
+│       │       ├── ProviderDetailViewModel.kt
+│       │       ├── ProviderEditViewModel.kt
+│       │       ├── ProvidersViewModel.kt
+│       │       └── SettingsViewModel.kt
 │       ├── MainActivity.kt
 │       └── MessengerApplication.kt
-├── server/                   # Git submodule: Next.js account server + admin backend for incremental cloud sync
-│   ├── app/                  # App Router pages and serverless API routes
-│   │   ├── admin/            # Password-protected admin backend
-│   │   └── api/              # Auth, entity sync, and avatar endpoints for Messenger clients
-│   ├── components/           # Admin client components
-│   ├── lib/                  # Auth, storage, validation, shared types
-│   ├── package.json          # Node/Next.js manifest
-│   └── README.md             # Server deployment and API notes
-├── wear/                     # Wear OS companion module
+├── server/                     # Git submodule: Next.js account server + admin backend
+│   ├── app/
+│   │   ├── admin/              # Password-protected admin backend
+│   │   └── api/
+│   │       ├── admin/login/ / logout/
+│   │       ├── agents/[id]/
+│   │       ├── auth/login/ / register/ / logout/ / me/ / password/ / account/
+│   │       ├── avatars/user/ / agents/[agentId]/
+│   │       ├── conversations/[id]/
+│   │       ├── market/agents/ / agents/[id]/avatar/
+│   │       ├── providers/[id]/
+│   │       └── sync/
+│   ├── components/             # Admin UI components
+│   ├── lib/                    # Auth, storage, validation, shared types
+│   ├── package.json
+│   └── README.md
+├── specs/                      # Design specs & implementation plans
+│   └── rewrite-server-mongodb-realtime-sync/
+│       ├── spec.md
+│       ├── tasks.md
+│       └── checklist.md
+├── wear/                       # Wear OS companion module
+│   ├── proguard-rules.pro      # R8/ProGuard rules for wear
 │   └── src/main/java/cc/ptoe/messenger/
-│       ├── data/             # Wear DataStore + phone bridge
+│       ├── data/
+│       │   ├── WearBridgeClient.kt
+│       │   ├── WearChatModels.kt
+│       │   ├── WearChatPreferences.kt
+│       │   ├── WearChatRepository.kt
+│       │   └── WearNetworkBridge.kt
 │       ├── presentation/
 │       │   ├── MainActivity.kt
 │       │   ├── theme/
+│       │   │   └── Theme.kt
 │       │   ├── ui/
-│       │   │   ├── chat/         # Chat screen
-│       │   │   ├── chatlist/     # Chat list screen
-│       │   │   └── components/   # Shared bubbles/input
+│       │   │   ├── chat/
+│       │   │   │   └── ChatScreen.kt
+│       │   │   ├── chatlist/
+│       │   │   │   ├── ChatListScreen.kt
+│       │   │   │   └── NewChatScreen.kt
+│       │   │   └── components/
+│       │   │       └── ChatComponents.kt
 │       │   └── viewmodel/
+│       │       └── WearChatViewModel.kt
 │       └── WearMessengerApplication.kt
-├── build.gradle.kts          # Root build file
-├── settings.gradle.kts       # Project settings
-├── gradle.properties         # Gradle configuration
-└── licenserc.toml            # License checker config
+├── .env                        # Local environment variables (gitignored)
+├── .gitmodules                 # Submodule definitions
+├── AGENTS.md                   # This file
+├── build.gradle.kts
+├── settings.gradle.kts
+├── gradle.properties
+├── gradlew / gradlew.bat
+├── licenserc.toml
+├── LICENSE
+├── README.md
+├── logo.png
+└── logo.svg
 ```
 
 ## Architecture
@@ -95,7 +217,7 @@ The project follows Clean Architecture with three main layers:
 1. **Domain Layer** (`domain/`)
    - Pure Kotlin, no Android dependencies
    - Contains business models and repository interfaces
-   - Domain models: `Agent`, `ChatModel`, `Conversation`, `Message`, `MessageRole`, `Provider`
+   - Domain models: `Agent`, `ChatModel`, `ContentPart`, `Conversation`, `Message`, `MessageRole`, `Provider`
 
 2. **Data Layer** (`data/`)
    - Implements domain repository interfaces
@@ -132,7 +254,7 @@ The project uses a manual dependency injection approach via `MessengerApplicatio
   - `AgentEntity` - AI agent configurations
   - `ConversationEntity` - Chat conversations
   - `MessageEntity` - Chat messages (`partsJson` column stores multimodal `ContentPart` payloads)
-- Database version: 7 (with `fallbackToDestructiveMigration`)
+- Database version: 11 (with `fallbackToDestructiveMigration`)
 
 ### Navigation
 
@@ -427,13 +549,13 @@ Write clear, concise commit messages describing what was changed and why. Push o
 
 ## Key Files Reference
 
-- [build.gradle.kts](file:///c:/Users/deskt/AndroidStudioProjects/Messenger/build.gradle.kts) - Root build file with version calculation
-- [settings.gradle.kts](file:///c:/Users/deskt/AndroidStudioProjects/Messenger/settings.gradle.kts) - Module includes
-- [libs.versions.toml](file:///c:/Users/deskt/AndroidStudioProjects/Messenger/gradle/libs.versions.toml) - Dependency version catalog
-- [MessengerApplication.kt](file:///c:/Users/deskt/AndroidStudioProjects/Messenger/mobile/src/main/java/cc/ptoe/messenger/MessengerApplication.kt) - App entry point & DI
-- [MainActivity.kt](file:///c:/Users/deskt/AndroidStudioProjects/Messenger/mobile/src/main/java/cc/ptoe/messenger/MainActivity.kt) - Main activity
-- [Screen.kt](file:///c:/Users/deskt/AndroidStudioProjects/Messenger/mobile/src/main/java/cc/ptoe/messenger/presentation/navigation/Screen.kt) - Navigation routes
-- [NavGraph.kt](file:///c:/Users/deskt/AndroidStudioProjects/Messenger/mobile/src/main/java/cc/ptoe/messenger/presentation/navigation/NavGraph.kt) - Navigation graph
-- [MessengerDatabase.kt](file:///c:/Users/deskt/AndroidStudioProjects/Messenger/mobile/src/main/java/cc/ptoe/messenger/data/local/MessengerDatabase.kt) - Room database
-- [MainScaffold.kt](file:///c:/Users/deskt/AndroidStudioProjects/Messenger/mobile/src/main/java/cc/ptoe/messenger/presentation/ui/components/MainScaffold.kt) - Main app scaffold
-- [android.yml](file:///c:/Users/deskt/AndroidStudioProjects/Messenger/.github/workflows/android.yml) - CI/CD workflow
+- [build.gradle.kts](file:///c:/Users/deskt/Desktop/projects/Messenger/build.gradle.kts) - Root build file with version calculation
+- [settings.gradle.kts](file:///c:/Users/deskt/Desktop/projects/Messenger/settings.gradle.kts) - Module includes
+- [libs.versions.toml](file:///c:/Users/deskt/Desktop/projects/Messenger/gradle/libs.versions.toml) - Dependency version catalog
+- [MessengerApplication.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/MessengerApplication.kt) - App entry point & DI
+- [MainActivity.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/MainActivity.kt) - Main activity
+- [Screen.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/presentation/navigation/Screen.kt) - Navigation routes
+- [NavGraph.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/presentation/navigation/NavGraph.kt) - Navigation graph
+- [MessengerDatabase.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/data/local/MessengerDatabase.kt) - Room database
+- [MainScaffold.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/mobile/src/main/java/cc/ptoe/messenger/presentation/ui/components/MainScaffold.kt) - Main app scaffold
+- [android.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/android.yml) - CI/CD workflow

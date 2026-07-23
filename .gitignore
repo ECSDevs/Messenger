@@ -14,8 +14,9 @@
 .cxx
 local.properties
 /log
-/.kotlin/
-/.trae/
+/.kotlin
+/.trae
+/.workbuddy
 
 # Keystore files
 *.jks
