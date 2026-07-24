@@ -76,7 +76,7 @@ internal data class CloudAgentRequest(
     val followDefaultTemperature: Boolean,
     val followDefaultTopP: Boolean,
     val followDefaultMaxTokens: Boolean,
-    val followDefaultReasoningEffort: Boolean = false,
+    val followDefaultReasoningEffort: Boolean,
     val marketAgentId: String? = null,
     val marketAgentVersion: Long? = null,
     val marketAgentRole: String? = null,
