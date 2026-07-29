@@ -41,7 +41,11 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Messenger"
-            packageVersion = "1.0.0"
+            // Mirrors androidApp/wear: versionCode = git commit count (rootProject.ext),
+            // which is monotonically increasing and keeps MSI/Deb upgrade ordering correct.
+            // packageVersion must be numeric triplets (jpackage constraint); the human-readable
+            // versionName "vYYYYMMDD" is tracked separately in rootProject.ext["versionName"].
+            packageVersion = "1.0.${rootProject.ext["versionCode"]}"
         }
         // ProGuard (enabled by default for the release build type) fails because
         // OkHttp's optional platform classes (org.conscrypt, org.openjsse,
