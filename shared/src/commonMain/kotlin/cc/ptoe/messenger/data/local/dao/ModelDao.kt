@@ -63,4 +63,13 @@ interface ModelDao {
 
     @Query("UPDATE models SET isEnabled = :isEnabled WHERE id = :id")
     suspend fun setEnabled(id: String, isEnabled: Boolean)
+
+    @Query("DELETE FROM models WHERE id IN (:ids)")
+    suspend fun deleteBatch(ids: List<String>)
+
+    @Query("UPDATE models SET isEnabled = :isEnabled WHERE id IN (:ids)")
+    suspend fun setEnabledBatch(ids: List<String>, isEnabled: Boolean)
+
+    @Query("SELECT providerId FROM models WHERE id IN (:ids) LIMIT 1")
+    suspend fun getFirstProviderIdByIds(ids: List<String>): String?
 }

@@ -16,14 +16,19 @@
 
 package cc.ptoe.messenger.presentation.ui.providers
 
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,7 +37,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Deselect
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -75,11 +84,17 @@ import cc.ptoe.messenger.generated.resources.action_add
 import cc.ptoe.messenger.generated.resources.action_back
 import cc.ptoe.messenger.generated.resources.action_cancel
 import cc.ptoe.messenger.generated.resources.action_delete
+import cc.ptoe.messenger.generated.resources.action_deselect_all
+import cc.ptoe.messenger.generated.resources.action_disable
+import cc.ptoe.messenger.generated.resources.action_enable
 import cc.ptoe.messenger.generated.resources.action_manual_add
+import cc.ptoe.messenger.generated.resources.action_select_all
 import cc.ptoe.messenger.generated.resources.action_sync_models
 import cc.ptoe.messenger.generated.resources.error_load_failed
 import cc.ptoe.messenger.generated.resources.providers_delete_model_confirm
 import cc.ptoe.messenger.generated.resources.providers_delete_model_title
+import cc.ptoe.messenger.generated.resources.providers_delete_models_confirm
+import cc.ptoe.messenger.generated.resources.providers_delete_models_title
 import cc.ptoe.messenger.generated.resources.providers_manual_add_title
 import cc.ptoe.messenger.generated.resources.providers_model_display_name_label
 import cc.ptoe.messenger.generated.resources.providers_model_display_name_placeholder
@@ -93,6 +108,7 @@ import cc.ptoe.messenger.generated.resources.providers_models_available
 import cc.ptoe.messenger.generated.resources.providers_no_models
 import cc.ptoe.messenger.generated.resources.providers_save_selected
 import cc.ptoe.messenger.generated.resources.providers_select_models_title
+import cc.ptoe.messenger.generated.resources.providers_selected_count
 import cc.ptoe.messenger.generated.resources.providers_sync_models_title
 import cc.ptoe.messenger.generated.resources.providers_syncing
 import org.jetbrains.compose.resources.getString
@@ -124,6 +140,7 @@ fun ProviderDetailScreen(
     var showDeleteDialog by remember { mutableStateOf<ChatModel?>(null) }
     var showSyncDialog by remember { mutableStateOf(false) }
     var selectedModelIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var showBatchDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.syncStatus) {
         if (uiState.syncStatus == SyncStatus.SUCCESS && uiState.syncedModels.isNotEmpty()) {
@@ -139,23 +156,47 @@ fun ProviderDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = uiState.provider?.name ?: stringResource(Res.string.providers_model_management),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back)
+            if (uiState.isMultiSelectMode) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(
+                                Res.string.providers_selected_count,
+                                uiState.selectedModelIds.size
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { viewModel.exitMultiSelectMode() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(Res.string.action_cancel)
+                            )
+                        }
                     }
-                }
-            )
+                )
+            } else {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = uiState.provider?.name
+                                ?: stringResource(Res.string.providers_model_management),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBackClick) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(Res.string.action_back)
+                            )
+                        }
+                    }
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = Modifier.fillMaxSize()
@@ -190,19 +231,41 @@ fun ProviderDetailScreen(
                     )
                 }
 
-                ModelListHeader(
-                    onSyncClick = {
-                        viewModel.syncModels()
-                    },
-                    onAddClick = {
-                        showAddDialog = true
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                )
+                if (uiState.isMultiSelectMode) {
+                    MultiSelectActionBar(
+                        selectedCount = uiState.selectedModelIds.size,
+                        isAllSelected = models.isNotEmpty() &&
+                            uiState.selectedModelIds.size == models.size,
+                        onToggleSelectAll = {
+                            if (uiState.selectedModelIds.size == models.size) {
+                                viewModel.clearSelection()
+                            } else {
+                                viewModel.selectAllModels()
+                            }
+                        },
+                        onEnableClick = { viewModel.enableSelectedModels() },
+                        onDisableClick = { viewModel.disableSelectedModels() },
+                        onDeleteClick = { showBatchDeleteDialog = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                } else {
+                    ModelListHeader(
+                        onSyncClick = {
+                            viewModel.syncModels()
+                        },
+                        onAddClick = {
+                            showAddDialog = true
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
 
                 if (models.isEmpty()) {
                     EmptyState(
@@ -221,11 +284,21 @@ fun ProviderDetailScreen(
                         items(models, key = { it.id }) { model ->
                             ModelListItem(
                                 model = model,
+                                isMultiSelectMode = uiState.isMultiSelectMode,
+                                isSelected = model.id in uiState.selectedModelIds,
                                 onToggleEnabled = { enabled ->
                                     viewModel.toggleModelEnabled(model.id, enabled)
                                 },
                                 onDeleteClick = {
                                     showDeleteDialog = model
+                                },
+                                onLongClick = {
+                                    viewModel.enterMultiSelectMode(model.id)
+                                },
+                                onClick = {
+                                    if (uiState.isMultiSelectMode) {
+                                        viewModel.toggleModelSelection(model.id)
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -285,6 +358,20 @@ fun ProviderDetailScreen(
                     showDeleteDialog = null
                 },
                 onDismiss = { showDeleteDialog = null }
+            )
+        }
+
+        if (showBatchDeleteDialog) {
+            ConfirmationDialog(
+                title = stringResource(Res.string.providers_delete_models_title),
+                text = stringResource(Res.string.providers_delete_models_confirm, uiState.selectedModelIds.size),
+                confirmButtonText = stringResource(Res.string.action_delete),
+                dismissButtonText = stringResource(Res.string.action_cancel),
+                onConfirm = {
+                    viewModel.deleteSelectedModels()
+                    showBatchDeleteDialog = false
+                },
+                onDismiss = { showBatchDeleteDialog = false }
             )
         }
 
@@ -354,33 +441,103 @@ private fun ModelListHeader(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = stringResource(Res.string.providers_model_list),
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
+            color = MaterialTheme.colorScheme.onSurface
         )
-        OutlinedButton(onClick = onSyncClick) {
-            Icon(
-                imageVector = Icons.Default.Refresh,
-                contentDescription = null,
-                modifier = Modifier.width(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(Res.string.action_sync_models))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            IconButton(onClick = onSyncClick) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = stringResource(Res.string.action_sync_models)
+                )
+            }
+            IconButton(onClick = onAddClick) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = stringResource(Res.string.action_manual_add)
+                )
+            }
         }
-        OutlinedButton(onClick = onAddClick) {
+    }
+}
+
+@Composable
+private fun MultiSelectActionBar(
+    selectedCount: Int,
+    isAllSelected: Boolean,
+    onToggleSelectAll: () -> Unit,
+    onEnableClick: () -> Unit,
+    onDisableClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedButton(
+            onClick = onToggleSelectAll,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
             Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = null,
+                imageVector = if (isAllSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
+                contentDescription = stringResource(
+                    if (isAllSelected) Res.string.action_deselect_all
+                    else Res.string.action_select_all
+                ),
                 modifier = Modifier.width(18.dp)
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(Res.string.action_manual_add))
+        }
+        OutlinedButton(
+            onClick = onEnableClick,
+            enabled = selectedCount > 0,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Visibility,
+                contentDescription = stringResource(Res.string.action_enable),
+                modifier = Modifier.width(18.dp)
+            )
+        }
+        OutlinedButton(
+            onClick = onDisableClick,
+            enabled = selectedCount > 0,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
+            Icon(
+                imageVector = Icons.Default.VisibilityOff,
+                contentDescription = stringResource(Res.string.action_disable),
+                modifier = Modifier.width(18.dp)
+            )
+        }
+        OutlinedButton(
+            onClick = onDeleteClick,
+            enabled = selectedCount > 0,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = stringResource(Res.string.action_delete),
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.width(18.dp)
+            )
         }
     }
 }
@@ -388,15 +545,33 @@ private fun ModelListHeader(
 @Composable
 private fun ModelListItem(
     model: ChatModel,
+    isMultiSelectMode: Boolean,
+    isSelected: Boolean,
     onToggleEnabled: (Boolean) -> Unit,
     onDeleteClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Row(
         modifier = modifier
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (isMultiSelectMode) {
+            androidx.compose.material3.Checkbox(
+                checked = isSelected,
+                onCheckedChange = null,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -417,17 +592,19 @@ private fun ModelListItem(
                 )
             }
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        Switch(
-            checked = model.isEnabled,
-            onCheckedChange = onToggleEnabled
-        )
-        IconButton(onClick = onDeleteClick) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = stringResource(Res.string.action_delete),
-                tint = MaterialTheme.colorScheme.error
+        if (!isMultiSelectMode) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Switch(
+                checked = model.isEnabled,
+                onCheckedChange = onToggleEnabled
             )
+            IconButton(onClick = onDeleteClick) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = stringResource(Res.string.action_delete),
+                    tint = MaterialTheme.colorScheme.error
+                )
+            }
         }
     }
 }

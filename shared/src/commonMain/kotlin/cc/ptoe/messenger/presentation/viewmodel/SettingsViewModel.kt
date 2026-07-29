@@ -98,7 +98,7 @@ class SettingsViewModel(
         viewModelScope.launch {
             onResult(runCatching {
                 withContext(Dispatchers.IO) {
-                    cloudSyncRepository.completeLogin(outcome, useLocalData)
+                    cloudSyncRepository.completeLogin(useLocalData)
                 }
             })
         }

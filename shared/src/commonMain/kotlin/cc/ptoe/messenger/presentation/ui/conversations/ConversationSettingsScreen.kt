@@ -59,6 +59,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.presentation.ui.components.SectionHeader
+import cc.ptoe.messenger.presentation.utils.formatOneDecimal
 import cc.ptoe.messenger.presentation.viewmodel.ConversationSettingsViewModel
 import cc.ptoe.messenger.generated.resources.Res
 import cc.ptoe.messenger.generated.resources.action_back
@@ -207,7 +208,7 @@ fun ConversationSettingsScreen(
             if (uiState.overrideTemperatureEnabled) {
                 val tempValue = uiState.overrideTemperatureValue ?: 0.7f
                 Text(
-                    text = stringResource(Res.string.conversation_settings_temperature_value, tempValue),
+                    text = stringResource(Res.string.conversation_settings_temperature_value, formatOneDecimal(tempValue)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 16.dp)

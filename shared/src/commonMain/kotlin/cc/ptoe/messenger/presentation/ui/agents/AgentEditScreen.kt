@@ -77,6 +77,7 @@ import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
 import cc.ptoe.messenger.presentation.ui.components.SectionHeader
+import cc.ptoe.messenger.presentation.utils.formatOneDecimal
 import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
 import cc.ptoe.messenger.presentation.platform.copyAvatarToInternal
 import cc.ptoe.messenger.presentation.platform.deleteAvatarFile
@@ -398,7 +399,7 @@ fun AgentEditScreen(
                 uiState.temperature
             }
             Text(
-                text = stringResource(Res.string.agent_edit_temperature_label, tempValue),
+                text = stringResource(Res.string.agent_edit_temperature_label, formatOneDecimal(tempValue)),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (tempEnabled) MaterialTheme.colorScheme.onSurface
                 else MaterialTheme.colorScheme.onSurfaceVariant,

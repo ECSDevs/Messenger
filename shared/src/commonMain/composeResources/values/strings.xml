@@ -42,6 +42,10 @@
     <string name="action_regenerate">Regenerate</string>
     <string name="action_sync_models">Sync models</string>
     <string name="action_manual_add">Add manually</string>
+    <string name="action_enable">Enable</string>
+    <string name="action_disable">Disable</string>
+    <string name="action_select_all">Select all</string>
+    <string name="action_deselect_all">Deselect all</string>
 
     <!-- Agents -->
     <string name="agents_title">Agents</string>
@@ -52,7 +56,7 @@
     <string name="agents_delete_confirm">Are you sure you want to delete this Agent?</string>
     <string name="agents_default_badge">Default</string>
     <string name="agents_no_system_prompt">No system prompt</string>
-    <string name="agents_model_label">Model: %s</string>
+    <string name="agents_model_label">Model: %1$s</string>
     <string name="agents_model_default">Default</string>
     <string name="agents_close_menu">Close menu</string>
 
@@ -63,7 +67,7 @@
     <string name="agent_edit_system_prompt_label">System prompt</string>
     <string name="agent_edit_system_prompt_placeholder">You are a helpful assistant.</string>
     <string name="agent_edit_advanced_settings">Advanced settings</string>
-    <string name="agent_edit_temperature_label">Temperature: %.1f</string>
+    <string name="agent_edit_temperature_label">Temperature: %1$s</string>
     <string name="agent_edit_max_tokens_label">Max Tokens</string>
     <string name="agent_edit_max_tokens_placeholder">Unlimited</string>
     <string name="agent_edit_market_section">Agent Market</string>
@@ -157,14 +161,14 @@
     <!-- Conversation Settings -->
     <string name="conversation_settings_title">Conversation Settings</string>
     <string name="conversation_settings_title_label">Conversation title</string>
-    <string name="conversation_settings_agent_label">Agent: %s</string>
+    <string name="conversation_settings_agent_label">Agent: %1$s</string>
     <string name="conversation_settings_override_section">Parameter override</string>
     <string name="conversation_settings_override_desc">When enabled, the following parameters will override the Agent settings for this conversation</string>
     <string name="conversation_settings_override_model">Override model</string>
     <string name="conversation_settings_override_temperature">Override Temperature</string>
-    <string name="conversation_settings_temperature_value">Temperature: %.1f</string>
+    <string name="conversation_settings_temperature_value">Temperature: %1$s</string>
     <string name="conversation_settings_override_top_p">Override Top P</string>
-    <string name="conversation_settings_top_p_value">Top P: %.2f</string>
+    <string name="conversation_settings_top_p_value">Top P: %1$s</string>
     <string name="conversation_settings_override_reasoning_effort">Override Reasoning Effort</string>
     <string name="conversation_settings_override_max_tokens">Override Max Tokens</string>
     <string name="conversation_settings_no_provider">No provider yet, please add one in Settings</string>
@@ -178,7 +182,7 @@
     <string name="providers_empty">No providers yet, tap the button below to add</string>
     <string name="providers_delete_title">Delete provider</string>
     <string name="providers_delete_confirm">Are you sure you want to delete this provider? Associated models will also be deleted.</string>
-    <string name="providers_model_count">%d models · tap to manage</string>
+    <string name="providers_model_count">%1$d models · tap to manage</string>
     <string name="providers_edit_title">Edit provider</string>
     <string name="providers_new_title">New provider</string>
     <string name="providers_name_label">Name</string>
@@ -192,7 +196,10 @@
     <string name="providers_syncing">Fetching model list…</string>
     <string name="providers_model_id_empty">Model ID cannot be empty</string>
     <string name="providers_delete_model_title">Delete model</string>
-    <string name="providers_delete_model_confirm">Are you sure you want to delete model "%s"?</string>
+    <string name="providers_delete_model_confirm">Are you sure you want to delete model "%1$s"?</string>
+    <string name="providers_delete_models_title">Delete models</string>
+    <string name="providers_delete_models_confirm">Are you sure you want to delete %1$d selected models?</string>
+    <string name="providers_selected_count">%1$d selected</string>
     <string name="providers_model_saved">Model saved</string>
     <string name="providers_model_list">Model list</string>
     <string name="providers_manual_add_title">Add model manually</string>
@@ -200,8 +207,8 @@
     <string name="providers_model_id_placeholder">gpt-3.5-turbo</string>
     <string name="providers_model_display_name_label">Display name (optional)</string>
     <string name="providers_model_display_name_placeholder">Same as model ID by default</string>
-    <string name="providers_models_available">%d models available</string>
-    <string name="providers_save_selected">Save selected (%d)</string>
+    <string name="providers_models_available">%1$d models available</string>
+    <string name="providers_save_selected">Save selected (%1$d)</string>
     <string name="providers_select_models_title">Select models to save</string>
     <string name="providers_view_models">View models</string>
 
@@ -214,7 +221,7 @@
     <string name="settings_theme">Theme</string>
     <string name="settings_data">Data</string>
     <string name="settings_cloud">Messenger Cloud</string>
-    <string name="settings_cloud_not_logged_in">Not signed in · %s</string>
+    <string name="settings_cloud_not_logged_in">Not signed in · %1$s</string>
     <string name="settings_providers">Model providers</string>
     <string name="settings_providers_desc">Manage AI model providers and API Keys</string>
     <string name="settings_clear_data">Clear all data</string>
@@ -300,7 +307,7 @@
     <string name="error_load_market_failed">Failed to load Agent market</string>
     <string name="error_load_more_failed">Failed to load more Agents</string>
     <string name="error_load_agent_failed">Failed to load Agent</string>
-    <string name="error_read_image_failed">Failed to read image: %s</string>
+    <string name="error_read_image_failed">Failed to read image: %1$s</string>
     <string name="error_unknown">Unknown error</string>
     <string name="error_agent_not_found_chat">Agent not found</string>
     <string name="error_api_no_valid_response">API did not return a valid response. Please check your API configuration and parameters.</string>

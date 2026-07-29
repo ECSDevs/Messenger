@@ -21,6 +21,7 @@ import kotlin.time.Instant
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
+import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 
 object DateTimeUtils {
@@ -50,9 +51,9 @@ object DateTimeUtils {
         if (target == today.minus(1, DateTimeUnit.DAY)) return "昨天"
 
         return if (target.year == today.year) {
-            "${target.monthNumber}月${target.dayOfMonth}日"
+            "${target.month.number}月${target.day}日"
         } else {
-            "${target.year}年${target.monthNumber}月${target.dayOfMonth}日"
+            "${target.year}年${target.month.number}月${target.day}日"
         }
     }
 

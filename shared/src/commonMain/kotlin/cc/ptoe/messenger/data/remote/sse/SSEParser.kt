@@ -17,7 +17,7 @@
 package cc.ptoe.messenger.data.remote.sse
 
 import io.ktor.utils.io.ByteReadChannel
-import io.ktor.utils.io.readUTF8Line
+import io.ktor.utils.io.readLine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -25,13 +25,13 @@ object SSEParser {
 
     /**
      * Reads a Ktor [ByteReadChannel] line by line and emits every SSE
-     * `data:` payload. The terminal `[DONE]` sentinel is forwarded so
+     * `data:` payload. The terminal `\[DONE]` sentinel is forwarded so
      * downstream can emit Done instead of mistaking the clean
      * end-of-stream for an error.
      */
     fun parse(channel: ByteReadChannel): Flow<String> = flow {
         while (!channel.isClosedForRead) {
-            val line = channel.readUTF8Line() ?: break
+            val line = channel.readLine() ?: break
             if (line.startsWith("data: ")) {
                 val data = line.removePrefix("data: ")
                 if (data == "[DONE]") {

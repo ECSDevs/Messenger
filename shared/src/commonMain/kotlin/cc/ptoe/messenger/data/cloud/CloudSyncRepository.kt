@@ -42,7 +42,6 @@ import io.ktor.http.isSuccess
 import io.ktor.utils.io.readRemaining
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
@@ -64,8 +63,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -73,6 +70,7 @@ import okio.ByteString.Companion.decodeBase64
 import okio.ByteString.Companion.encodeUtf8
 import okio.Path
 import okio.Path.Companion.toPath
+import kotlin.time.Duration.Companion.milliseconds
 
 const val DEFAULT_CLOUD_SERVER_URL = "https://messenger.ptoe.cc"
 
@@ -161,7 +159,7 @@ class CloudSyncRepository(
                             "user",
                             response.user.id,
                             response.user.id,
-                            response.user.avatarUrl!!,
+                            response.user.avatarUrl,
                             response.user.avatarVersion?.toString(),
                             configuredServerUrl
                         )
@@ -423,7 +421,7 @@ class CloudSyncRepository(
         }
     }
 
-    suspend fun completeLogin(outcome: CloudLoginOutcome, useLocalData: Boolean): CloudSyncResult {
+    suspend fun completeLogin(useLocalData: Boolean): CloudSyncResult {
         return if (useLocalData) replaceCloudWithLocal() else fullSync()
     }
 
@@ -433,7 +431,7 @@ class CloudSyncRepository(
     fun requestLocalSync() {
         scheduledSync?.cancel()
         scheduledSync = syncScope.launch {
-            delay(750)
+            delay(750.milliseconds)
             runCatching { pushPendingChanges() }
                 .onFailure { _syncError.value = it.message ?: "Cloud synchronization failed" }
         }
@@ -900,7 +898,7 @@ class CloudSyncRepository(
     }
 
     private suspend fun syncAgentAvatar(agent: AgentEntity) {
-        if (agent.avatar != null && !isRemoteAvatar(agent.avatar!!) && !isCloudCachedAvatar(agent.avatar)) {
+        if (agent.avatar != null && !isRemoteAvatar(agent.avatar) && !isCloudCachedAvatar(agent.avatar)) {
             uploadAgentAvatar(agent.id, agent.avatar)
         }
     }
@@ -986,7 +984,7 @@ class CloudSyncRepository(
                     "agent",
                     accountId,
                     remote.id,
-                    remote.avatarUrl!!,
+                    remote.avatarUrl,
                     remote.avatarVersion?.toString(),
                     configuredServerUrl
                 )
@@ -1004,19 +1002,6 @@ class CloudSyncRepository(
             }.getOrNull() ?: return@forEach
             database.agentDao().insert(agent.copy(avatar = cachedAvatar))
         }
-    }
-
-    private suspend fun clearLocalAccountData() = withContext(Dispatchers.IO) {
-        database.providerDao().deleteAll()
-        database.modelDao().deleteAll()
-        database.agentDao().deleteAll()
-        database.conversationDao().deleteAll()
-        database.messageDao().deleteAll()
-        appPreferences.setCurrentAgentId(null)
-        appPreferences.setUserAvatar(null)
-        FileKit.deleteRecursively(filesDir.resolve("user_avatars"))
-        FileKit.deleteRecursively(filesDir.resolve("agent_avatars"))
-        FileKit.deleteRecursively(filesDir.resolve("cloud_avatars"))
     }
 
     private suspend fun requireAgentForMarket(agentId: String): AgentEntity {
@@ -1143,7 +1128,7 @@ class CloudSyncRepository(
             throw Exception("Avatar download failed (${response.status.value})")
         }
         val contentLength = response.headers[HttpHeaders.ContentLength]?.toLongOrNull() ?: -1L
-        check(contentLength <= MAX_AVATAR_BYTES || contentLength == -1L) {
+        check(contentLength <= MAX_AVATAR_BYTES) {
             "Avatar must not exceed 5 MiB"
         }
         val bytes = response.bodyAsChannel().readRemaining(MAX_AVATAR_BYTES + 1).readByteArray()
@@ -1246,7 +1231,7 @@ class CloudSyncRepository(
             protocol = base.protocol,
             host = base.host,
             port = base.port,
-            pathSegments = source.pathSegments.ifEmpty { listOf("") },
+            pathSegments = source.rawSegments.ifEmpty { listOf("") },
             parameters = source.parameters,
             fragment = source.fragment
         ).buildString()

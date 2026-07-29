@@ -28,5 +28,7 @@ interface ModelRepository {
     suspend fun insertAll(models: List<ChatModel>)
     suspend fun update(model: ChatModel)
     suspend fun delete(id: String)
+    suspend fun deleteBatch(ids: List<String>)
     suspend fun setEnabled(id: String, isEnabled: Boolean)
+    suspend fun setEnabledBatch(ids: List<String>, isEnabled: Boolean)
 }

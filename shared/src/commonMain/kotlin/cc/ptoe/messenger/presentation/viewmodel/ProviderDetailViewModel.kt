@@ -52,7 +52,9 @@ data class ProviderDetailUiState(
     val error: String? = null,
     val syncStatus: SyncStatus = SyncStatus.IDLE,
     val syncError: String? = null,
-    val syncedModels: List<ChatModel> = emptyList()
+    val syncedModels: List<ChatModel> = emptyList(),
+    val isMultiSelectMode: Boolean = false,
+    val selectedModelIds: Set<String> = emptySet()
 )
 
 class ProviderDetailViewModel(
@@ -176,6 +178,64 @@ class ProviderDetailViewModel(
     fun deleteModel(modelId: String) {
         viewModelScope.launch {
             modelRepository.delete(modelId)
+        }
+    }
+
+    fun enterMultiSelectMode(modelId: String) {
+        _uiState.value = _uiState.value.copy(
+            isMultiSelectMode = true,
+            selectedModelIds = setOf(modelId)
+        )
+    }
+
+    fun exitMultiSelectMode() {
+        _uiState.value = _uiState.value.copy(
+            isMultiSelectMode = false,
+            selectedModelIds = emptySet()
+        )
+    }
+
+    fun toggleModelSelection(modelId: String) {
+        val current = _uiState.value.selectedModelIds
+        val newSet = if (modelId in current) {
+            current - modelId
+        } else {
+            current + modelId
+        }
+        _uiState.value = _uiState.value.copy(selectedModelIds = newSet)
+    }
+
+    fun selectAllModels() {
+        val allIds = models.value.map { it.id }.toSet()
+        _uiState.value = _uiState.value.copy(selectedModelIds = allIds)
+    }
+
+    fun clearSelection() {
+        _uiState.value = _uiState.value.copy(selectedModelIds = emptySet())
+    }
+
+    fun enableSelectedModels() {
+        val ids = _uiState.value.selectedModelIds.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            modelRepository.setEnabledBatch(ids, true)
+        }
+    }
+
+    fun disableSelectedModels() {
+        val ids = _uiState.value.selectedModelIds.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            modelRepository.setEnabledBatch(ids, false)
+        }
+    }
+
+    fun deleteSelectedModels() {
+        val ids = _uiState.value.selectedModelIds.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            modelRepository.deleteBatch(ids)
+            exitMultiSelectMode()
         }
     }
 

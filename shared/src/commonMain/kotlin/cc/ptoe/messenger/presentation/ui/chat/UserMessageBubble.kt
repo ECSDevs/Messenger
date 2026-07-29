@@ -33,7 +33,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
@@ -127,9 +126,12 @@ fun UserMessageBubble(
                         )
                     }
                     // 行内状态指示（Google Messages 风格：放气泡右下角，半透明）
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        MessageStatusIndicator(message = message, tint = Color.White.copy(alpha = 0.75f))
+                    // 仅在发送中/出错时显示，已发送不展示勾选
+                    if (message.status != MessageStatus.SENT) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            MessageStatusIndicator(message = message, tint = Color.White.copy(alpha = 0.75f))
+                        }
                     }
                 }
             }
@@ -191,17 +193,12 @@ private fun MessageStatusIndicator(message: Message, tint: Color) {
             modifier = Modifier.size(13.dp),
             tint = tint
         )
-        MessageStatus.SENT -> Icon(
-            imageVector = Icons.Default.Check,
-            contentDescription = null,
-            modifier = Modifier.size(14.dp),
-            tint = tint
-        )
         MessageStatus.ERROR -> Icon(
             imageVector = Icons.Default.Error,
             contentDescription = null,
             modifier = Modifier.size(14.dp),
             tint = tint
         )
+        MessageStatus.SENT -> {}
     }
 }

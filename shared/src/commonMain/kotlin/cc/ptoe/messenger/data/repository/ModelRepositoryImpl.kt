@@ -74,9 +74,23 @@ class ModelRepositoryImpl(
         providerId?.let { onChanged(it, false) }
     }
 
+    override suspend fun deleteBatch(ids: List<String>) {
+        if (ids.isEmpty()) return
+        val providerId = modelDao.getFirstProviderIdByIds(ids)
+        modelDao.deleteBatch(ids)
+        providerId?.let { onChanged(it, false) }
+    }
+
     override suspend fun setEnabled(id: String, isEnabled: Boolean) {
         modelDao.setEnabled(id, isEnabled)
         modelDao.getById(id).first()?.let { onChanged(it.providerId, false) }
+    }
+
+    override suspend fun setEnabledBatch(ids: List<String>, isEnabled: Boolean) {
+        if (ids.isEmpty()) return
+        modelDao.setEnabledBatch(ids, isEnabled)
+        val providerId = modelDao.getFirstProviderIdByIds(ids)
+        providerId?.let { onChanged(it, false) }
     }
 
     private fun ModelEntity.toDomain(): ChatModel {

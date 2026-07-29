@@ -154,7 +154,7 @@ internal data class CloudProviderRequest(
  * - [download] without it so avatar downloads can handle 304
  *   Not-Modified themselves.
  */
-internal class CloudApiClient(private val appPreferences: AppPreferences) {
+internal class CloudApiClient(appPreferences: AppPreferences) {
 
     private val cookieStorage = PersistentCookieStorage(appPreferences)
 
@@ -277,10 +277,10 @@ internal class CloudApiClient(private val appPreferences: AppPreferences) {
  */
 private class PersistentCookieStorage(private val preferences: AppPreferences) : CookiesStorage {
 
-    override suspend fun get(url: Url): List<io.ktor.http.Cookie> {
+    override suspend fun get(requestUrl: Url): List<io.ktor.http.Cookie> {
         val session = preferences.cloudSession.first() ?: return emptyList()
         val host = preferences.cloudSessionHost.first() ?: return emptyList()
-        if (host != originOf(url)) return emptyList()
+        if (host != originOf(requestUrl)) return emptyList()
         val separator = session.indexOf('=')
         if (separator <= 0) return emptyList()
         return listOf(
@@ -292,10 +292,10 @@ private class PersistentCookieStorage(private val preferences: AppPreferences) :
         )
     }
 
-    override suspend fun addCookie(url: Url, cookie: io.ktor.http.Cookie) {
+    override suspend fun addCookie(requestUrl: Url, cookie: io.ktor.http.Cookie) {
         if (cookie.name != "messenger_session") return
         preferences.setCloudSession("${cookie.name}=${cookie.value}")
-        preferences.setCloudSessionHost(originOf(url))
+        preferences.setCloudSessionHost(originOf(requestUrl))
     }
 
     override fun close() {}
