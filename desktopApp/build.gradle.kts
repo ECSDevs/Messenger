@@ -43,5 +43,17 @@ compose.desktop {
             packageName = "Messenger"
             packageVersion = "1.0.0"
         }
+        // ProGuard (enabled by default for the release build type) fails because
+        // OkHttp's optional platform classes (org.conscrypt, org.openjsse,
+        // org.bouncycastle.jsse, org.graalvm) and Skiko's JBR adapter
+        // (com.jetbrains.SharedTextures) are not on the Desktop classpath.
+        // Disable it, mirroring the androidApp R8-disabled approach.
+        buildTypes {
+            release {
+                proguard {
+                    isEnabled.set(false)
+                }
+            }
+        }
     }
 }
