@@ -25,9 +25,9 @@ on:
       - main
 
 jobs:
-  android:
-    name: Android (androidApp + wear)
-    runs-on: ubuntu-latest
+  build:
+    name: Build (androidApp + wear + desktop)
+    runs-on: windows-latest
 
     steps:
       - name: Checkout code
@@ -37,15 +37,21 @@ jobs:
           submodules: recursive
 
       - name: Compute version code from commit count
+        shell: pwsh
         run: |
-          COMMIT_COUNT=$(git rev-list --count HEAD)
-          echo "VERSION_CODE=${COMMIT_COUNT}" >> $GITHUB_ENV
+          $commitCount = git rev-list --count HEAD
+          echo "VERSION_CODE=$commitCount" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ''
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -62,14 +68,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-konan-
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
       - name: Decode keystore (push builds)
         if: github.event_name != 'pull_request'
+        shell: pwsh
         run: |
-          mkdir -p keyring
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keyring/messenger-release.jks
+          New-Item -ItemType Directory -Force -Path keyring | Out-Null
+          $keystoreBytes = [Convert]::FromBase64String("${{ secrets.KEYSTORE_BASE64 }}")
+          [IO.File]::WriteAllBytes("keyring/messenger-release.jks", $keystoreBytes)
 
       - name: Build androidApp release APK
         env:
@@ -77,7 +82,8 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew :androidApp:assembleRelease
+        shell: pwsh
+        run: .\gradlew.bat :androidApp:assembleRelease
 
       - name: Upload androidApp release artifact
         uses: actions/upload-artifact@v4
@@ -91,7 +97,8 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew :wear:assembleRelease
+        shell: pwsh
+        run: .\gradlew.bat :wear:assembleRelease
 
       - name: Upload wear release artifact
         uses: actions/upload-artifact@v4
@@ -99,42 +106,39 @@ jobs:
           name: wear-release
           path: wear/build/outputs/apk/release/wear-release.apk
 
-  desktop:
-    name: Desktop
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
-          gradle-home-cache-cleanup: true
-
       - name: Build Desktop distribution
-        run: ./gradlew :desktopApp:packageReleaseMsi
+        shell: pwsh
+        run: .\gradlew.bat :desktopApp:packageReleaseMsi
+
+      - name: List Desktop build outputs (debug path)
+        if: always()
+        shell: pwsh
+        run: |
+          $base = "desktopApp\build\compose\binaries"
+          if (Test-Path $base) {
+            Write-Host "=== $base tree ==="
+            Get-ChildItem -Recurse $base | ForEach-Object { $_.FullName }
+          } else {
+            Write-Host "$base does not exist"
+          }
 
       - name: Upload Desktop artifact
         uses: actions/upload-artifact@v4
         with:
           name: desktop-msi
-          path: desktopApp/build/compose/binaries/main/Msi/*.msi
+          path: |
+            desktopApp/build/compose/binaries/main-release/msi/*.msi
+            desktopApp/build/compose/binaries/main/msi/*.msi
+            desktopApp/build/compose/binaries/release/msi/*.msi
+            desktopApp/build/compose/binaries/main-release/Msi/*.msi
+            desktopApp/build/compose/binaries/main/Msi/*.msi
+            desktopApp/build/compose/binaries/release/Msi/*.msi
+          if-no-files-found: error
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [android, desktop]
-    runs-on: ubuntu-latest
+    needs: build
+    runs-on: windows-latest
 
     steps:
       - name: Download androidApp release artifact
@@ -157,7 +161,10 @@ jobs:
 
       - name: Get version from tag
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref }}" -replace 'refs/tags/', ''
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
