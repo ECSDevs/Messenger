@@ -110,29 +110,11 @@ jobs:
         shell: pwsh
         run: .\gradlew.bat :desktopApp:packageReleaseMsi
 
-      - name: List Desktop build outputs (debug path)
-        if: always()
-        shell: pwsh
-        run: |
-          $base = "desktopApp\build\compose\binaries"
-          if (Test-Path $base) {
-            Write-Host "=== $base tree ==="
-            Get-ChildItem -Recurse $base | ForEach-Object { $_.FullName }
-          } else {
-            Write-Host "$base does not exist"
-          }
-
       - name: Upload Desktop artifact
         uses: actions/upload-artifact@v4
         with:
           name: desktop-msi
-          path: |
-            desktopApp/build/compose/binaries/main-release/msi/*.msi
-            desktopApp/build/compose/binaries/main/msi/*.msi
-            desktopApp/build/compose/binaries/release/msi/*.msi
-            desktopApp/build/compose/binaries/main-release/Msi/*.msi
-            desktopApp/build/compose/binaries/main/Msi/*.msi
-            desktopApp/build/compose/binaries/release/Msi/*.msi
+          path: desktopApp/build/compose/binaries/main-release/msi/*.msi
           if-no-files-found: error
 
   release:
