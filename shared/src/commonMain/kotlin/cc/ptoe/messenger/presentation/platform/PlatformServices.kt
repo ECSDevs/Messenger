@@ -30,6 +30,21 @@ expect fun copyTextToClipboard(text: String)
 expect fun appVersionName(): String?
 
 /**
+ * Whether the chat input field should treat a bare hardware Enter key as
+ * "send message" (with Shift/Ctrl+Enter reserved for newline insertion).
+ *
+ * - Desktop (`desktopMain`): `true` — physical keyboard is the primary
+ *   input method, matching Gmail / Messages for web / Slack conventions.
+ * - Android (`androidMain`): `false` — virtual IME sends Enter as a
+ *   newline via the composing text path; `onPreviewKeyEvent` does not
+ *   fire for soft-keyboard input, so keeping this flag off avoids any
+ *   accidental interference with the on-screen keyboard.
+ *
+ * The Wear module has no chat input field at all (voice + canned replies).
+ */
+expect val sendOnEnterShortcut: Boolean
+
+/**
  * Copies a picked/cropped image file into app-private avatar storage
  * (`filesDir/<subdir>`) and returns the new absolute path. Shared by
  * the settings (user avatar) and agent-edit (agent avatar) flows.

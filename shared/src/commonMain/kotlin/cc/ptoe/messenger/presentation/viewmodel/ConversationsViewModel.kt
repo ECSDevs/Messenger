@@ -47,6 +47,11 @@ import cc.ptoe.messenger.generated.resources.conversations_new_chat
 import org.jetbrains.compose.resources.getString
 import cc.ptoe.messenger.data.util.randomUuid
 
+data class ConversationsUiState(
+    val isMultiSelectMode: Boolean = false,
+    val selectedConversationIds: Set<String> = emptySet()
+)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConversationsViewModel(
     private val conversationRepository: ConversationRepository,
@@ -72,6 +77,9 @@ class ConversationsViewModel(
 
     private val _showAllAgents = MutableStateFlow(true)
     val showAllAgents: StateFlow<Boolean> = _showAllAgents.asStateFlow()
+
+    private val _uiState = MutableStateFlow(ConversationsUiState())
+    val uiState: StateFlow<ConversationsUiState> = _uiState.asStateFlow()
 
     val conversations: StateFlow<List<Conversation>> = combine(
         currentAgentRepository.currentAgent,
@@ -194,6 +202,65 @@ class ConversationsViewModel(
 
     fun showAllAgents() {
         _showAllAgents.value = true
+    }
+
+    fun enterMultiSelectMode(conversationId: String) {
+        _uiState.value = _uiState.value.copy(
+            isMultiSelectMode = true,
+            selectedConversationIds = setOf(conversationId)
+        )
+    }
+
+    fun exitMultiSelectMode() {
+        _uiState.value = _uiState.value.copy(
+            isMultiSelectMode = false,
+            selectedConversationIds = emptySet()
+        )
+    }
+
+    fun toggleSelection(conversationId: String) {
+        val current = _uiState.value.selectedConversationIds
+        val newSet = if (conversationId in current) {
+            current - conversationId
+        } else {
+            current + conversationId
+        }
+        _uiState.value = _uiState.value.copy(selectedConversationIds = newSet)
+    }
+
+    fun selectAll(conversationIds: List<String>) {
+        _uiState.value = _uiState.value.copy(selectedConversationIds = conversationIds.toSet())
+    }
+
+    fun deselectAll() {
+        _uiState.value = _uiState.value.copy(selectedConversationIds = emptySet())
+    }
+
+    fun deleteConversationsBatch(ids: List<String>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            ids.forEach { id ->
+                conversationRepository.delete(id)
+            }
+            exitMultiSelectMode()
+        }
+    }
+
+    fun switchAgentForConversations(ids: List<String>, agentId: String) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            ids.forEach { id ->
+                val conversation = conversationRepository.getById(id).first() ?: return@forEach
+                conversationRepository.update(
+                    conversation.copy(
+                        agentId = agentId,
+                        updatedAt = now
+                    )
+                )
+            }
+            exitMultiSelectMode()
+        }
     }
 
     companion object {

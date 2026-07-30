@@ -16,7 +16,13 @@
 
 package cc.ptoe.messenger.presentation.ui.providers
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +32,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -51,12 +58,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
+import cc.ptoe.messenger.presentation.ui.components.CursorDropdownMenu
 import cc.ptoe.messenger.presentation.ui.components.EmptyState
+import cc.ptoe.messenger.presentation.ui.components.onContextMenu
+import cc.ptoe.messenger.presentation.ui.components.rememberContextMenuState
+import cc.ptoe.messenger.presentation.utils.WindowSizeClass
+import cc.ptoe.messenger.presentation.utils.windowSizeClassFor
 import cc.ptoe.messenger.presentation.viewmodel.ProvidersViewModel
 import cc.ptoe.messenger.presentation.viewmodel.ProviderWithModelCount
 import cc.ptoe.messenger.generated.resources.Res
@@ -95,66 +108,80 @@ fun ProvidersScreen(
 
     var showDeleteDialog by remember { mutableStateOf<String?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(text = stringResource(Res.string.providers_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back)
-                        )
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onAddClick) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = stringResource(Res.string.action_add))
-            }
-        },
-        modifier = Modifier.fillMaxSize()
-    ) { innerPadding ->
-        if (providers.isEmpty()) {
-            EmptyState(
-                icon = Icons.Default.Cloud,
-                message = stringResource(Res.string.providers_empty),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                items(providers, key = { it.provider.id }) { item ->
-                    ProviderListItem(
-                        item = item,
-                        onClick = { onProviderClick(item.provider.id) },
-                        onEditClick = { onEditClick(item.provider.id) },
-                        onDeleteClick = { showDeleteDialog = item.provider.id }
-                    )
-                }
-            }
-        }
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val sizeClass = windowSizeClassFor(maxWidth)
+        val enableContextMenu = sizeClass != WindowSizeClass.Compact
 
-        if (showDeleteDialog != null) {
-            ConfirmationDialog(
-                title = stringResource(Res.string.providers_delete_title),
-                text = stringResource(Res.string.providers_delete_confirm),
-                confirmButtonText = stringResource(Res.string.action_delete),
-                dismissButtonText = stringResource(Res.string.action_cancel),
-                onConfirm = {
-                    showDeleteDialog?.let { id ->
-                        viewModel.deleteProvider(id)
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(text = stringResource(Res.string.providers_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBackClick) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(Res.string.action_back)
+                            )
+                        }
                     }
-                    showDeleteDialog = null
-                },
-                onDismiss = { showDeleteDialog = null }
-            )
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = onAddClick) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = stringResource(Res.string.action_add))
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        ) { innerPadding ->
+            if (providers.isEmpty()) {
+                EmptyState(
+                    icon = Icons.Default.Cloud,
+                    message = stringResource(Res.string.providers_empty),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                )
+            } else {
+                // Desktop / large window: constrain list to a centered 720 dp column.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 720.dp)
+                    ) {
+                        items(providers, key = { it.provider.id }) { item ->
+                            ProviderListItem(
+                                item = item,
+                                onClick = { onProviderClick(item.provider.id) },
+                                onEditClick = { onEditClick(item.provider.id) },
+                                onDeleteClick = { showDeleteDialog = item.provider.id },
+                                enableContextMenu = enableContextMenu
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (showDeleteDialog != null) {
+                ConfirmationDialog(
+                    title = stringResource(Res.string.providers_delete_title),
+                    text = stringResource(Res.string.providers_delete_confirm),
+                    confirmButtonText = stringResource(Res.string.action_delete),
+                    dismissButtonText = stringResource(Res.string.action_cancel),
+                    onConfirm = {
+                        showDeleteDialog?.let { id ->
+                            viewModel.deleteProvider(id)
+                        }
+                        showDeleteDialog = null
+                    },
+                    onDismiss = { showDeleteDialog = null }
+                )
+            }
         }
     }
 }
@@ -165,14 +192,28 @@ private fun ProviderListItem(
     onClick: () -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enableContextMenu: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val contextMenuState = rememberContextMenuState()
+    val interactionSource = remember { MutableInteractionSource() }
+    val hovered by interactionSource.collectIsHoveredAsState()
+    val backgroundColor = when {
+        hovered && enableContextMenu -> MaterialTheme.colorScheme.surfaceContainerHigh
+        else -> Color.Transparent
+    }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .background(backgroundColor)
+            .hoverable(interactionSource)
             .clickable(onClick = onClick)
+            .then(
+                if (enableContextMenu) Modifier.onContextMenu(contextMenuState)
+                else Modifier
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -218,6 +259,13 @@ private fun ProviderListItem(
                 onDismissRequest = { expanded = false }
             ) {
                 DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.providers_view_models)) },
+                    onClick = {
+                        expanded = false
+                        onClick()
+                    }
+                )
+                DropdownMenuItem(
                     text = { Text(stringResource(Res.string.action_edit)) },
                     onClick = {
                         expanded = false
@@ -238,5 +286,34 @@ private fun ProviderListItem(
             contentDescription = stringResource(Res.string.providers_view_models),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        if (enableContextMenu) {
+            CursorDropdownMenu(
+                state = contextMenuState,
+                onDismiss = {}
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.providers_view_models)) },
+                    onClick = {
+                        contextMenuState.hide()
+                        onClick()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.action_edit)) },
+                    onClick = {
+                        contextMenuState.hide()
+                        onEditClick()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.action_delete)) },
+                    onClick = {
+                        contextMenuState.hide()
+                        onDeleteClick()
+                    }
+                )
+            }
+        }
     }
 }

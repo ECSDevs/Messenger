@@ -17,6 +17,7 @@
 package cc.ptoe.messenger.presentation.navigation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -35,18 +36,24 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.savedstate.read
 import cc.ptoe.messenger.presentation.ui.agents.AgentEditScreen
+import cc.ptoe.messenger.presentation.ui.agents.AgentsDualPaneScreen
 import cc.ptoe.messenger.presentation.ui.agents.AgentsScreen
 import cc.ptoe.messenger.presentation.ui.agents.AgentMarketDetailScreen
 import cc.ptoe.messenger.presentation.ui.agents.AgentMarketScreen
 import cc.ptoe.messenger.presentation.ui.chat.ChatScreen
 import cc.ptoe.messenger.presentation.ui.conversations.ConversationSettingsScreen
+import cc.ptoe.messenger.presentation.ui.conversations.ConversationsDualPaneScreen
 import cc.ptoe.messenger.presentation.ui.conversations.ConversationsScreen
 import cc.ptoe.messenger.presentation.ui.providers.ProviderDetailScreen
 import cc.ptoe.messenger.presentation.ui.providers.ProviderEditScreen
+import cc.ptoe.messenger.presentation.ui.providers.ProvidersDualPaneScreen
 import cc.ptoe.messenger.presentation.ui.providers.ProvidersScreen
 import cc.ptoe.messenger.presentation.ui.settings.LicensesScreen
+import cc.ptoe.messenger.presentation.ui.settings.SettingsDualPaneScreen
 import cc.ptoe.messenger.presentation.ui.settings.SettingsScreen
 import cc.ptoe.messenger.presentation.ui.settings.CloudSettingsScreen
+import cc.ptoe.messenger.presentation.utils.WindowSizeClass
+import cc.ptoe.messenger.presentation.utils.windowSizeClassFor
 import cc.ptoe.messenger.presentation.viewmodel.ConversationsViewModel
 import cc.ptoe.messenger.generated.resources.Res
 import cc.ptoe.messenger.generated.resources.conversations_rename_title
@@ -64,11 +71,25 @@ fun NavGraph(
         modifier = modifier
     ) {
         composable(Screen.Conversations.route) {
-            ConversationsScreen(
-                onConversationClick = { conversationId ->
-                    navController.navigate(Screen.Chat.createRoute(conversationId))
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val sizeClass = windowSizeClassFor(maxWidth)
+                if (sizeClass != WindowSizeClass.Compact) {
+                    // Medium / Expanded (tablet portrait / desktop): List-Detail two-pane layout.
+                    ConversationsDualPaneScreen(
+                        initialConversationId = null,
+                        onOpenConversationSettings = { conversationId ->
+                            navController.navigate(Screen.ConversationSettings.createRoute(conversationId))
+                        }
+                    )
+                } else {
+                    // Phone: single-pane, push Chat route on tap.
+                    ConversationsScreen(
+                        onConversationClick = { conversationId ->
+                            navController.navigate(Screen.Chat.createRoute(conversationId))
+                        }
+                    )
                 }
-            )
+            }
         }
         composable(
             route = Screen.Chat.route,
@@ -99,46 +120,81 @@ fun NavGraph(
                     modelRepository = AppContainerHolder.instance.modelRepository
                 )
             )
-            AgentsScreen(
-                onAddClick = {
-                    navController.navigate(Screen.AgentEdit.createRoute())
-                },
-                onMarketClick = {
-                    navController.navigate(Screen.AgentMarket.route)
-                },
-                onEditClick = { agentId ->
-                    navController.navigate(Screen.AgentEdit.createRoute(agentId))
-                },
-                onAgentClick = { agentId ->
-                    conversationsViewModel.switchAgent(agentId)
-                    navController.popBackStack(Screen.Conversations.route, inclusive = false)
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val sizeClass = windowSizeClassFor(maxWidth)
+                if (sizeClass != WindowSizeClass.Compact) {
+                    // Medium / Expanded (tablet portrait / desktop): List-Detail two-pane layout.
+                    AgentsDualPaneScreen(
+                        onOpenAgentEdit = { /* Dual-pane: AgentsDualPaneScreen manages selectedAgentId internally. */ },
+                        onSelectCurrentAgent = { agentId ->
+                            conversationsViewModel.switchAgent(agentId)
+                        },
+                        onMarketClick = {
+                            navController.navigate(Screen.AgentMarket.route)
+                        }
+                    )
+                } else {
+                    // Phone: single-pane, push AgentEdit / AgentMarket on tap.
+                    AgentsScreen(
+                        onAddClick = {
+                            navController.navigate(Screen.AgentEdit.createRoute())
+                        },
+                        onMarketClick = {
+                            navController.navigate(Screen.AgentMarket.route)
+                        },
+                        onEditClick = { agentId ->
+                            navController.navigate(Screen.AgentEdit.createRoute(agentId))
+                        },
+                        onAgentClick = { agentId ->
+                            conversationsViewModel.switchAgent(agentId)
+                            navController.popBackStack(Screen.Conversations.route, inclusive = false)
+                        }
+                    )
                 }
-            )
+            }
         }
         composable(Screen.Providers.route) {
-            ProvidersScreen(
-                onBackClick = { navController.popBackStack() },
-                onAddClick = {
-                    navController.navigate(Screen.ProviderEdit.createRoute())
-                },
-                onEditClick = { providerId ->
-                    navController.navigate(Screen.ProviderEdit.createRoute(providerId))
-                },
-                onProviderClick = { providerId ->
-                    navController.navigate(Screen.ProviderDetail.createRoute(providerId))
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val sizeClass = windowSizeClassFor(maxWidth)
+                if (sizeClass != WindowSizeClass.Compact) {
+                    // Medium / Expanded (tablet portrait / desktop): List-Detail two-pane layout.
+                    ProvidersDualPaneScreen()
+                } else {
+                    // Phone: single-pane, push ProviderEdit / ProviderDetail on tap.
+                    ProvidersScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onAddClick = {
+                            navController.navigate(Screen.ProviderEdit.createRoute())
+                        },
+                        onEditClick = { providerId ->
+                            navController.navigate(Screen.ProviderEdit.createRoute(providerId))
+                        },
+                        onProviderClick = { providerId ->
+                            navController.navigate(Screen.ProviderDetail.createRoute(providerId))
+                        }
+                    )
                 }
-            )
+            }
         }
         composable(Screen.Settings.route) {
-            SettingsScreen(
-                onProvidersClick = {
-                    navController.navigate(Screen.Providers.route)
-                },
-                onLicensesClick = {
-                    navController.navigate(Screen.Licenses.route)
-                },
-                onCloudSettingsClick = { navController.navigate(Screen.CloudSettings.route) }
-            )
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val sizeClass = windowSizeClassFor(maxWidth)
+                if (sizeClass != WindowSizeClass.Compact) {
+                    // Medium / Expanded (tablet portrait / desktop): List-Detail two-pane layout.
+                    SettingsDualPaneScreen()
+                } else {
+                    // Phone: single-pane, push sub-screens on tap.
+                    SettingsScreen(
+                        onProvidersClick = {
+                            navController.navigate(Screen.Providers.route)
+                        },
+                        onLicensesClick = {
+                            navController.navigate(Screen.Licenses.route)
+                        },
+                        onCloudSettingsClick = { navController.navigate(Screen.CloudSettings.route) }
+                    )
+                }
+            }
         }
         composable(Screen.AgentMarket.route) {
             AgentMarketScreen(

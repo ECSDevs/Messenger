@@ -80,6 +80,11 @@ fun ProviderEditScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var apiKeyVisible by remember { mutableStateOf(false) }
 
+    // 双栏布局下切换 Provider 时按 id 重新加载，避免依赖 ViewModel 重建
+    LaunchedEffect(providerId) {
+        viewModel.loadProvider(providerId)
+    }
+
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
             onSaved()

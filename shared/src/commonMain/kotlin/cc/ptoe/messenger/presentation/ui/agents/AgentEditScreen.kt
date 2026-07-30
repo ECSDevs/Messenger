@@ -200,6 +200,12 @@ fun AgentEditScreen(
         }
     }
 
+    // 双栏布局下切换 Agent 时按 id 重新加载，避免依赖 ViewModel 重建
+    //（viewModel() 按 ViewModelStoreOwner 缓存，position 不变时不会重建）
+    LaunchedEffect(agentId) {
+        viewModel.loadAgent(agentId)
+    }
+
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
             onSaved()

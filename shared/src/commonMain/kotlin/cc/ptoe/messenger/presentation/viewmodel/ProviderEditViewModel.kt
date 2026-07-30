@@ -22,6 +22,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewModelScope
 import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.domain.repository.ProviderRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,8 +50,14 @@ data class ProviderEditUiState(
 
 class ProviderEditViewModel(
     private val providerRepository: ProviderRepository,
-    private val providerId: String? = null
+    providerId: String? = null
 ) : ViewModel() {
+
+    /**
+     * 当前正在编辑的 Provider id。null 表示新建 Provider。
+     * 双栏布局下切换 Provider 时由 [loadProvider] 更新。
+     */
+    private var currentProviderId: String? = providerId
 
     private val _uiState = MutableStateFlow(ProviderEditUiState())
     val uiState: StateFlow<ProviderEditUiState> = _uiState.asStateFlow()
@@ -67,10 +74,12 @@ class ProviderEditViewModel(
     private var errorMsgApiKeyRequired: String = ""
     private var errorMsgInvalidUrl: String = ""
 
+    /**
+     * 加载 Provider 的协程 job。切换 Provider 时取消旧 job，避免多个 collect 并发污染 UiState。
+     */
+    private var loadJob: Job? = null
+
     init {
-        if (providerId != null) {
-            loadProvider(providerId)
-        }
         viewModelScope.launch {
             errorMsgNameRequired = getString(Res.string.error_name_required)
             errorMsgApiUrlRequired = getString(Res.string.error_api_url_required)
@@ -79,8 +88,18 @@ class ProviderEditViewModel(
         }
     }
 
-    private fun loadProvider(id: String) {
-        viewModelScope.launch {
+    /**
+     * 加载指定 id 的 Provider 到 UiState。传入 null 表示新建 Provider，重置为初始状态。
+     * 双栏布局下切换 Provider 时由 [ProviderEditScreen] 的 `LaunchedEffect(providerId)` 调用。
+     */
+    fun loadProvider(id: String?) {
+        loadJob?.cancel()
+        currentProviderId = id
+        if (id == null) {
+            _uiState.value = ProviderEditUiState()
+            return
+        }
+        loadJob = viewModelScope.launch {
             providerRepository.getById(id).collect { provider ->
                 if (provider != null) {
                     _uiState.value = _uiState.value.copy(
@@ -149,8 +168,9 @@ class ProviderEditViewModel(
 
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            if (providerId != null) {
-                val existing = providerRepository.getById(providerId).first()
+            val editingId = currentProviderId
+            if (editingId != null) {
+                val existing = providerRepository.getById(editingId).first()
                 if (existing != null) {
                     val updatedProvider = existing.copy(
                         name = currentState.name.trim(),
@@ -171,6 +191,7 @@ class ProviderEditViewModel(
                     updatedAt = now
                 )
                 providerRepository.insert(newProvider)
+                currentProviderId = newProvider.id
                 _uiState.value = _uiState.value.copy(isSaved = true)
             }
         }

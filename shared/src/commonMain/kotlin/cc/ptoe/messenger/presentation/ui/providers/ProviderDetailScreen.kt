@@ -16,17 +16,19 @@
 
 package cc.ptoe.messenger.presentation.ui.providers
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,28 +39,30 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Deselect
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -68,14 +72,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
+import cc.ptoe.messenger.presentation.ui.components.CursorDropdownMenu
 import cc.ptoe.messenger.presentation.ui.components.EmptyState
 import cc.ptoe.messenger.presentation.ui.components.LoadingIndicator
+import cc.ptoe.messenger.presentation.ui.components.MultiSelectTopBar
+import cc.ptoe.messenger.presentation.ui.components.onContextMenu
+import cc.ptoe.messenger.presentation.ui.components.rememberContextMenuState
+import cc.ptoe.messenger.presentation.utils.WindowSizeClass
+import cc.ptoe.messenger.presentation.utils.windowSizeClassFor
 import cc.ptoe.messenger.presentation.viewmodel.ProviderDetailViewModel
 import cc.ptoe.messenger.presentation.viewmodel.SyncStatus
 import kotlinx.coroutines.launch
@@ -84,11 +95,9 @@ import cc.ptoe.messenger.generated.resources.action_add
 import cc.ptoe.messenger.generated.resources.action_back
 import cc.ptoe.messenger.generated.resources.action_cancel
 import cc.ptoe.messenger.generated.resources.action_delete
-import cc.ptoe.messenger.generated.resources.action_deselect_all
 import cc.ptoe.messenger.generated.resources.action_disable
 import cc.ptoe.messenger.generated.resources.action_enable
 import cc.ptoe.messenger.generated.resources.action_manual_add
-import cc.ptoe.messenger.generated.resources.action_select_all
 import cc.ptoe.messenger.generated.resources.action_sync_models
 import cc.ptoe.messenger.generated.resources.error_load_failed
 import cc.ptoe.messenger.generated.resources.providers_delete_model_confirm
@@ -142,6 +151,11 @@ fun ProviderDetailScreen(
     var selectedModelIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showBatchDeleteDialog by remember { mutableStateOf(false) }
 
+    // 双栏布局下切换 Provider 时按 id 重新加载，避免依赖 ViewModel 重建
+    LaunchedEffect(providerId) {
+        viewModel.loadProvider(providerId)
+    }
+
     LaunchedEffect(uiState.syncStatus) {
         if (uiState.syncStatus == SyncStatus.SUCCESS && uiState.syncedModels.isNotEmpty()) {
             selectedModelIds = uiState.syncedModels.map { it.modelId }.toSet()
@@ -154,250 +168,243 @@ fun ProviderDetailScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            if (uiState.isMultiSelectMode) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = stringResource(
-                                Res.string.providers_selected_count,
-                                uiState.selectedModelIds.size
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { viewModel.exitMultiSelectMode() }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(Res.string.action_cancel)
-                            )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val sizeClass = windowSizeClassFor(maxWidth)
+        val enableContextMenu = sizeClass != WindowSizeClass.Compact
+
+        Scaffold(
+            topBar = {
+                if (uiState.isMultiSelectMode) {
+                    MultiSelectTopBar(
+                        selectedCount = uiState.selectedModelIds.size,
+                        onExit = { viewModel.exitMultiSelectMode() },
+                        onSelectAll = { viewModel.selectAllModels() },
+                        onDeselectAll = { viewModel.clearSelection() },
+                        actions = {
+                            IconButton(onClick = { viewModel.enableSelectedModels() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Visibility,
+                                    contentDescription = stringResource(Res.string.action_enable)
+                                )
+                            }
+                            IconButton(onClick = { viewModel.disableSelectedModels() }) {
+                                Icon(
+                                    imageVector = Icons.Default.VisibilityOff,
+                                    contentDescription = stringResource(Res.string.action_disable)
+                                )
+                            }
+                            IconButton(onClick = { showBatchDeleteDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = stringResource(Res.string.action_delete),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
-                    }
+                    )
+                } else {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = uiState.provider?.name
+                                    ?: stringResource(Res.string.providers_model_management),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = onBackClick) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = stringResource(Res.string.action_back)
+                                )
+                            }
+                        }
+                    )
+                }
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            modifier = Modifier.fillMaxSize()
+        ) { innerPadding ->
+            if (uiState.isLoading) {
+                LoadingIndicator(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                )
+            } else if (uiState.error != null) {
+                EmptyState(
+                    icon = Icons.Default.Cloud,
+                    message = uiState.error ?: stringResource(Res.string.error_load_failed),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
                 )
             } else {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = uiState.provider?.name
-                                ?: stringResource(Res.string.providers_model_management),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    uiState.provider?.let { provider ->
+                        ProviderInfoCard(
+                            name = provider.name,
+                            baseUrl = provider.baseUrl,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
                         )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(Res.string.action_back)
-                            )
+                    }
+
+                    if (!uiState.isMultiSelectMode) {
+                        ModelListHeader(
+                            onSyncClick = {
+                                viewModel.syncModels()
+                            },
+                            onAddClick = {
+                                showAddDialog = true
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    if (models.isEmpty()) {
+                        EmptyState(
+                            icon = Icons.Default.Cloud,
+                            message = stringResource(Res.string.providers_no_models),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            items(models, key = { it.id }) { model ->
+                                ModelListItem(
+                                    model = model,
+                                    isMultiSelectMode = uiState.isMultiSelectMode,
+                                    isSelected = model.id in uiState.selectedModelIds,
+                                    onToggleEnabled = { enabled ->
+                                        viewModel.toggleModelEnabled(model.id, enabled)
+                                    },
+                                    onDeleteClick = {
+                                        showDeleteDialog = model
+                                    },
+                                    onLongClick = {
+                                        viewModel.enterMultiSelectMode(model.id)
+                                    },
+                                    onClick = {
+                                        if (uiState.isMultiSelectMode) {
+                                            viewModel.toggleModelSelection(model.id)
+                                        }
+                                    },
+                                    enableContextMenu = enableContextMenu,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
+                    }
+                }
+            }
+
+            if (uiState.syncStatus == SyncStatus.LOADING) {
+                AlertDialog(
+                    onDismissRequest = {},
+                    title = { Text(stringResource(Res.string.providers_sync_models_title)) },
+                    text = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.width(24.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(stringResource(Res.string.providers_syncing))
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {}
+                )
+            }
+
+            if (showAddDialog) {
+                AddModelDialog(
+                    onConfirm = { modelId, displayName ->
+                        val success = viewModel.addModelManually(modelId, displayName)
+                        if (success) {
+                            showAddDialog = false
+                        } else {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(strModelIdEmpty)
+                            }
+                        }
+                    },
+                    onDismiss = { showAddDialog = false }
+                )
+            }
+
+            if (showDeleteDialog != null) {
+                ConfirmationDialog(
+                    title = stringResource(Res.string.providers_delete_model_title),
+                    text = stringResource(Res.string.providers_delete_model_confirm, showDeleteDialog?.displayName ?: ""),
+                    confirmButtonText = stringResource(Res.string.action_delete),
+                    dismissButtonText = stringResource(Res.string.action_cancel),
+                    onConfirm = {
+                        showDeleteDialog?.let { model ->
+                            viewModel.deleteModel(model.id)
+                        }
+                        showDeleteDialog = null
+                    },
+                    onDismiss = { showDeleteDialog = null }
+                )
+            }
+
+            if (showBatchDeleteDialog) {
+                ConfirmationDialog(
+                    title = stringResource(Res.string.providers_delete_models_title),
+                    text = stringResource(Res.string.providers_delete_models_confirm, uiState.selectedModelIds.size),
+                    confirmButtonText = stringResource(Res.string.action_delete),
+                    dismissButtonText = stringResource(Res.string.action_cancel),
+                    onConfirm = {
+                        viewModel.deleteSelectedModels()
+                        showBatchDeleteDialog = false
+                    },
+                    onDismiss = { showBatchDeleteDialog = false }
+                )
+            }
+
+            if (showSyncDialog && uiState.syncedModels.isNotEmpty()) {
+                SyncModelSelectionDialog(
+                    models = uiState.syncedModels,
+                    selectedModelIds = selectedModelIds,
+                    onToggleSelection = { modelId ->
+                        selectedModelIds = if (modelId in selectedModelIds) {
+                            selectedModelIds - modelId
+                        } else {
+                            selectedModelIds + modelId
+                        }
+                    },
+                    onConfirm = {
+                        coroutineScope.launch {
+                            viewModel.saveSelectedModels(selectedModelIds.toList())
+                            showSyncDialog = false
+                            snackbarHostState.showSnackbar(strModelSaved)
+                        }
+                    },
+                    onDismiss = {
+                        showSyncDialog = false
+                        viewModel.resetSyncState()
                     }
                 )
             }
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        modifier = Modifier.fillMaxSize()
-    ) { innerPadding ->
-        if (uiState.isLoading) {
-            LoadingIndicator(
-                modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-            )
-        } else if (uiState.error != null) {
-            EmptyState(
-                icon = Icons.Default.Cloud,
-                message = uiState.error ?: stringResource(Res.string.error_load_failed),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            )
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                uiState.provider?.let { provider ->
-                    ProviderInfoCard(
-                        name = provider.name,
-                        baseUrl = provider.baseUrl,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    )
-                }
-
-                if (uiState.isMultiSelectMode) {
-                    MultiSelectActionBar(
-                        selectedCount = uiState.selectedModelIds.size,
-                        isAllSelected = models.isNotEmpty() &&
-                            uiState.selectedModelIds.size == models.size,
-                        onToggleSelectAll = {
-                            if (uiState.selectedModelIds.size == models.size) {
-                                viewModel.clearSelection()
-                            } else {
-                                viewModel.selectAllModels()
-                            }
-                        },
-                        onEnableClick = { viewModel.enableSelectedModels() },
-                        onDisableClick = { viewModel.disableSelectedModels() },
-                        onDeleteClick = { showBatchDeleteDialog = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                } else {
-                    ModelListHeader(
-                        onSyncClick = {
-                            viewModel.syncModels()
-                        },
-                        onAddClick = {
-                            showAddDialog = true
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                if (models.isEmpty()) {
-                    EmptyState(
-                        icon = Icons.Default.Cloud,
-                        message = stringResource(Res.string.providers_no_models),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    ) {
-                        items(models, key = { it.id }) { model ->
-                            ModelListItem(
-                                model = model,
-                                isMultiSelectMode = uiState.isMultiSelectMode,
-                                isSelected = model.id in uiState.selectedModelIds,
-                                onToggleEnabled = { enabled ->
-                                    viewModel.toggleModelEnabled(model.id, enabled)
-                                },
-                                onDeleteClick = {
-                                    showDeleteDialog = model
-                                },
-                                onLongClick = {
-                                    viewModel.enterMultiSelectMode(model.id)
-                                },
-                                onClick = {
-                                    if (uiState.isMultiSelectMode) {
-                                        viewModel.toggleModelSelection(model.id)
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        if (uiState.syncStatus == SyncStatus.LOADING) {
-            AlertDialog(
-                onDismissRequest = {},
-                title = { Text(stringResource(Res.string.providers_sync_models_title)) },
-                text = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.width(24.dp),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(stringResource(Res.string.providers_syncing))
-                    }
-                },
-                confirmButton = {},
-                dismissButton = {}
-            )
-        }
-
-        if (showAddDialog) {
-            AddModelDialog(
-                onConfirm = { modelId, displayName ->
-                    val success = viewModel.addModelManually(modelId, displayName)
-                    if (success) {
-                        showAddDialog = false
-                    } else {
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(strModelIdEmpty)
-                        }
-                    }
-                },
-                onDismiss = { showAddDialog = false }
-            )
-        }
-
-        if (showDeleteDialog != null) {
-            ConfirmationDialog(
-                title = stringResource(Res.string.providers_delete_model_title),
-                text = stringResource(Res.string.providers_delete_model_confirm, showDeleteDialog?.displayName ?: ""),
-                confirmButtonText = stringResource(Res.string.action_delete),
-                dismissButtonText = stringResource(Res.string.action_cancel),
-                onConfirm = {
-                    showDeleteDialog?.let { model ->
-                        viewModel.deleteModel(model.id)
-                    }
-                    showDeleteDialog = null
-                },
-                onDismiss = { showDeleteDialog = null }
-            )
-        }
-
-        if (showBatchDeleteDialog) {
-            ConfirmationDialog(
-                title = stringResource(Res.string.providers_delete_models_title),
-                text = stringResource(Res.string.providers_delete_models_confirm, uiState.selectedModelIds.size),
-                confirmButtonText = stringResource(Res.string.action_delete),
-                dismissButtonText = stringResource(Res.string.action_cancel),
-                onConfirm = {
-                    viewModel.deleteSelectedModels()
-                    showBatchDeleteDialog = false
-                },
-                onDismiss = { showBatchDeleteDialog = false }
-            )
-        }
-
-        if (showSyncDialog && uiState.syncedModels.isNotEmpty()) {
-            SyncModelSelectionDialog(
-                models = uiState.syncedModels,
-                selectedModelIds = selectedModelIds,
-                onToggleSelection = { modelId ->
-                    selectedModelIds = if (modelId in selectedModelIds) {
-                        selectedModelIds - modelId
-                    } else {
-                        selectedModelIds + modelId
-                    }
-                },
-                onConfirm = {
-                    coroutineScope.launch {
-                        viewModel.saveSelectedModels(selectedModelIds.toList())
-                        showSyncDialog = false
-                        snackbarHostState.showSnackbar(strModelSaved)
-                    }
-                },
-                onDismiss = {
-                    showSyncDialog = false
-                    viewModel.resetSyncState()
-                }
-            )
         }
     }
 }
@@ -434,6 +441,7 @@ private fun ProviderInfoCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModelListHeader(
     onSyncClick: () -> Unit,
@@ -453,91 +461,34 @@ private fun ModelListHeader(
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            IconButton(onClick = onSyncClick) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = stringResource(Res.string.action_sync_models)
-                )
+            TooltipBox(
+                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                tooltip = {
+                    PlainTooltip { Text(stringResource(Res.string.action_sync_models)) }
+                },
+                state = rememberTooltipState()
+            ) {
+                IconButton(onClick = onSyncClick) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = stringResource(Res.string.action_sync_models)
+                    )
+                }
             }
-            IconButton(onClick = onAddClick) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = stringResource(Res.string.action_manual_add)
-                )
+            TooltipBox(
+                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                tooltip = {
+                    PlainTooltip { Text(stringResource(Res.string.action_manual_add)) }
+                },
+                state = rememberTooltipState()
+            ) {
+                IconButton(onClick = onAddClick) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = stringResource(Res.string.action_manual_add)
+                    )
+                }
             }
-        }
-    }
-}
-
-@Composable
-private fun MultiSelectActionBar(
-    selectedCount: Int,
-    isAllSelected: Boolean,
-    onToggleSelectAll: () -> Unit,
-    onEnableClick: () -> Unit,
-    onDisableClick: () -> Unit,
-    onDeleteClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier.height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        OutlinedButton(
-            onClick = onToggleSelectAll,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-        ) {
-            Icon(
-                imageVector = if (isAllSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
-                contentDescription = stringResource(
-                    if (isAllSelected) Res.string.action_deselect_all
-                    else Res.string.action_select_all
-                ),
-                modifier = Modifier.width(18.dp)
-            )
-        }
-        OutlinedButton(
-            onClick = onEnableClick,
-            enabled = selectedCount > 0,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-        ) {
-            Icon(
-                imageVector = Icons.Default.Visibility,
-                contentDescription = stringResource(Res.string.action_enable),
-                modifier = Modifier.width(18.dp)
-            )
-        }
-        OutlinedButton(
-            onClick = onDisableClick,
-            enabled = selectedCount > 0,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-        ) {
-            Icon(
-                imageVector = Icons.Default.VisibilityOff,
-                contentDescription = stringResource(Res.string.action_disable),
-                modifier = Modifier.width(18.dp)
-            )
-        }
-        OutlinedButton(
-            onClick = onDeleteClick,
-            enabled = selectedCount > 0,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-        ) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = stringResource(Res.string.action_delete),
-                tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.width(18.dp)
-            )
         }
     }
 }
@@ -551,16 +502,29 @@ private fun ModelListItem(
     onDeleteClick: () -> Unit,
     onLongClick: () -> Unit,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enableContextMenu: Boolean = false
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val contextMenuState = rememberContextMenuState()
+    val hovered by interactionSource.collectIsHoveredAsState()
+    val backgroundColor = when {
+        hovered && enableContextMenu -> MaterialTheme.colorScheme.surfaceContainerHigh
+        else -> Color.Transparent
+    }
     Row(
         modifier = modifier
+            .background(backgroundColor)
+            .hoverable(interactionSource)
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
                 onLongClick = onLongClick
+            )
+            .then(
+                if (enableContextMenu) Modifier.onContextMenu(contextMenuState)
+                else Modifier
             )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -603,6 +567,35 @@ private fun ModelListItem(
                     imageVector = Icons.Default.Delete,
                     contentDescription = stringResource(Res.string.action_delete),
                     tint = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+
+        if (enableContextMenu) {
+            CursorDropdownMenu(
+                state = contextMenuState,
+                onDismiss = {}
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.action_enable)) },
+                    onClick = {
+                        contextMenuState.hide()
+                        onToggleEnabled(true)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.action_disable)) },
+                    onClick = {
+                        contextMenuState.hide()
+                        onToggleEnabled(false)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.action_delete)) },
+                    onClick = {
+                        contextMenuState.hide()
+                        onDeleteClick()
+                    }
                 )
             }
         }

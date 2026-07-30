@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -35,6 +36,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import cc.ptoe.messenger.domain.model.MessageRole
+import cc.ptoe.messenger.presentation.ui.components.ContextMenuState
+import cc.ptoe.messenger.presentation.ui.components.CursorDropdownMenu
 import kotlinx.coroutines.launch
 import cc.ptoe.messenger.generated.resources.Res
 import cc.ptoe.messenger.generated.resources.action_copy
@@ -116,5 +119,60 @@ fun MessageActionMenu(
                 }
             )
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MessageContextMenu(
+    state: ContextMenuState,
+    messageRole: MessageRole,
+    onCopyClick: () -> Unit,
+    onRegenerateClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    CursorDropdownMenu(state = state, onDismiss = onDismiss) {
+        DropdownMenuItem(
+            text = { Text(stringResource(Res.string.action_copy)) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.ContentCopy,
+                    contentDescription = null
+                )
+            },
+            onClick = {
+                state.hide()
+                onCopyClick()
+            }
+        )
+        if (messageRole == MessageRole.ASSISTANT) {
+            DropdownMenuItem(
+                text = { Text(stringResource(Res.string.action_regenerate)) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null
+                    )
+                },
+                onClick = {
+                    state.hide()
+                    onRegenerateClick()
+                }
+            )
+        }
+        DropdownMenuItem(
+            text = { Text(stringResource(Res.string.action_delete)) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = null
+                )
+            },
+            onClick = {
+                state.hide()
+                onDeleteClick()
+            }
+        )
     }
 }

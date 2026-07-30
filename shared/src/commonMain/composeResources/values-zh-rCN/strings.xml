@@ -46,6 +46,8 @@
     <string name="action_disable">禁用</string>
     <string name="action_select_all">全选</string>
     <string name="action_deselect_all">取消全选</string>
+    <string name="action_multi_select">多选</string>
+    <string name="action_set_default_agent">设为默认 Agent</string>
 
     <!-- Agents -->
     <string name="agents_title">Agents</string>
@@ -54,11 +56,13 @@
     <string name="agents_empty_message">暂无 Agent\n创建你的第一个 Agent 吧</string>
     <string name="agents_delete_title">删除 Agent</string>
     <string name="agents_delete_confirm">确定要删除这个 Agent 吗？</string>
+    <string name="agents_delete_batch_confirm">确认删除 %1$d 个 Agent？默认 Agent 不会被删除。</string>
     <string name="agents_default_badge">默认</string>
     <string name="agents_no_system_prompt">无系统提示词</string>
     <string name="agents_model_label">模型: %1$s</string>
     <string name="agents_model_default">默认</string>
     <string name="agents_close_menu">关闭操作菜单</string>
+    <string name="agents_select_to_edit">选择一个 Agent 进行编辑</string>
 
     <!-- Agent Edit -->
     <string name="agent_edit_save">保存</string>
@@ -141,6 +145,7 @@
     <string name="chat_start_hint">开始对话吧</string>
     <string name="chat_title_default">对话</string>
     <string name="chat_picture">[图片]</string>
+    <string name="chat_select_conversation">选择一个对话开始聊天</string>
 
     <!-- Conversations -->
     <string name="conversations_all_agents">全部 Agent</string>
@@ -152,6 +157,7 @@
     <string name="conversations_rename_hint">请输入新标题</string>
     <string name="conversations_delete_title">删除对话</string>
     <string name="conversations_delete_confirm">确定要删除这个对话吗？</string>
+    <string name="conversations_delete_batch_confirm">确定要删除这 %1$d 个对话吗？</string>
     <string name="conversations_select_agent_title">选择 Agent</string>
     <string name="conversations_no_message">暂无消息</string>
     <string name="conversations_new_chat">新对话</string>
@@ -210,6 +216,7 @@
     <string name="providers_save_selected">保存选中 (%1$d)</string>
     <string name="providers_select_models_title">选择要保存的模型</string>
     <string name="providers_view_models">查看模型</string>
+    <string name="providers_select_to_view">选择一个 Provider 查看</string>
 
     <!-- Settings -->
     <string name="settings_title">设置</string>
@@ -230,6 +237,7 @@
     <string name="settings_about">关于</string>
     <string name="settings_version">版本</string>
     <string name="settings_licenses">开源许可</string>
+    <string name="settings_select_section">选择一个分区</string>
     <string name="settings_theme_system">跟随系统</string>
     <string name="settings_theme_light">浅色</string>
     <string name="settings_theme_dark">深色</string>
@@ -317,5 +325,10 @@
     <string name="error_api_key_required">API Key 不能为空</string>
     <string name="error_sync_failed">同步失败</string>
     <string name="error_load_failed">加载失败</string>
+
+    <!-- Tooltips -->
+    <string name="tooltip_nav_conversations">会话</string>
+    <string name="tooltip_nav_agents">Agents</string>
+    <string name="tooltip_nav_settings">设置</string>
 
 </resources>

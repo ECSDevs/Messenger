@@ -134,6 +134,7 @@ Messenger/
 │       │           │   │   └── SingleChoiceDialog.kt
 │       │           │   ├── conversations/
 │       │           │   │   ├── ConversationSettingsScreen.kt
+│       │           │   │   ├── ConversationsDualPaneScreen.kt
 │       │           │   │   └── ConversationsScreen.kt
 │       │           │   ├── providers/
 │       │           │   │   ├── ProviderDetailScreen.kt
@@ -148,7 +149,8 @@ Messenger/
 │       │           ├── utils/
 │       │           │   ├── DateTimeUtils.kt
 │       │           │   ├── FormatUtils.kt
-│       │           │   └── ThinkBlockUtils.kt
+│       │           │   ├── ThinkBlockUtils.kt
+│       │           │   └── WindowSizeClass.kt
 │       │           └── viewmodel/
 │       │               ├── AgentEditViewModel.kt
 │       │               ├── AgentMarketViewModel.kt
@@ -345,6 +347,12 @@ The project uses a manual dependency injection approach via an `AppContainer`:
 - Routes defined in `Screen.kt` sealed class (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/navigation/Screen.kt`)
 - NavGraph defined in `NavGraph.kt` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/navigation/NavGraph.kt`); uses `backStackEntry.arguments?.read { getStringOrNull("key") }` for Compose Multiplatform SavedState API compatibility
 - Bottom navigation routes defined in `BottomLevelRoutes.kt` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/navigation/BottomLevelRoutes.kt`)
+- **Adaptive layout (M3 window size classes)**: `MainScaffold.kt` uses `BoxWithConstraints` + `windowSizeClassFor(maxWidth)` (from `presentation/utils/WindowSizeClass.kt`) to switch between a bottom `NavigationBar` (Compact width < 600 dp, phones) and a left `NavigationRailBar` (Medium/Expanded width ≥ 840 dp, tablet landscape / desktop). The `NavigationRailBar` composable lives next to `BottomNavBar` in `BottomNavBar.kt`.
+- **List-Detail dual-pane (non-Compact width)**: when `WindowSizeClass != Compact` (Medium/Expanded), `NavGraph.kt` renders a `*DualPaneScreen` instead of pushing the detail route — left pane is the list, right pane is the detail surface. This applies to `Conversations` (`ConversationsDualPaneScreen` — left pane is the 360 dp conversation list, right pane is `ChatScreen` with `showBackButton = false`), `Agents` (`AgentsDualPaneScreen`), `Providers` (`ProvidersDualPaneScreen`), and `Settings` (`SettingsDualPaneScreen`). Selection state is `rememberSaveable`. On Compact width the existing single-pane + push flow is preserved. The dual-pane trigger threshold was unified to `!= Compact` (previously `Expanded` for Conversations only).
+- **Context menus (non-Compact width)**: list items and message bubbles expose right-click context menus via `Modifier.onContextMenu` + `CursorDropdownMenu` when `WindowSizeClass != Compact`. The shared helpers live in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/components/ContextMenu.kt`.
+- **Multi-select mode**: `ConversationsScreen` and `AgentsScreen` support long-press multi-select (mirroring the existing `ProviderDetailScreen` implementation). The shared selection-mode TopAppBar lives in `shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/components/MultiSelectTopBar.kt`.
+- **Hover state (non-Compact width)**: list items transition their background to `surfaceContainerHigh` on hover when `WindowSizeClass != Compact`.
+- **Tooltips (non-Compact width)**: `NavigationRailBar` items and TopAppBar primary action icons are wrapped in M3 `TooltipBox` when `WindowSizeClass != Compact`.
 - **Important**: `ProviderEdit` and `AgentEdit` routes use optional parameter syntax (`provider_edit?providerId={providerId}`)
 - `AgentMarket` and `AgentMarketDetail` are Cloud-authenticated routes entered from the Agent list FAB; the FAB exposes the market only while a Cloud user is signed in.
 
@@ -658,4 +666,9 @@ Write clear, concise commit messages describing what was changed and why. Push o
 - [NavGraph.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/navigation/NavGraph.kt) - Navigation graph
 - [MessengerDatabase.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/data/local/MessengerDatabase.kt) - Room database
 - [MainScaffold.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/components/MainScaffold.kt) - Main app scaffold
+- [AgentsDualPaneScreen.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/agents/AgentsDualPaneScreen.kt) - Agents List-Detail dual-pane (non-Compact width)
+- [ProvidersDualPaneScreen.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/providers/ProvidersDualPaneScreen.kt) - Providers List-Detail dual-pane (non-Compact width)
+- [SettingsDualPaneScreen.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/settings/SettingsDualPaneScreen.kt) - Settings List-Detail dual-pane (non-Compact width)
+- [ContextMenu.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/components/ContextMenu.kt) - Shared `Modifier.onContextMenu` + `CursorDropdownMenu` helpers (non-Compact width)
+- [MultiSelectTopBar.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/components/MultiSelectTopBar.kt) - Shared selection-mode TopAppBar for long-press multi-select
 - [android.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/android.yml) - CI/CD workflow

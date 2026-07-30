@@ -29,6 +29,7 @@ import cc.ptoe.messenger.domain.repository.AgentRepository
 import cc.ptoe.messenger.domain.repository.ModelRepository
 import cc.ptoe.messenger.domain.repository.ProviderRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -77,8 +78,14 @@ class AgentEditViewModel(
     private val modelRepository: ModelRepository,
     private val providerRepository: ProviderRepository,
     private val cloudSyncRepository: CloudSyncRepository,
-    private val agentId: String? = null
+    agentId: String? = null
 ) : ViewModel() {
+
+    /**
+     * 当前正在编辑的 Agent id。null 表示新建 Agent。
+     * 双栏布局下切换 Agent 时由 [loadAgent] 更新，`save()` / 市场操作读取此值。
+     */
+    private var currentAgentId: String? = agentId
 
     private val _uiState = MutableStateFlow(AgentEditUiState())
     val uiState: StateFlow<AgentEditUiState> = _uiState.asStateFlow()
@@ -116,6 +123,11 @@ class AgentEditViewModel(
             initialValue = emptyList()
         )
 
+    /**
+     * 加载 Agent 的协程 job。切换 Agent 时取消旧 job，避免多个 collect 并发污染 UiState。
+     */
+    private var loadJob: Job? = null
+
     init {
         // 始终加载默认 Agent，用于非默认 Agent 的"跟随"展示
         viewModelScope.launch {
@@ -124,17 +136,26 @@ class AgentEditViewModel(
                 _uiState.value = _uiState.value.copy(defaultAgent = default)
             }
         }
-        if (agentId != null) {
-            loadAgent(agentId)
-        }
         // Pre-load localized validation message (Compose Multiplatform getString is suspend).
         viewModelScope.launch {
             errorMsgNameRequired = getString(Res.string.error_name_required)
         }
     }
 
-    private fun loadAgent(id: String) {
-        viewModelScope.launch {
+    /**
+     * 加载指定 id 的 Agent 到 UiState。传入 null 表示新建 Agent，重置为初始状态。
+     * 双栏布局下切换 Agent 时由 [AgentEditScreen] 的 `LaunchedEffect(agentId)` 调用，
+     * 避免依赖 ViewModel 重建（`viewModel()` 按 ViewModelStoreOwner 缓存，position 不变时
+     * 不会重建）。
+     */
+    fun loadAgent(id: String?) {
+        loadJob?.cancel()
+        currentAgentId = id
+        if (id == null) {
+            _uiState.value = AgentEditUiState(defaultAgent = _uiState.value.defaultAgent)
+            return
+        }
+        loadJob = viewModelScope.launch {
             agentRepository.getById(id).collect { agent ->
                 if (agent != null) {
                     val providerId = agent.defaultModelId?.let { modelId ->
@@ -257,8 +278,9 @@ class AgentEditViewModel(
             val now = System.currentTimeMillis()
             val maxTokensInt = currentState.maxTokens?.toIntOrNull()
 
-            if (agentId != null) {
-                val existing = agentRepository.getById(agentId).first()
+            val editingId = currentAgentId
+            if (editingId != null) {
+                val existing = agentRepository.getById(editingId).first()
                 if (existing != null) {
                     val updatedAgent = existing.copy(
                         name = currentState.name.trim(),
@@ -302,6 +324,7 @@ class AgentEditViewModel(
                     updatedAt = now
                 )
                 agentRepository.insert(newAgent)
+                currentAgentId = newAgent.id
                 _uiState.value = _uiState.value.copy(isSaved = true)
             }
         }
@@ -310,19 +333,19 @@ class AgentEditViewModel(
     }
 
     fun publishMarketAgent(onResult: (Result<Unit>) -> Unit) = runMarketAction(onResult) {
-        cloudSyncRepository.publishMarketAgent(requireNotNull(agentId))
+        cloudSyncRepository.publishMarketAgent(requireNotNull(currentAgentId))
     }
 
     fun pushMarketAgentUpdate(onResult: (Result<Unit>) -> Unit) = runMarketAction(onResult) {
-        cloudSyncRepository.pushMarketAgentUpdate(requireNotNull(agentId))
+        cloudSyncRepository.pushMarketAgentUpdate(requireNotNull(currentAgentId))
     }
 
     fun removeMarketAgent(onResult: (Result<Unit>) -> Unit) = runMarketAction(onResult) {
-        cloudSyncRepository.removeMarketAgent(requireNotNull(agentId))
+        cloudSyncRepository.removeMarketAgent(requireNotNull(currentAgentId))
     }
 
     fun checkMarketAgentUpdate(onResult: (Result<CloudMarketAgentUpdate>) -> Unit) {
-        val id = agentId ?: return onResult(Result.failure(IllegalStateException("Save the Agent before checking updates.")))
+        val id = currentAgentId ?: return onResult(Result.failure(IllegalStateException("Save the Agent before checking updates.")))
         _uiState.value = _uiState.value.copy(marketActionInProgress = true)
         viewModelScope.launch {
             val result = runCatching { cloudSyncRepository.checkMarketAgentUpdate(id) }
@@ -332,13 +355,13 @@ class AgentEditViewModel(
     }
 
     fun applyMarketAgentUpdate(onResult: (Result<Unit>) -> Unit) = runMarketAction(onResult) {
-        val update = cloudSyncRepository.checkMarketAgentUpdate(requireNotNull(agentId))
+        val update = cloudSyncRepository.checkMarketAgentUpdate(requireNotNull(currentAgentId))
         check(update.hasUpdate) { "This Agent is already up to date." }
-        cloudSyncRepository.applyMarketAgentUpdate(requireNotNull(agentId), update.agent)
+        cloudSyncRepository.applyMarketAgentUpdate(requireNotNull(currentAgentId), update.agent)
     }
 
     private fun runMarketAction(onResult: (Result<Unit>) -> Unit, action: suspend () -> Unit) {
-        if (agentId == null) {
+        if (currentAgentId == null) {
             onResult(Result.failure(IllegalStateException("Save the Agent before using the market.")))
             return
         }
@@ -354,7 +377,7 @@ class AgentEditViewModel(
     }
 
     private suspend fun saveCurrentAgentForMarket() {
-        val id = requireNotNull(agentId)
+        val id = requireNotNull(currentAgentId)
         val currentState = _uiState.value
         check(currentState.name.isNotBlank()) { "名称不能为空" }
         val existing = checkNotNull(agentRepository.getById(id).first()) { "Agent 不存在" }

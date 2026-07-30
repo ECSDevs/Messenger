@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -144,11 +145,19 @@ fun SettingsScreen(
         },
         modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
-        LazyColumn(
+        // On desktop / large windows, constrain the settings list to a
+        // centered 720 dp column so rows don't stretch across the full width.
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 720.dp)
+            ) {
             item {
                 SectionHeader(title = stringResource(Res.string.settings_personal))
             }
@@ -300,6 +309,7 @@ fun SettingsScreen(
                 onDismiss = { showClearDataDialog = false }
             )
         }
+        } // close centered Box
     }
 }
 

@@ -26,11 +26,14 @@ import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.domain.repository.ApiRepository
 import cc.ptoe.messenger.domain.repository.ModelRepository
 import cc.ptoe.messenger.domain.repository.ProviderRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import cc.ptoe.messenger.generated.resources.Res
@@ -61,28 +64,58 @@ class ProviderDetailViewModel(
     private val providerRepository: ProviderRepository,
     private val modelRepository: ModelRepository,
     private val apiRepository: ApiRepository,
-    private val providerId: String
+    providerId: String
 ) : ViewModel() {
+
+    /**
+     * 当前正在查看的 Provider id。双栏布局下切换 Provider 时由 [loadProvider] 更新，
+     * `models` StateFlow 通过 flatMapLatest 响应此值变化。
+     */
+    private val _providerIdFlow = MutableStateFlow(providerId)
+    private val currentProviderId: String get() = _providerIdFlow.value
 
     private val _uiState = MutableStateFlow(ProviderDetailUiState())
     val uiState: StateFlow<ProviderDetailUiState> = _uiState.asStateFlow()
 
-    val models = modelRepository.getByProviderId(providerId)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val models = _providerIdFlow
+        .flatMapLatest { id -> modelRepository.getByProviderId(id) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
+    /**
+     * 加载 Provider 的协程 job。切换 Provider 时取消旧 job，避免多个 collect 并发污染 UiState。
+     */
+    private var loadJob: Job? = null
+
     init {
-        loadProvider()
+        loadProvider(providerId)
     }
 
-    private fun loadProvider() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+    /**
+     * 加载指定 id 的 Provider 到 UiState。
+     * 双栏布局下切换 Provider 时由 [ProviderDetailScreen] 的 `LaunchedEffect(providerId)` 调用。
+     */
+    fun loadProvider(id: String) {
+        loadJob?.cancel()
+        _providerIdFlow.value = id
+        // 重置多选状态，避免切换 Provider 后残留旧选中项
+        _uiState.value = _uiState.value.copy(
+            provider = null,
+            isLoading = true,
+            error = null,
+            isMultiSelectMode = false,
+            selectedModelIds = emptySet(),
+            syncStatus = SyncStatus.IDLE,
+            syncError = null,
+            syncedModels = emptyList()
+        )
+        loadJob = viewModelScope.launch {
             try {
-                providerRepository.getById(providerId).collect { provider ->
+                providerRepository.getById(id).collect { provider ->
                     _uiState.value = _uiState.value.copy(
                         provider = provider,
                         isLoading = false
@@ -130,7 +163,7 @@ class ProviderDetailViewModel(
 
     suspend fun saveSelectedModels(selectedModelIds: List<String>) {
         val provider = _uiState.value.provider ?: return
-        val existingModels = modelRepository.getByProviderId(providerId).first()
+        val existingModels = modelRepository.getByProviderId(currentProviderId).first()
         val existingModelIds = existingModels.map { it.modelId }.toSet()
         val newModels = _uiState.value.syncedModels
             .filter { it.modelId in selectedModelIds && it.modelId !in existingModelIds }
@@ -158,7 +191,7 @@ class ProviderDetailViewModel(
         val provider = _uiState.value.provider ?: return false
         if (modelId.isBlank()) return false
         viewModelScope.launch {
-            val existingModels = modelRepository.getByProviderId(providerId).first()
+            val existingModels = modelRepository.getByProviderId(currentProviderId).first()
             val exists = existingModels.any { it.modelId == modelId }
             if (!exists) {
                 val newModel = ChatModel(

@@ -53,9 +53,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import cc.ptoe.messenger.domain.model.MessageImage
+import cc.ptoe.messenger.presentation.platform.sendOnEnterShortcut
 import coil3.compose.AsyncImage
 import okio.Path.Companion.toPath
 import cc.ptoe.messenger.generated.resources.Res
@@ -82,8 +91,8 @@ import org.jetbrains.compose.resources.stringResource
  */
 @Composable
 fun ChatInputBar(
-    text: String,
-    onTextChange: (String) -> Unit,
+    text: TextFieldValue,
+    onTextChange: (TextFieldValue) -> Unit,
     onSendClick: () -> Unit,
     onStopClick: () -> Unit,
     isGenerating: Boolean,
@@ -94,6 +103,35 @@ fun ChatInputBar(
     modifier: Modifier = Modifier
 ) {
     val focusRequester = remember { FocusRequester() }
+
+    // Enter-to-send keyboard shortcut. Controlled by the platform expect
+    // value `sendOnEnterShortcut` — enabled on Desktop (physical keyboard)
+    // and disabled on Android (virtual IME doesn't send KeyEvents).
+    val sendShortcutModifier: Modifier = if (sendOnEnterShortcut) {
+        Modifier.onPreviewKeyEvent { event ->
+            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            if (event.key != Key.Enter && event.key != Key.NumPadEnter) return@onPreviewKeyEvent false
+            val hasModifier = event.isShiftPressed || event.isCtrlPressed
+            if (hasModifier) {
+                // Shift+Enter / Ctrl+Enter → insert newline at cursor / selection.
+                val src = text.text
+                val selMin = minOf(text.selection.min, text.selection.max)
+                val selMax = maxOf(text.selection.min, text.selection.max)
+                val newText = src.take(selMin) + "\n" + src.drop(selMax)
+                val caret = selMin + 1
+                onTextChange(TextFieldValue(newText, androidx.compose.ui.text.TextRange(caret)))
+                true
+            } else {
+                // Bare Enter → send, if there's anything to send.
+                if (text.text.isNotBlank() || pendingImages.isNotEmpty()) {
+                    onSendClick()
+                }
+                true
+            }
+        }
+    } else {
+        Modifier
+    }
 
     Column(
         modifier = modifier
@@ -142,7 +180,7 @@ fun ChatInputBar(
                 onValueChange = onTextChange,
                 placeholder = {
                     Text(
-                        text = if (pendingImages.isNotEmpty() && text.isBlank()) {
+                        text = if (pendingImages.isNotEmpty() && text.text.isBlank()) {
                             stringResource(Res.string.chat_image_description_hint)
                         } else {
                             stringResource(Res.string.chat_message_hint)
@@ -161,7 +199,8 @@ fun ChatInputBar(
                 ),
                 modifier = Modifier
                     .weight(1f)
-                    .focusRequester(focusRequester),
+                    .focusRequester(focusRequester)
+                    .then(sendShortcutModifier),
                 maxLines = 5,
                 minLines = 1,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
@@ -188,7 +227,7 @@ fun ChatInputBar(
                     )
                 }
             } else {
-                val canSend = text.isNotBlank() || pendingImages.isNotEmpty()
+                val canSend = text.text.isNotBlank() || pendingImages.isNotEmpty()
                 FilledIconButton(
                     onClick = onSendClick,
                     enabled = canSend,

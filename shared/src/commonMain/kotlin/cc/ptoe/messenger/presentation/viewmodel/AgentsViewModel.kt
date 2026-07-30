@@ -25,7 +25,10 @@ import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.repository.AgentRepository
 import cc.ptoe.messenger.domain.repository.ModelRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -33,6 +36,11 @@ import kotlinx.coroutines.launch
 data class AgentWithModel(
     val agent: Agent,
     val model: ChatModel?
+)
+
+data class AgentsUiState(
+    val isMultiSelectMode: Boolean = false,
+    val selectedAgentIds: Set<String> = emptySet()
 )
 
 class AgentsViewModel(
@@ -57,6 +65,9 @@ class AgentsViewModel(
         initialValue = emptyList()
     )
 
+    private val _uiState = MutableStateFlow(AgentsUiState())
+    val uiState: StateFlow<AgentsUiState> = _uiState.asStateFlow()
+
     fun deleteAgent(agentId: String) {
         viewModelScope.launch {
             agentRepository.delete(agentId)
@@ -66,6 +77,52 @@ class AgentsViewModel(
     fun cloneAgent(agentId: String) {
         viewModelScope.launch {
             agentRepository.clone(agentId)
+        }
+    }
+
+    fun enterMultiSelectMode(agentId: String) {
+        _uiState.value = _uiState.value.copy(
+            isMultiSelectMode = true,
+            selectedAgentIds = setOf(agentId)
+        )
+    }
+
+    fun exitMultiSelectMode() {
+        _uiState.value = _uiState.value.copy(
+            isMultiSelectMode = false,
+            selectedAgentIds = emptySet()
+        )
+    }
+
+    fun toggleSelection(agentId: String) {
+        val current = _uiState.value.selectedAgentIds
+        val newSet = if (agentId in current) {
+            current - agentId
+        } else {
+            current + agentId
+        }
+        _uiState.value = _uiState.value.copy(selectedAgentIds = newSet)
+    }
+
+    fun selectAll(agentIds: List<String>) {
+        _uiState.value = _uiState.value.copy(selectedAgentIds = agentIds.toSet())
+    }
+
+    fun deselectAll() {
+        _uiState.value = _uiState.value.copy(selectedAgentIds = emptySet())
+    }
+
+    fun deleteAgentsBatch(ids: List<String>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val defaultAgentIds = agentsWithModel.value
+                .filter { it.agent.isDefault }
+                .map { it.agent.id }
+                .toSet()
+            ids.filter { it !in defaultAgentIds }.forEach { id ->
+                agentRepository.delete(id)
+            }
+            exitMultiSelectMode()
         }
     }
 

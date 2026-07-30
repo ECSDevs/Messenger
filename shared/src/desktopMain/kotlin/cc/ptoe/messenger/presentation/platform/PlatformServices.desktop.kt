@@ -31,3 +31,5 @@ actual fun copyTextToClipboard(text: String) {
 }
 
 actual fun appVersionName(): String? = "desktop"
+
+actual val sendOnEnterShortcut: Boolean = true

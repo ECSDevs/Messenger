@@ -19,8 +19,10 @@ package cc.ptoe.messenger.presentation.ui.chat
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,6 +37,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
@@ -43,13 +47,17 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,7 +80,11 @@ import cc.ptoe.messenger.domain.model.MessageStatus
 import cc.ptoe.messenger.presentation.platform.rememberImagePicker
 import cc.ptoe.messenger.presentation.platform.showPlatformToast
 import cc.ptoe.messenger.presentation.ui.components.AgentAvatar
+import cc.ptoe.messenger.presentation.ui.components.onContextMenu
+import cc.ptoe.messenger.presentation.ui.components.rememberContextMenuState
 import cc.ptoe.messenger.presentation.utils.DateTimeUtils
+import cc.ptoe.messenger.presentation.utils.WindowSizeClass
+import cc.ptoe.messenger.presentation.utils.windowSizeClassFor
 import cc.ptoe.messenger.presentation.viewmodel.ChatViewModel
 import kotlinx.coroutines.launch
 import cc.ptoe.messenger.generated.resources.Res
@@ -96,6 +108,8 @@ fun ChatScreen(
     conversationId: String,
     onBackClick: () -> Unit,
     onSettingsClick: () -> Unit = {},
+    showBackButton: Boolean = true,
+    modifier: Modifier = Modifier,
     viewModel: ChatViewModel = viewModel(
         factory = ChatViewModel.provideFactory(
             messageRepository = AppContainerHolder.instance.messageRepository,
@@ -119,7 +133,7 @@ fun ChatScreen(
     val isAttachingImage by viewModel.isAttachingImage.collectAsStateWithLifecycle()
     val userAvatar by AppContainerHolder.instance.appPreferences.userAvatar.collectAsStateWithLifecycle(initialValue = null)
 
-    var inputText by remember { mutableStateOf("") }
+    var inputText by remember { mutableStateOf(TextFieldValue("")) }
     var selectedMessageId by remember { mutableStateOf<String?>(null) }
     var showActionMenu by remember { mutableStateOf(false) }
     var selectedMessageRole by remember { mutableStateOf(MessageRole.USER) }
@@ -179,8 +193,13 @@ fun ChatScreen(
         previousItemCount = chatItems.size
     }
 
-    Scaffold(
-        topBar = {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val sizeClass = windowSizeClassFor(maxWidth)
+        val enableContextMenu = sizeClass != WindowSizeClass.Compact
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -206,19 +225,29 @@ fun ChatScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back)
-                        )
+                    if (showBackButton) {
+                        IconButton(onClick = onBackClick) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(Res.string.action_back)
+                            )
+                        }
                     }
                 },
                 actions = {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = stringResource(Res.string.conversation_settings_title)
-                        )
+                    TooltipBox(
+                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                        tooltip = {
+                            PlainTooltip { Text(stringResource(Res.string.conversation_settings_title)) }
+                        },
+                        state = rememberTooltipState()
+                    ) {
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = stringResource(Res.string.conversation_settings_title)
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -237,9 +266,9 @@ fun ChatScreen(
                     text = inputText,
                     onTextChange = { inputText = it },
                     onSendClick = {
-                        if (inputText.isNotBlank() || pendingImages.isNotEmpty()) {
-                            viewModel.sendMessage(inputText)
-                            inputText = ""
+                        if (inputText.text.isNotBlank() || pendingImages.isNotEmpty()) {
+                            viewModel.sendMessage(inputText.text)
+                            inputText = TextFieldValue("")
                         }
                     },
                     onStopClick = {
@@ -257,8 +286,7 @@ fun ChatScreen(
         },
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState)
-        },
-        modifier = Modifier.fillMaxSize()
+        }
     ) { innerPadding ->
         // Google Messages 风格：聊天区使用纯净的 surface 背景
         Box(
@@ -296,47 +324,79 @@ fun ChatScreen(
                             }
                             is ChatListItem.MessageItem -> {
                                 val message = item.message
+                                val contextMenuState = rememberContextMenuState()
+                                // 消息气泡禁用 combinedClickable 的默认 indication（hover 高亮 + 涟漪），
+                                // 保持气泡原始视觉干净；onClick / onLongClick / onContextMenu 行为保留。
+                                val bubbleInteractionSource = remember { MutableInteractionSource() }
                                 val bubbleModifier = Modifier
                                     .fillMaxWidth()
                                     .combinedClickable(
+                                        interactionSource = bubbleInteractionSource,
+                                        indication = null,
                                         onClick = {
                                             if (message.status == MessageStatus.ERROR && message.role == MessageRole.ASSISTANT) {
                                                 viewModel.retrySend(message.id)
                                             }
                                         },
                                         onLongClick = {
-                                            selectedMessageId = message.id
-                                            selectedMessageRole = message.role
-                                            showActionMenu = true
+                                            if (!enableContextMenu) {
+                                                selectedMessageId = message.id
+                                                selectedMessageRole = message.role
+                                                showActionMenu = true
+                                            }
                                         }
                                     )
+                                    .then(
+                                        if (enableContextMenu) Modifier.onContextMenu(contextMenuState)
+                                        else Modifier
+                                    )
 
-                                when (message.role) {
-                                    MessageRole.USER -> {
-                                        UserMessageBubble(
-                                            message = message,
-                                            modifier = bubbleModifier,
-                                            isLastInGroup = item.isLastInGroup,
-                                            avatar = userAvatar
-                                        )
+                                Box(modifier = bubbleModifier) {
+                                    when (message.role) {
+                                        MessageRole.USER -> {
+                                            UserMessageBubble(
+                                                message = message,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                isLastInGroup = item.isLastInGroup,
+                                                avatar = userAvatar
+                                            )
+                                        }
+                                        MessageRole.ASSISTANT -> {
+                                            AiMessageBubble(
+                                                message = message,
+                                                isGenerating = isGenerating,
+                                                isLastInGroup = item.isLastInGroup,
+                                                avatar = agent?.avatar,
+                                                onRetryClick = {
+                                                    if (message.status == MessageStatus.ERROR) {
+                                                        viewModel.retrySend(message.id)
+                                                    }
+                                                },
+                                                typewriterState = viewModel.typewriterState,
+                                                streamingMessageId = streamingMessageId,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                        MessageRole.SYSTEM, MessageRole.TOOL -> {}
                                     }
-                                    MessageRole.ASSISTANT -> {
-                                        AiMessageBubble(
-                                            message = message,
-                                            isGenerating = isGenerating,
-                                            isLastInGroup = item.isLastInGroup,
-                                            avatar = agent?.avatar,
-                                            onRetryClick = {
-                                                if (message.status == MessageStatus.ERROR) {
-                                                    viewModel.retrySend(message.id)
-                                                }
+
+                                    if (enableContextMenu) {
+                                        MessageContextMenu(
+                                            state = contextMenuState,
+                                            messageRole = message.role,
+                                            onCopyClick = {
+                                                viewModel.copyMessage(message.content)
+                                                showPlatformToast(copiedToastText)
                                             },
-                                            typewriterState = viewModel.typewriterState,
-                                            streamingMessageId = streamingMessageId,
-                                            modifier = bubbleModifier
+                                            onRegenerateClick = {
+                                                viewModel.regenerateMessage(message.id)
+                                            },
+                                            onDeleteClick = {
+                                                viewModel.deleteMessage(message.id)
+                                            },
+                                            onDismiss = {}
                                         )
                                     }
-                                    MessageRole.SYSTEM, MessageRole.TOOL -> {}
                                 }
                             }
                         }
@@ -346,31 +406,33 @@ fun ChatScreen(
         }
     }
 
-    MessageActionMenu(
-        isVisible = showActionMenu,
-        onDismiss = {
-            showActionMenu = false
-            selectedMessageId = null
-        },
-        messageRole = selectedMessageRole,
-        onCopyClick = {
-            val message = messages.find { it.id == selectedMessageId }
-            if (message != null) {
-                viewModel.copyMessage(message.content)
-                showPlatformToast(copiedToastText)
+    if (!enableContextMenu) {
+        MessageActionMenu(
+            isVisible = showActionMenu,
+            onDismiss = {
+                showActionMenu = false
+                selectedMessageId = null
+            },
+            messageRole = selectedMessageRole,
+            onCopyClick = {
+                val message = messages.find { it.id == selectedMessageId }
+                if (message != null) {
+                    viewModel.copyMessage(message.content)
+                    showPlatformToast(copiedToastText)
+                }
+            },
+            onRegenerateClick = {
+                selectedMessageId?.let {
+                    viewModel.regenerateMessage(it)
+                }
+            },
+            onDeleteClick = {
+                selectedMessageId?.let {
+                    viewModel.deleteMessage(it)
+                }
             }
-        },
-        onRegenerateClick = {
-            selectedMessageId?.let {
-                viewModel.regenerateMessage(it)
-            }
-        },
-        onDeleteClick = {
-            selectedMessageId?.let {
-                viewModel.deleteMessage(it)
-            }
-        }
-    )
+        )
+    }
 
     if (needsModelSetup) {
         AlertDialog(
@@ -391,6 +453,7 @@ fun ChatScreen(
                 }
             }
         )
+    }
     }
 }
 
