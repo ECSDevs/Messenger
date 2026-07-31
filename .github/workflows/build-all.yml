@@ -18,11 +18,17 @@ on:
   workflow_call:
 
 jobs:
-  build:
-    name: Build (${{ matrix.target }})
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [android, wear, desktop]
-    uses: ./.github/workflows/build-${{ matrix.target }}.yml
+  build-android:
+    name: Build Android
+    uses: ./.github/workflows/build-android.yml
+    secrets: inherit
+
+  build-wear:
+    name: Build Wear
+    uses: ./.github/workflows/build-wear.yml
+    secrets: inherit
+
+  build-desktop:
+    name: Build Desktop
+    uses: ./.github/workflows/build-desktop.yml
     secrets: inherit

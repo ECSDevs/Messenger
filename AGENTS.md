@@ -21,7 +21,7 @@ Messenger/
 │   ├── build-android.yml       # Reusable workflow: androidApp release APK
 │   ├── build-wear.yml          # Reusable workflow: wear release APK
 │   ├── build-desktop.yml       # Reusable workflow: Desktop MSI distribution
-│   ├── build-all.yml           # Reusable workflow: matrix-parallel call of the 3 build workflows
+│   ├── build-all.yml           # Reusable aggregator: 3 explicit parallel jobs calling build-*.yml
 │   ├── ci.yml                  # Push/PR CI: calls build-all.yml
 │   └── release.yml             # Tag-triggered (v*): calls build-all.yml + GitHub Release
 ├── gradle/
@@ -642,9 +642,9 @@ GitHub Actions CI/CD is split into 6 workflow files under `.github/workflows/`, 
   - `build-android.yml` builds `:androidApp:assembleRelease` and uploads `androidApp-release`.
   - `build-wear.yml` builds `:wear:assembleRelease` and uploads `wear-release`.
   - `build-desktop.yml` builds `:desktopApp:packageReleaseMsi` and uploads `desktop-msi` (unsigned).
-- **`build-all.yml` (aggregator)**: Reusable workflow triggered via `workflow_call`. Runs a single `build` job with `strategy.matrix.target: [android, wear, desktop]` and `fail-fast: false` that calls the three reusable build workflows in parallel via `uses: ./.github/workflows/build-${{ matrix.target }}.yml` with `secrets: inherit`.
+- **`build-all.yml` (aggregator)**: Reusable workflow triggered via `workflow_call`. Declares three explicit jobs (`build-android`, `build-wear`, `build-desktop`) with no `needs` between them, so they run in parallel — each calls its corresponding `build-<target>.yml` via `uses:` with `secrets: inherit`. (GitHub Actions does not support `strategy.matrix` on jobs that call reusable workflows via `uses:`, so the three calls are written out explicitly instead of generated from a matrix.)
 - **`ci.yml` (Push/PR CI)**: Triggered on push to `main` and PRs to `main`, but only when project code or build dependencies change. The `paths` filter (applied identically to both `push` and `pull_request`) includes: `shared/**`, `androidApp/**`, `desktopApp/**`, `wear/**`, `llm-typewriter/**`, root `build.gradle.kts` / `settings.gradle.kts` / `gradle.properties`, `gradle/libs.versions.toml`, `gradle/wrapper/**`, `gradlew` / `gradlew.bat`, and `.github/workflows/**`. Documentation (`README.md`, `AGENTS.md`), `server/**`, `specs/**`, `LICENSE`, `logo.*`, `.idea/**`, `.gitmodules`, `licenserc.toml`, etc. do NOT trigger CI. A single `build-all` job calls `./.github/workflows/build-all.yml` with `secrets: inherit`.
-- **`release.yml` (Tag-triggered Release CI)**: Triggered only on `v*` tags. A `build-all` job calls `./.github/workflows/build-all.yml` (parallel matrix builds), then a `release` job (`needs: build-all`) downloads all three artifacts (androidApp APK, wear APK, desktop MSI) and creates a GitHub Release via `softprops/action-gh-release@v2` with `generate_release_notes: true`, attaching all three binaries.
+- **`release.yml` (Tag-triggered Release CI)**: Triggered only on `v*` tags. A `build-all` job calls `./.github/workflows/build-all.yml` (three parallel builds), then a `release` job (`needs: build-all`) downloads all three artifacts (androidApp APK, wear APK, desktop MSI) and creates a GitHub Release via `softprops/action-gh-release@v2` with `generate_release_notes: true`, attaching all three binaries.
 - **Caching**: `gradle/actions/setup-gradle@v4` with `cache-read-only: ${{ github.ref != 'refs/heads/main' }}` (PR builds only read cache, main pushes write it) and `gradle-home-cache-cleanup: true`; plus a dedicated `~/.konan` Kotlin/Native compiler cache keyed on `*.gradle.kts` / `libs.versions.toml` hashes.
 - **Signing**: Keystore is materialized from the `KEYSTORE_BASE64` secret into `keyring/messenger-release.jks` (only on push builds, not PRs) inside the androidApp and wear build workflows; `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` secrets feed the signing config. Desktop MSI is unsigned.
 
