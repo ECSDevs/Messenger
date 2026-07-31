@@ -29,7 +29,7 @@ on:
 jobs:
   build-wear:
     name: Build wear release APK
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -39,10 +39,8 @@ jobs:
           submodules: recursive
 
       - name: Compute version code from commit count
-        shell: pwsh
-        run: |
-          $commitCount = git rev-list --count HEAD
-          echo "VERSION_CODE=$commitCount" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        shell: bash
+        run: echo "VERSION_CODE=$(git rev-list --count HEAD)" >> $GITHUB_ENV
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -72,11 +70,10 @@ jobs:
 
       - name: Decode keystore (push builds)
         if: github.event_name != 'pull_request'
-        shell: pwsh
+        shell: bash
         run: |
-          New-Item -ItemType Directory -Force -Path keyring | Out-Null
-          $keystoreBytes = [Convert]::FromBase64String("${{ secrets.KEYSTORE_BASE64 }}")
-          [IO.File]::WriteAllBytes("keyring/messenger-release.jks", $keystoreBytes)
+          mkdir -p keyring
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keyring/messenger-release.jks
 
       - name: Build wear release APK
         env:
@@ -84,8 +81,8 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        shell: pwsh
-        run: .\gradlew.bat :wear:assembleRelease
+        shell: bash
+        run: ./gradlew :wear:assembleRelease
 
       - name: Upload wear release artifact
         uses: actions/upload-artifact@v4

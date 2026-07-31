@@ -28,7 +28,7 @@ jobs:
   release:
     name: Create GitHub Release
     needs: build-all
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Download androidApp release artifact
@@ -51,10 +51,8 @@ jobs:
 
       - name: Get version from tag
         id: get_version
-        shell: pwsh
-        run: |
-          $version = "${{ github.ref }}" -replace 'refs/tags/', ''
-          "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
