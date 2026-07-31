@@ -17,8 +17,13 @@ Messenger is a Material 3 designed LLM chat application for Android, focused on 
 
 ```
 Messenger/
-├── .github/workflows/          # GitHub Actions CI/CD
-│   └── build.yml               # Unified androidApp + wear + desktop build & release pipeline
+├── .github/workflows/          # GitHub Actions CI/CD (split into 6 files)
+│   ├── build-android.yml       # Reusable workflow: androidApp release APK
+│   ├── build-wear.yml          # Reusable workflow: wear release APK
+│   ├── build-desktop.yml       # Reusable workflow: Desktop MSI distribution
+│   ├── build-all.yml           # Reusable workflow: matrix-parallel call of the 3 build workflows
+│   ├── ci.yml                  # Push/PR CI: calls build-all.yml
+│   └── release.yml             # Tag-triggered (v*): calls build-all.yml + GitHub Release
 ├── gradle/
 │   ├── libs.versions.toml      # Version catalog for dependencies
 │   └── wrapper/                # Gradle wrapper
@@ -631,13 +636,17 @@ verification, or a release/R8 configuration change requires validation:
 
 ## CI/CD
 
-GitHub Actions workflow (`.github/workflows/build.yml`):
+GitHub Actions CI/CD is split into 6 workflow files under `.github/workflows/`, organized as a nested call chain:
 
-- **Trigger**: Push to main, PRs to main, tags matching `v*`
-- **Build job**: A single unified `build` job running on `windows-latest` named "Build (androidApp + wear + desktop)". It computes `VERSION_CODE` from `git rev-list --count HEAD` (full checkout via `fetch-depth: 0`) and initializes git submodules recursively so the `llm-typewriter/` source build is present on CI. The job then, in sequence: builds `:androidApp:assembleRelease` (signed when keystore secrets are present), builds `:wear:assembleRelease` (signed), and builds `:desktopApp:packageReleaseMsi`. Each step uploads its own artifact (`androidApp-release`, `wear-release`, `desktop-msi`).
-- **Release job**: Triggered only on `v*` tags (`needs: build`). Downloads all three artifacts (androidApp APK, wear APK, desktop MSI) and creates a GitHub Release via `softprops/action-gh-release@v2` with `generate_release_notes: true`, attaching all three binaries.
+- **Reusable build workflows** (`build-android.yml`, `build-wear.yml`, `build-desktop.yml`): Each is triggered via `workflow_call` and runs on `windows-latest`. Every build computes `VERSION_CODE` from `git rev-list --count HEAD` (full checkout via `fetch-depth: 0`) and initializes git submodules recursively so the `llm-typewriter/` source build is present on CI.
+  - `build-android.yml` builds `:androidApp:assembleRelease` and uploads `androidApp-release`.
+  - `build-wear.yml` builds `:wear:assembleRelease` and uploads `wear-release`.
+  - `build-desktop.yml` builds `:desktopApp:packageReleaseMsi` and uploads `desktop-msi` (unsigned).
+- **`build-all.yml` (aggregator)**: Reusable workflow triggered via `workflow_call`. Runs a single `build` job with `strategy.matrix.target: [android, wear, desktop]` and `fail-fast: false` that calls the three reusable build workflows in parallel via `uses: ./.github/workflows/build-${{ matrix.target }}.yml` with `secrets: inherit`.
+- **`ci.yml` (Push/PR CI)**: Triggered on push to `main` and PRs to `main`, but only when project code or build dependencies change. The `paths` filter (applied identically to both `push` and `pull_request`) includes: `shared/**`, `androidApp/**`, `desktopApp/**`, `wear/**`, `llm-typewriter/**`, root `build.gradle.kts` / `settings.gradle.kts` / `gradle.properties`, `gradle/libs.versions.toml`, `gradle/wrapper/**`, `gradlew` / `gradlew.bat`, and `.github/workflows/**`. Documentation (`README.md`, `AGENTS.md`), `server/**`, `specs/**`, `LICENSE`, `logo.*`, `.idea/**`, `.gitmodules`, `licenserc.toml`, etc. do NOT trigger CI. A single `build-all` job calls `./.github/workflows/build-all.yml` with `secrets: inherit`.
+- **`release.yml` (Tag-triggered Release CI)**: Triggered only on `v*` tags. A `build-all` job calls `./.github/workflows/build-all.yml` (parallel matrix builds), then a `release` job (`needs: build-all`) downloads all three artifacts (androidApp APK, wear APK, desktop MSI) and creates a GitHub Release via `softprops/action-gh-release@v2` with `generate_release_notes: true`, attaching all three binaries.
 - **Caching**: `gradle/actions/setup-gradle@v4` with `cache-read-only: ${{ github.ref != 'refs/heads/main' }}` (PR builds only read cache, main pushes write it) and `gradle-home-cache-cleanup: true`; plus a dedicated `~/.konan` Kotlin/Native compiler cache keyed on `*.gradle.kts` / `libs.versions.toml` hashes.
-- **Signing**: Keystore is materialized from the `KEYSTORE_BASE64` secret into `keyring/messenger-release.jks` (only on push builds, not PRs); `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` secrets feed the signing config. Desktop MSI is unsigned.
+- **Signing**: Keystore is materialized from the `KEYSTORE_BASE64` secret into `keyring/messenger-release.jks` (only on push builds, not PRs) inside the androidApp and wear build workflows; `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` secrets feed the signing config. Desktop MSI is unsigned.
 
 ## Git Workflow
 
@@ -678,4 +687,9 @@ Write clear, concise commit messages describing what was changed and why. Push o
 - [SettingsDualPaneScreen.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/settings/SettingsDualPaneScreen.kt) - Settings List-Detail dual-pane (non-Compact width)
 - [ContextMenu.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/components/ContextMenu.kt) - Shared `Modifier.onContextMenu` + `CursorDropdownMenu` helpers (non-Compact width)
 - [MultiSelectTopBar.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/components/MultiSelectTopBar.kt) - Shared selection-mode TopAppBar for long-press multi-select
-- [build.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/build.yml) - CI/CD workflow (unified androidApp + wear + desktop build)
+- [ci.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/ci.yml) - Push/PR CI: calls build-all.yml
+- [release.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/release.yml) - Tag-triggered (v*) Release CI: calls build-all.yml + GitHub Release
+- [build-all.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/build-all.yml) - Reusable aggregator: matrix-parallel call of the 3 build workflows
+- [build-android.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/build-android.yml) - Reusable workflow: androidApp release APK
+- [build-wear.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/build-wear.yml) - Reusable workflow: wear release APK
+- [build-desktop.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/build-desktop.yml) - Reusable workflow: Desktop MSI distribution

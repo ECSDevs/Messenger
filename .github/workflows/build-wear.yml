@@ -12,21 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: CI
+name: Build Wear
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
-  pull_request:
-    branches:
-      - main
+  workflow_call:
+    secrets:
+      KEYSTORE_BASE64:
+        required: false
+      KEYSTORE_PASSWORD:
+        required: false
+      KEY_ALIAS:
+        required: false
+      KEY_PASSWORD:
+        required: false
 
 jobs:
-  build:
-    name: Build (androidApp + wear + desktop)
+  build-wear:
+    name: Build wear release APK
     runs-on: windows-latest
 
     steps:
@@ -76,21 +78,6 @@ jobs:
           $keystoreBytes = [Convert]::FromBase64String("${{ secrets.KEYSTORE_BASE64 }}")
           [IO.File]::WriteAllBytes("keyring/messenger-release.jks", $keystoreBytes)
 
-      - name: Build androidApp release APK
-        env:
-          VERSION_CODE: ${{ env.VERSION_CODE }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        shell: pwsh
-        run: .\gradlew.bat :androidApp:assembleRelease
-
-      - name: Upload androidApp release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: androidApp-release
-          path: androidApp/build/outputs/apk/release/androidApp-release.apk
-
       - name: Build wear release APK
         env:
           VERSION_CODE: ${{ env.VERSION_CODE }}
@@ -105,56 +92,3 @@ jobs:
         with:
           name: wear-release
           path: wear/build/outputs/apk/release/wear-release.apk
-
-      - name: Build Desktop distribution
-        shell: pwsh
-        run: .\gradlew.bat :desktopApp:packageReleaseMsi
-
-      - name: Upload Desktop artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-msi
-          path: desktopApp/build/compose/binaries/main-release/msi/*.msi
-          if-no-files-found: error
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: windows-latest
-
-    steps:
-      - name: Download androidApp release artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: androidApp-release
-          path: artifacts/androidApp
-
-      - name: Download wear release artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: wear-release
-          path: artifacts/wear
-
-      - name: Download Desktop artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: desktop-msi
-          path: artifacts/desktop-msi
-
-      - name: Get version from tag
-        id: get_version
-        shell: pwsh
-        run: |
-          $version = "${{ github.ref }}" -replace 'refs/tags/', ''
-          "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          name: Release ${{ steps.get_version.outputs.VERSION }}
-          generate_release_notes: true
-          files: |
-            artifacts/androidApp/androidApp-release.apk
-            artifacts/wear/wear-release.apk
-            artifacts/desktop-msi/*.msi
