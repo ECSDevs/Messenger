@@ -16,9 +16,9 @@
   <h3 align="center">Messenger</h3>
 
   <p align="center">
-    A beautifully designed AI chat app, built for your phone and your wrist.
+    A beautifully designed, cross-platform AI chat app.
     <br />
-    Chat with your favourite AI models on your phone, tablet, or Wear OS watch — Material 3 design, Bring Your Own Key, fully open-source and offline-capable.
+    Chat with your favourite AI models on your phone, tablet, desktop, or Wear OS watch — Material 3 design, Bring Your Own Key, fully open-source and offline-capable.
   </p>
 </div>
 
@@ -48,7 +48,7 @@
 
 ## About The Project
 
-Messenger is a Material-3-designed LLM chat application for Android, focused on an on-wrist experience and ease of use. It is fully open-source, free, and offline-capable, using a BYOK (Bring Your Own Key) model.
+Messenger is a Material-3-designed, cross-platform LLM chat application built with Kotlin Multiplatform and Jetpack Compose. It is fully open-source, free, and offline-capable, using a BYOK (Bring Your Own Key) model.
 
 Chat with your favourite AI models on your phone, tablet, or desktop — with a clean, modern interface that feels great to use. A shared Kotlin Multiplatform core keeps Android and Desktop in lockstep, and the Wear OS companion keeps chat simple by syncing your agents from mobile and using your phone as the configured AI backend.
 
