@@ -18,7 +18,7 @@ Messenger is a Material 3 designed LLM chat application for Android, focused on 
 ```
 Messenger/
 ├── .github/workflows/          # GitHub Actions CI/CD
-│   └── android.yml             # Android build & release pipeline
+│   └── build.yml               # Unified androidApp + wear + desktop build & release pipeline
 ├── gradle/
 │   ├── libs.versions.toml      # Version catalog for dependencies
 │   └── wrapper/                # Gradle wrapper
@@ -430,7 +430,7 @@ These constraints MUST be followed at all times:
    - `themes.xml` configures transparent status bar
    - `MainScaffold.kt` only applies bottom padding (for bottom nav), letting each screen handle top/left/right insets via its own Scaffold+TopAppBar
 
-7. **Built-in Kotlin migration**: AGP 9 built-in Kotlin is enabled. Do not apply `org.jetbrains.kotlin.android` or `kotlin("android")` in Android modules. Prefer `com.google.devtools.ksp` for supported processors like Room; use `com.android.legacy-kapt` only if annotation processors cannot yet move to KSP. The `mobile` module has been split into `shared` (KMP library using `com.android.kotlin.multiplatform.library`) + `androidApp` (Android application shell using `com.android.application` with AGP 9 built-in Kotlin) + `desktopApp` (Desktop application shell using `org.jetbrains.kotlin.jvm`). This split is irreversible — do NOT attempt to merge them back into a single `mobile` module. AGP 9.3.1 does not support `com.android.application` combined with `org.jetbrains.kotlin.multiplatform` in the same module.
+7. **Built-in Kotlin migration**: AGP 9 built-in Kotlin is enabled. Do not apply `org.jetbrains.kotlin.android` or `kotlin("android")` in Android modules. Prefer `com.google.devtools.ksp` for supported processors like Room; use `com.android.legacy-kapt` only if annotation processors cannot yet move to KSP. The `mobile` module has been split into `shared` (KMP library using `com.android.kotlin.multiplatform.library`) + `androidApp` (Android application shell using `com.android.application` with AGP 9 built-in Kotlin) + `desktopApp` (Desktop application shell using `org.jetbrains.kotlin.jvm`). This split is irreversible — do NOT attempt to merge them back into a single `mobile` module. AGP 9.3.1 does not support `com.android.application` combined with `org.jetbrains.kotlin.multiplatform` in the same module. R8 / minification is disabled on `:androidApp` and ProGuard is disabled on `:desktopApp`; R8 only runs on `:wear` (see "R8 Troubleshooting").
 
 8. **Wear companion scope**: The Wear app MUST stay focused on chat only. Agents are synced from mobile, and provider/model/settings management stays on mobile. The `wear` module is unaffected by the KMP split — it remains Android-only using `com.android.application` + `kotlin-compose` (AGP 9 built-in Kotlin) and is NOT a KMP module.
 
@@ -564,6 +564,15 @@ R8 is a possible investigation point for release-only failures involving
 reflection, serialization, generated code, or manifest components. It is not a
 routine verification step.
 
+**Applicability**: R8 / minification is **disabled** for `:androidApp`
+(`isMinifyEnabled = false`, `isShrinkResources = false` in
+`androidApp/build.gradle.kts`) and ProGuard is **disabled** for `:desktopApp`
+(`buildTypes { release { proguard { isEnabled.set(false) } } }` in
+`desktopApp/build.gradle.kts`). R8 therefore only runs on the `:wear` module.
+The steps below apply to `:wear` (and to any future module that re-enables
+minification); do not run `:androidApp:assembleRelease` or
+`:desktopApp:packageRelease*` expecting R8 output — there is none.
+
 For daily tasks, maintain the affected module's `proguard-rules.pro` whenever a
 R8-sensitive class, method, annotation, serialized model, generated callback,
 or manifest component is added, removed, or changed. Remove stale rules when
@@ -578,11 +587,10 @@ verification, or a release/R8 configuration change requires validation:
 1. Reproduce the shrinker output from a clean task run:
 
    ```bash
-   ./gradlew :androidApp:assembleRelease :wear:assembleRelease --rerun-tasks
+   ./gradlew :wear:assembleRelease --rerun-tasks
    ```
 
-2. Check `androidApp/build/outputs/mapping/release/` and
-   `wear/build/outputs/mapping/release/`:
+2. Check `wear/build/outputs/mapping/release/`:
    - `mapping.txt` confirms that a class survived and shows its obfuscated name.
    - `usage.txt` lists removed classes and members; distinguish a fully removed class from an optimized-away member listed beneath a surviving class.
    - `seeds.txt` confirms that a keep rule matched, but is not by itself proof that the final APK contains the class.
@@ -593,9 +601,7 @@ verification, or a release/R8 configuration change requires validation:
    class plus generated or anonymous callback classes are present. For this
    project, pay special attention to Manifest components, Room's generated
    `MessengerDatabase_Impl` and DAO implementations, Retrofit API interfaces
-   and Gson DTOs, the `MobileHttpServer` WebSocket/NSD callbacks (declared in
-   `androidApp` manifest but implemented in `shared/androidMain`), and
-   the Wear `WearNetworkBridge` WebSocket/NSD callbacks.
+   and Gson DTOs, and the Wear `WearNetworkBridge` WebSocket/NSD callbacks.
 
 4. Identify the reflective or serialized entry point before adding a rule.
    Preserve only the smallest required scope. Keep runtime annotation and
@@ -625,13 +631,13 @@ verification, or a release/R8 configuration change requires validation:
 
 ## CI/CD
 
-GitHub Actions workflow (`.github/workflows/android.yml`):
+GitHub Actions workflow (`.github/workflows/build.yml`):
 
 - **Trigger**: Push to main, PRs to main, tags matching `v*`
-- **Build job**: Compiles androidApp and wear release APKs; computes `VERSION_CODE` from `git rev-list --count HEAD` (full checkout via `fetch-depth: 0`) and initializes git submodules recursively so the `llm-typewriter/` source build is present on CI
-- **Release job**: Creates GitHub release with APK artifacts on tag push
-- **Caching**: Gradle User Home cache + Kotlin/Native compiler cache
-- **Signing**: Uses GitHub secrets for keystore and passwords
+- **Build job**: A single unified `build` job running on `windows-latest` named "Build (androidApp + wear + desktop)". It computes `VERSION_CODE` from `git rev-list --count HEAD` (full checkout via `fetch-depth: 0`) and initializes git submodules recursively so the `llm-typewriter/` source build is present on CI. The job then, in sequence: builds `:androidApp:assembleRelease` (signed when keystore secrets are present), builds `:wear:assembleRelease` (signed), and builds `:desktopApp:packageReleaseMsi`. Each step uploads its own artifact (`androidApp-release`, `wear-release`, `desktop-msi`).
+- **Release job**: Triggered only on `v*` tags (`needs: build`). Downloads all three artifacts (androidApp APK, wear APK, desktop MSI) and creates a GitHub Release via `softprops/action-gh-release@v2` with `generate_release_notes: true`, attaching all three binaries.
+- **Caching**: `gradle/actions/setup-gradle@v4` with `cache-read-only: ${{ github.ref != 'refs/heads/main' }}` (PR builds only read cache, main pushes write it) and `gradle-home-cache-cleanup: true`; plus a dedicated `~/.konan` Kotlin/Native compiler cache keyed on `*.gradle.kts` / `libs.versions.toml` hashes.
+- **Signing**: Keystore is materialized from the `KEYSTORE_BASE64` secret into `keyring/messenger-release.jks` (only on push builds, not PRs); `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` secrets feed the signing config. Desktop MSI is unsigned.
 
 ## Git Workflow
 
@@ -672,4 +678,4 @@ Write clear, concise commit messages describing what was changed and why. Push o
 - [SettingsDualPaneScreen.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/settings/SettingsDualPaneScreen.kt) - Settings List-Detail dual-pane (non-Compact width)
 - [ContextMenu.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/components/ContextMenu.kt) - Shared `Modifier.onContextMenu` + `CursorDropdownMenu` helpers (non-Compact width)
 - [MultiSelectTopBar.kt](file:///c:/Users/deskt/Desktop/projects/Messenger/shared/src/commonMain/kotlin/cc/ptoe/messenger/presentation/ui/components/MultiSelectTopBar.kt) - Shared selection-mode TopAppBar for long-press multi-select
-- [android.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/android.yml) - CI/CD workflow
+- [build.yml](file:///c:/Users/deskt/Desktop/projects/Messenger/.github/workflows/build.yml) - CI/CD workflow (unified androidApp + wear + desktop build)
