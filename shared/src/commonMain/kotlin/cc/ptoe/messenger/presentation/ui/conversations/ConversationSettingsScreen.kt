@@ -17,6 +17,7 @@
 package cc.ptoe.messenger.presentation.ui.conversations
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -136,135 +138,142 @@ fun ConversationSettingsScreen(
         },
         modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            OutlinedTextField(
-                value = uiState.title,
-                onValueChange = { viewModel.onTitleChange(it) },
-                label = { Text(stringResource(Res.string.conversation_settings_title_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = stringResource(Res.string.conversation_settings_agent_label, agent?.name ?: ""),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            SectionHeader(title = stringResource(Res.string.conversation_settings_override_section))
-            Text(
-                text = stringResource(Res.string.conversation_settings_override_desc),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 模型覆盖
-            OverrideToggleRow(
-                label = stringResource(Res.string.conversation_settings_override_model),
-                checked = uiState.overrideModelEnabled,
-                onCheckedChange = { checked ->
-                    viewModel.onOverrideModelChange(checked)
-                }
-            )
-            if (uiState.overrideModelEnabled) {
-                Spacer(modifier = Modifier.height(8.dp))
-                ProviderDropdown(
-                    providers = providers,
-                    selectedProviderId = uiState.selectedProviderId,
-                    onProviderChange = { viewModel.onProviderChange(it) }
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                ModelDropdown(
-                    models = models,
-                    selectedModelId = uiState.overrideModelId,
-                    enabled = uiState.selectedProviderId != null,
-                    onModelChange = { viewModel.onModelChange(it) }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Temperature 覆盖
-            OverrideToggleRow(
-                label = stringResource(Res.string.conversation_settings_override_temperature),
-                checked = uiState.overrideTemperatureEnabled,
-                onCheckedChange = { checked ->
-                    viewModel.onOverrideTemperatureChange(checked, agent?.temperature)
-                }
-            )
-            if (uiState.overrideTemperatureEnabled) {
-                val tempValue = uiState.overrideTemperatureValue ?: 0.7f
-                Text(
-                    text = stringResource(Res.string.conversation_settings_temperature_value, formatOneDecimal(tempValue)),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                Slider(
-                    value = tempValue,
-                    onValueChange = { viewModel.onTemperatureChange(it) },
-                    valueRange = 0f..2f,
-                    steps = 19,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Reasoning Effort 覆盖
-            OverrideToggleRow(
-                label = stringResource(Res.string.conversation_settings_override_reasoning_effort),
-                checked = uiState.overrideReasoningEffortEnabled,
-                onCheckedChange = { checked ->
-                    viewModel.onOverrideReasoningEffortChange(checked, agent?.reasoningEffort)
-                }
-            )
-            if (uiState.overrideReasoningEffortEnabled) {
-                Spacer(modifier = Modifier.height(8.dp))
-                ReasoningEffortOverrideDropdown(
-                    selectedEffort = uiState.overrideReasoningEffortValue,
-                    onEffortChange = { viewModel.onReasoningEffortChange(it) }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Max Tokens 覆盖
-            OverrideToggleRow(
-                label = stringResource(Res.string.conversation_settings_override_max_tokens),
-                checked = uiState.overrideMaxTokensEnabled,
-                onCheckedChange = { checked ->
-                    viewModel.onOverrideMaxTokensChange(checked, agent?.maxTokens)
-                }
-            )
-            if (uiState.overrideMaxTokensEnabled) {
-                Spacer(modifier = Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .widthIn(max = 600.dp)
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
                 OutlinedTextField(
-                    value = uiState.overrideMaxTokensValue?.toString() ?: "",
-                    onValueChange = { value ->
-                        viewModel.onMaxTokensChange(value.toIntOrNull())
-                    },
-                    label = { Text(stringResource(Res.string.agent_edit_max_tokens_label)) },
-                    placeholder = { Text(stringResource(Res.string.agent_edit_max_tokens_placeholder)) },
+                    value = uiState.title,
+                    onValueChange = { viewModel.onTitleChange(it) },
+                    label = { Text(stringResource(Res.string.conversation_settings_title_label)) },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
+                    modifier = Modifier.fillMaxWidth()
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(Res.string.conversation_settings_agent_label, agent?.name ?: ""),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                SectionHeader(title = stringResource(Res.string.conversation_settings_override_section))
+                Text(
+                    text = stringResource(Res.string.conversation_settings_override_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 模型覆盖
+                OverrideToggleRow(
+                    label = stringResource(Res.string.conversation_settings_override_model),
+                    checked = uiState.overrideModelEnabled,
+                    onCheckedChange = { checked ->
+                        viewModel.onOverrideModelChange(checked)
+                    }
+                )
+                if (uiState.overrideModelEnabled) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ProviderDropdown(
+                        providers = providers,
+                        selectedProviderId = uiState.selectedProviderId,
+                        onProviderChange = { viewModel.onProviderChange(it) }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    ModelDropdown(
+                        models = models,
+                        selectedModelId = uiState.overrideModelId,
+                        enabled = uiState.selectedProviderId != null,
+                        onModelChange = { viewModel.onModelChange(it) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Temperature 覆盖
+                OverrideToggleRow(
+                    label = stringResource(Res.string.conversation_settings_override_temperature),
+                    checked = uiState.overrideTemperatureEnabled,
+                    onCheckedChange = { checked ->
+                        viewModel.onOverrideTemperatureChange(checked, agent?.temperature)
+                    }
+                )
+                if (uiState.overrideTemperatureEnabled) {
+                    val tempValue = uiState.overrideTemperatureValue ?: 0.7f
+                    Text(
+                        text = stringResource(Res.string.conversation_settings_temperature_value, formatOneDecimal(tempValue)),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Slider(
+                        value = tempValue,
+                        onValueChange = { viewModel.onTemperatureChange(it) },
+                        valueRange = 0f..2f,
+                        steps = 19,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Reasoning Effort 覆盖
+                OverrideToggleRow(
+                    label = stringResource(Res.string.conversation_settings_override_reasoning_effort),
+                    checked = uiState.overrideReasoningEffortEnabled,
+                    onCheckedChange = { checked ->
+                        viewModel.onOverrideReasoningEffortChange(checked, agent?.reasoningEffort)
+                    }
+                )
+                if (uiState.overrideReasoningEffortEnabled) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ReasoningEffortOverrideDropdown(
+                        selectedEffort = uiState.overrideReasoningEffortValue,
+                        onEffortChange = { viewModel.onReasoningEffortChange(it) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Max Tokens 覆盖
+                OverrideToggleRow(
+                    label = stringResource(Res.string.conversation_settings_override_max_tokens),
+                    checked = uiState.overrideMaxTokensEnabled,
+                    onCheckedChange = { checked ->
+                        viewModel.onOverrideMaxTokensChange(checked, agent?.maxTokens)
+                    }
+                )
+                if (uiState.overrideMaxTokensEnabled) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = uiState.overrideMaxTokensValue?.toString() ?: "",
+                        onValueChange = { value ->
+                            viewModel.onMaxTokensChange(value.toIntOrNull())
+                        },
+                        label = { Text(stringResource(Res.string.agent_edit_max_tokens_label)) },
+                        placeholder = { Text(stringResource(Res.string.agent_edit_max_tokens_placeholder)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    )
+                }
             }
         }
     }
@@ -340,8 +349,7 @@ private fun ReasoningEffortOverrideDropdown(
         )
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.fillMaxWidth()
+            onDismissRequest = { expanded = false }
         ) {
             reasoningEffortOptions.forEach { (value, label) ->
                 DropdownMenuItem(
@@ -387,8 +395,7 @@ private fun ProviderDropdown(
         )
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.fillMaxWidth()
+            onDismissRequest = { expanded = false }
         ) {
             if (providers.isEmpty()) {
                 Text(
@@ -447,8 +454,7 @@ private fun ModelDropdown(
         )
         ExposedDropdownMenu(
             expanded = expanded && enabled,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.fillMaxWidth()
+            onDismissRequest = { expanded = false }
         ) {
             if (models.isEmpty()) {
                 Text(

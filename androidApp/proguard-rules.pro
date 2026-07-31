@@ -125,17 +125,16 @@
 -dontwarn org.commonmark.**
 
 # ===========================================================================
-# llm-typewriter / AndroidMath (Markdown + LaTeX rendering)
+# llm-typewriter / RaTeX (Markdown + LaTeX rendering)
 # ===========================================================================
-# The markdown renderer is called directly from Compose, but LaTeX rendering
-# crosses AndroidMath and FreeType-backed classes that are easy for R8 to strip
-# or rename aggressively. Keep the renderer stack intact for release builds.
+# The markdown renderer is called directly from Compose; LaTeX rendering is now
+# backed by RaTeX-CMP (Rust core). Keep the renderer stack intact for release
+# builds in case RaTeX-CMP does not ship its own consumer rules.
 -keep class cc.ptoe.llmtypewriter.** { *; }
--keep class com.agog.mathdisplay.** { *; }
--keep class com.pvporbit.freetype.** { *; }
+-keep class io.ratex.** { *; }
+-keep class io.ratex.**$* { *; }
 -dontwarn cc.ptoe.llmtypewriter.**
--dontwarn com.agog.mathdisplay.**
--dontwarn com.pvporbit.freetype.**
+-dontwarn io.ratex.**
 
 # ===========================================================================
 # ucrop (image cropping) — UCropActivity is declared in the manifest

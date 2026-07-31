@@ -16,12 +16,14 @@
 
 package cc.ptoe.messenger.presentation.ui.providers
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -42,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -119,86 +122,93 @@ fun ProviderEditScreen(
         },
         modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp)
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            OutlinedTextField(
-                value = uiState.name,
-                onValueChange = { viewModel.onNameChange(it) },
-                label = { Text(stringResource(Res.string.providers_name_label)) },
-                isError = uiState.nameError != null,
-                supportingText = {
-                    uiState.nameError?.let { error ->
-                        Text(
-                            text = error,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 600.dp)
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = uiState.name,
+                    onValueChange = { viewModel.onNameChange(it) },
+                    label = { Text(stringResource(Res.string.providers_name_label)) },
+                    isError = uiState.nameError != null,
+                    supportingText = {
+                        uiState.nameError?.let { error ->
+                            Text(
+                                text = error,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedTextField(
-                value = uiState.baseUrl,
-                onValueChange = { viewModel.onBaseUrlChange(it) },
-                label = { Text(stringResource(Res.string.providers_api_url_label)) },
-                placeholder = { Text(stringResource(Res.string.providers_api_url_placeholder)) },
-                isError = uiState.baseUrlError != null,
-                supportingText = {
-                    uiState.baseUrlError?.let { error ->
-                        Text(
-                            text = error,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth()
-            )
+                OutlinedTextField(
+                    value = uiState.baseUrl,
+                    onValueChange = { viewModel.onBaseUrlChange(it) },
+                    label = { Text(stringResource(Res.string.providers_api_url_label)) },
+                    placeholder = { Text(stringResource(Res.string.providers_api_url_placeholder)) },
+                    isError = uiState.baseUrlError != null,
+                    supportingText = {
+                        uiState.baseUrlError?.let { error ->
+                            Text(
+                                text = error,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedTextField(
-                value = uiState.apiKey,
-                onValueChange = { viewModel.onApiKeyChange(it) },
-                label = { Text(stringResource(Res.string.providers_api_key_label)) },
-                isError = uiState.apiKeyError != null,
-                supportingText = {
-                    uiState.apiKeyError?.let { error ->
-                        Text(
-                            text = error,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                },
-                singleLine = true,
-                visualTransformation = if (apiKeyVisible) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-                trailingIcon = {
-                    IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
-                        Icon(
-                            imageVector = if (apiKeyVisible) {
-                                Icons.Filled.VisibilityOff
-                            } else {
-                                Icons.Filled.Visibility
-                            },
-                            contentDescription = if (apiKeyVisible) stringResource(Res.string.action_hide) else stringResource(Res.string.action_show)
-                        )
-                    }
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth()
-            )
+                OutlinedTextField(
+                    value = uiState.apiKey,
+                    onValueChange = { viewModel.onApiKeyChange(it) },
+                    label = { Text(stringResource(Res.string.providers_api_key_label)) },
+                    isError = uiState.apiKeyError != null,
+                    supportingText = {
+                        uiState.apiKeyError?.let { error ->
+                            Text(
+                                text = error,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    visualTransformation = if (apiKeyVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                            Icon(
+                                imageVector = if (apiKeyVisible) {
+                                    Icons.Filled.VisibilityOff
+                                } else {
+                                    Icons.Filled.Visibility
+                                },
+                                contentDescription = if (apiKeyVisible) stringResource(Res.string.action_hide) else stringResource(Res.string.action_show)
+                            )
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }

@@ -36,14 +36,16 @@
 -keepclassmembers class cc.ptoe.messenger.data.remote.dto.** { *; }
 
 # ===========================================================================
-# llm-typewriter / AndroidMath (Markdown + LaTeX rendering)
+# llm-typewriter / RaTeX (Markdown + LaTeX rendering)
 # ===========================================================================
+# The markdown renderer is called directly from Compose; LaTeX rendering is now
+# backed by RaTeX-CMP (Rust core). Keep the renderer stack intact for release
+# builds in case RaTeX-CMP does not ship its own consumer rules.
 -keep class cc.ptoe.llmtypewriter.** { *; }
--keep class com.agog.mathdisplay.** { *; }
--keep class com.pvporbit.freetype.** { *; }
+-keep class io.ratex.** { *; }
+-keep class io.ratex.**$* { *; }
 -dontwarn cc.ptoe.llmtypewriter.**
--dontwarn com.agog.mathdisplay.**
--dontwarn com.pvporbit.freetype.**
+-dontwarn io.ratex.**
 
 # ===========================================================================
 # MobileHttpServer / MobileWearChatHandler (Wear bridge, lives in shared)

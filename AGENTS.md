@@ -401,10 +401,11 @@ The project uses a manual dependency injection approach via an `AppContainer`:
 ### Chat bubble rendering (mobile)
 
 - AI message bubbles use [`llm-typewriter`](https://github.com/ECSDevs/llm-typewriter) for both the streaming reveal and the static rendering of completed messages.
+- LaTeX 渲染由 `llm-typewriter` 委托给 [RaTeX-CMP](https://github.com/darriousliu/RaTeX-CMP)（纯 Rust [RaTeX](https://github.com/erweixin/RaTeX) KaTeX 兼容引擎），Android 与 JVM Desktop 共用同一 Rust 核心 + KaTeX 字体；不再依赖 AndroidMath / KCEF / MathJax / Jogamp。
 - Messenger builds `llm-typewriter` directly from the checked-out `llm-typewriter/` git submodule via `includeBuild("llm-typewriter")` in `settings.gradle.kts`, so Gradle substitutes the source build instead of downloading `cc.ptoe:llm-typewriter` from Maven Central.
 - The library ships progressive Markdown (bold, code fences with syntax highlighting, links) and inline / display LaTeX math, so the AI bubble is rendered via `StreamingTypewriter` + `rememberMarkdownTypewriterRenderer`.
 - `ChatViewModel` owns a single `StreamingTypewriterState` and a `streamingMessageId: StateFlow<String?>`. Each SSE `Content` event calls `typewriterState.appendToken(...)`; on `Done` the view model calls `completeSource()`; on `Error` / stop it calls `stop()` (and `skipToEnd()` on stop so the partial content stays visible). The `streamingMessageId` is cleared at the same point so the bubble switches to the static (`baseDelayMs = 0` + `skipToEnd()`) path.
-- The dependency pulls in [AndroidMath](https://github.com/gregcockroft/AndroidMath) transitively for LaTeX typography, which is hosted on JitPack. `settings.gradle.kts` already declares the `https://jitpack.io` repo.
+- JitPack 仓库 (`https://jitpack.io`) 现在仅为 `ucrop` (`com.github.Yalantis:ucrop`) 保留，不再为 AndroidMath（RaTeX 迁移后已移除，详见「Dependency management」段）。`settings.gradle.kts` 仍声明该仓库。
 
 ## Hard Constraints
 
@@ -445,7 +446,7 @@ These constraints MUST be followed at all times:
 
 5. **Versioning**: Version code is derived from git commit count (or `VERSION_CODE` env var). Version name is `v{yyyyMMdd}` from the latest commit's date for reproducibility (or `VERSION_NAME` env var). Release tags follow `v*` pattern.
 
-6. **Dependency management**: Use version catalog (`gradle/libs.versions.toml`) for all dependency versions. `shared/build.gradle.kts`, `androidApp/build.gradle.kts`, and `desktopApp/build.gradle.kts` all consume the version catalog. Root `build.gradle.kts` applies a global `allprojects { configurations.all { exclude(group = "com.google.guava", module = "listenablefuture") } }` to resolve `checkDebugDuplicateClasses` caused by Guava (transitive via llm-typewriter/AndroidMath) bundling `ListenableFuture` colliding with the standalone `listenablefuture:1.0` stub pulled by `androidx.concurrent:concurrent-futures`.
+6. **Dependency management**: Use version catalog (`gradle/libs.versions.toml`) for all dependency versions. `shared/build.gradle.kts`, `androidApp/build.gradle.kts`, and `desktopApp/build.gradle.kts` all consume the version catalog. Root `build.gradle.kts` applies a global `allprojects { configurations.all { exclude(group = "com.google.guava", module = "listenablefuture") } }` to resolve `checkDebugDuplicateClasses` caused by the standalone `listenablefuture:1.0` stub (pulled by `androidx.concurrent:concurrent-futures` via `androidx.core`) colliding with the full Guava that KSP/Room compiler pulls in at build-time for `com.google.common.collect.ImmutableList`. (Historically this was also needed for guava-18.0 dragged in by AndroidMath via llm-typewriter; that path is gone after the RaTeX migration.) JitPack 仓库现在仅为 `ucrop` (`com.github.Yalantis:ucrop`) 保留，不再为 AndroidMath。
 
 ## Editing Guidelines
 

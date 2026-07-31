@@ -76,21 +76,15 @@ kotlin {
                 implementation(libs.kotlinx.datetime)
                 implementation(libs.okio)
 
-                // AndroidMath (transitive via llm-typewriter) drags in
-                // com.github.jitpack:gradle-simple:1.0 -> com.google.guava:guava:18.0,
-                // which bundles com.google.common.util.concurrent.ListenableFuture and
-                // collides with the canonical listenablefuture:1.0 stub that androidx.core
-                // depends on. We per-dependency exclude guava from llm-typewriter so
-                // only the listenablefuture stub remains on the runtime classpath (no
-                // duplicate class). KSP/Room compiler still gets guava via its own
-                // kspAndroid configuration (independent of commonMain's implementation).
-                // String notation is used because KotlinDependencyHandler.implementation
-                // does not accept Provider + Action in this Kotlin Gradle Plugin version.
-                // The composite build substitutes cc.ptoe:llm-typewriter:1.0 regardless
-                // of the requested version.
-                implementation("cc.ptoe:llm-typewriter:1.0") {
-                    exclude(group = "com.google.guava", module = "guava")
-                }
+                // The composite build (settings.gradle.kts includeBuild) substitutes
+                // cc.ptoe:llm-typewriter:1.0 with the checked-out source build regardless
+                // of the requested version. String notation is used because
+                // KotlinDependencyHandler.implementation does not accept Provider + Action
+                // in this Kotlin Gradle Plugin version.
+                // Note: llm-typewriter previously dragged in guava-18.0 via AndroidMath;
+                // that path is gone after the RaTeX migration (AndroidMath removed), so no
+                // per-dependency guava exclude is needed here anymore.
+                implementation("cc.ptoe:llm-typewriter:1.0")
             }
         }
 
@@ -133,11 +127,13 @@ compose.resources {
     generateResClass = always
 }
 
-// guava (transitive via llm-typewriter / AndroidMath, and required at build-time
-// by KSP/Room compiler for com.google.common.collect.ImmutableList) bundles
-// ListenableFuture. The standalone listenablefuture-1.0 stub (pulled by
-// androidx.core) ships the same class and would collide. Exclude only the stub
-// so checkDebugDuplicateClasses passes while guava stays for KSP/Room.
+// The standalone com.google.guava:listenablefuture:1.0 stub (pulled transitively
+// by androidx.concurrent:concurrent-futures via androidx.core) collides with the
+// full Guava that KSP/Room compiler pulls in at build-time for
+// com.google.common.collect.ImmutableList. Exclude only the stub globally so
+// AGP's checkDebugDuplicateClasses passes while Guava stays on the KSP classpath.
+// Note: llm-typewriter previously dragged in guava-18.0 via AndroidMath; that
+// path is gone after the RaTeX migration (AndroidMath removed).
 configurations {
     all {
         exclude(group = "com.google.guava", module = "listenablefuture")

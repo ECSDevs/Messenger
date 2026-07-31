@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -245,291 +246,298 @@ fun AgentEditScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            // 头像
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .widthIn(max = 600.dp)
+                    .fillMaxWidth()
+                    .padding(16.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(96.dp)
-                        .clickable {
-                            avatarPicker.launch()
-                        },
-                    contentAlignment = Alignment.Center
+                // 头像
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AgentAvatar(
-                        avatar = uiState.avatar,
-                        size = 96.dp
-                    )
-                    // 右下角相机徽标，提示可点击更换
                     Box(
                         modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(28.dp)
-                            .zIndex(1f)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
+                            .size(96.dp)
+                            .clickable {
+                                avatarPicker.launch()
+                            },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.AddAPhoto,
-                            contentDescription = stringResource(Res.string.agent_edit_change_avatar),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary
+                        AgentAvatar(
+                            avatar = uiState.avatar,
+                            size = 96.dp
                         )
+                        // 右下角相机徽标，提示可点击更换
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(28.dp)
+                                .zIndex(1f)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AddAPhoto,
+                                contentDescription = stringResource(Res.string.agent_edit_change_avatar),
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
                     }
                 }
-            }
 
-            if (uiState.avatar != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                TextButton(
-                    onClick = {
-                        uiState.avatar?.let { deleteAvatarFile(it) }
-                        viewModel.onAvatarChange(null)
-                    },
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                ) {
-                    Text(stringResource(Res.string.agent_edit_remove_avatar))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = uiState.name,
-                onValueChange = { viewModel.onNameChange(it) },
-                label = { Text(stringResource(Res.string.agent_edit_name_label)) },
-                isError = uiState.nameError != null,
-                supportingText = {
-                    uiState.nameError?.let { error ->
-                        Text(
-                            text = error,
-                            color = MaterialTheme.colorScheme.error
-                        )
+                if (uiState.avatar != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(
+                        onClick = {
+                            uiState.avatar?.let { deleteAvatarFile(it) }
+                            viewModel.onAvatarChange(null)
+                        },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text(stringResource(Res.string.agent_edit_remove_avatar))
                     }
-                },
-                singleLine = true,
-                enabled = !uiState.isDefault, // 默认 Agent 名称不允许修改（保持"默认 Agent"标识）
-                modifier = Modifier.fillMaxWidth()
-            )
+                }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 系统提示词
-            if (showFollowToggles) {
-                FollowToggleRow(
-                    label = stringResource(Res.string.agent_edit_follow_system_prompt),
-                    checked = uiState.followDefaultSystemPrompt,
-                    onCheckedChange = { viewModel.onFollowSystemPromptChange(it) }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-            val systemPromptValue = if (showFollowToggles && uiState.followDefaultSystemPrompt) {
-                uiState.defaultAgent?.systemPrompt ?: ""
-            } else {
-                uiState.systemPrompt
-            }
-            OutlinedTextField(
-                value = systemPromptValue,
-                onValueChange = { viewModel.onSystemPromptChange(it) },
-                label = { Text(stringResource(Res.string.agent_edit_system_prompt_label)) },
-                placeholder = { Text(stringResource(Res.string.agent_edit_system_prompt_placeholder)) },
-                minLines = 3,
-                maxLines = 8,
-                enabled = !showFollowToggles || !uiState.followDefaultSystemPrompt,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Provider + Model
-            if (showFollowToggles) {
-                FollowToggleRow(
-                    label = stringResource(Res.string.agent_edit_follow_model),
-                    checked = uiState.followDefaultModel,
-                    onCheckedChange = { viewModel.onFollowModelChange(it) }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-            val modelSectionEnabled = !showFollowToggles || !uiState.followDefaultModel
-            if (modelSectionEnabled) {
-                ProviderDropdown(
-                    providers = providers,
-                    selectedProviderId = uiState.selectedProviderId,
-                    onProviderChange = { viewModel.onProviderChange(it) }
-                )
                 Spacer(modifier = Modifier.height(16.dp))
-                ModelDropdown(
-                    models = models,
-                    selectedModelId = uiState.defaultModelId,
-                    enabled = uiState.selectedProviderId != null,
-                    onModelChange = { viewModel.onDefaultModelChange(it) }
+
+                OutlinedTextField(
+                    value = uiState.name,
+                    onValueChange = { viewModel.onNameChange(it) },
+                    label = { Text(stringResource(Res.string.agent_edit_name_label)) },
+                    isError = uiState.nameError != null,
+                    supportingText = {
+                        uiState.nameError?.let { error ->
+                            Text(
+                                text = error,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    enabled = !uiState.isDefault, // 默认 Agent 名称不允许修改（保持"默认 Agent"标识）
+                    modifier = Modifier.fillMaxWidth()
                 )
-            } else {
-                // 跟随默认 Agent：只读展示默认 Agent 的模型信息
-                FollowedValueBox(
-                    label = stringResource(Res.string.agent_edit_followed_model_label),
-                    value = stringResource(Res.string.agent_edit_followed_model_value)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 系统提示词
+                if (showFollowToggles) {
+                    FollowToggleRow(
+                        label = stringResource(Res.string.agent_edit_follow_system_prompt),
+                        checked = uiState.followDefaultSystemPrompt,
+                        onCheckedChange = { viewModel.onFollowSystemPromptChange(it) }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                val systemPromptValue = if (showFollowToggles && uiState.followDefaultSystemPrompt) {
+                    uiState.defaultAgent?.systemPrompt ?: ""
+                } else {
+                    uiState.systemPrompt
+                }
+                OutlinedTextField(
+                    value = systemPromptValue,
+                    onValueChange = { viewModel.onSystemPromptChange(it) },
+                    label = { Text(stringResource(Res.string.agent_edit_system_prompt_label)) },
+                    placeholder = { Text(stringResource(Res.string.agent_edit_system_prompt_placeholder)) },
+                    minLines = 3,
+                    maxLines = 8,
+                    enabled = !showFollowToggles || !uiState.followDefaultSystemPrompt,
+                    modifier = Modifier.fillMaxWidth()
                 )
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            SectionHeader(title = stringResource(Res.string.agent_edit_advanced_settings))
+                // Provider + Model
+                if (showFollowToggles) {
+                    FollowToggleRow(
+                        label = stringResource(Res.string.agent_edit_follow_model),
+                        checked = uiState.followDefaultModel,
+                        onCheckedChange = { viewModel.onFollowModelChange(it) }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                val modelSectionEnabled = !showFollowToggles || !uiState.followDefaultModel
+                if (modelSectionEnabled) {
+                    ProviderDropdown(
+                        providers = providers,
+                        selectedProviderId = uiState.selectedProviderId,
+                        onProviderChange = { viewModel.onProviderChange(it) }
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    ModelDropdown(
+                        models = models,
+                        selectedModelId = uiState.defaultModelId,
+                        enabled = uiState.selectedProviderId != null,
+                        onModelChange = { viewModel.onDefaultModelChange(it) }
+                    )
+                } else {
+                    // 跟随默认 Agent：只读展示默认 Agent 的模型信息
+                    FollowedValueBox(
+                        label = stringResource(Res.string.agent_edit_followed_model_label),
+                        value = stringResource(Res.string.agent_edit_followed_model_value)
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Temperature
-            if (showFollowToggles) {
-                FollowToggleRow(
-                    label = stringResource(Res.string.agent_edit_follow_temperature),
-                    checked = uiState.followDefaultTemperature,
-                    onCheckedChange = { viewModel.onFollowTemperatureChange(it) }
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-            val tempEnabled = !showFollowToggles || !uiState.followDefaultTemperature
-            val tempValue = if (showFollowToggles && uiState.followDefaultTemperature) {
-                uiState.defaultAgent?.temperature ?: uiState.temperature
-            } else {
-                uiState.temperature
-            }
-            Text(
-                text = stringResource(Res.string.agent_edit_temperature_label, formatOneDecimal(tempValue)),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (tempEnabled) MaterialTheme.colorScheme.onSurface
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-            Slider(
-                value = tempValue,
-                onValueChange = { viewModel.onTemperatureChange(it) },
-                enabled = tempEnabled,
-                valueRange = 0f..2f,
-                steps = 19,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Max Tokens
-            if (showFollowToggles) {
-                FollowToggleRow(
-                    label = stringResource(Res.string.agent_edit_follow_max_tokens),
-                    checked = uiState.followDefaultMaxTokens,
-                    onCheckedChange = { viewModel.onFollowMaxTokensChange(it) }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-            val maxTokensEnabled = !showFollowToggles || !uiState.followDefaultMaxTokens
-            val maxTokensValue = if (showFollowToggles && uiState.followDefaultMaxTokens) {
-                uiState.defaultAgent?.maxTokens?.toString() ?: ""
-            } else {
-                uiState.maxTokens ?: ""
-            }
-            OutlinedTextField(
-                value = maxTokensValue,
-                onValueChange = { value ->
-                    viewModel.onMaxTokensChange(value.ifBlank { null })
-                },
-                label = { Text(stringResource(Res.string.agent_edit_max_tokens_label)) },
-                placeholder = { Text(stringResource(Res.string.agent_edit_max_tokens_placeholder)) },
-                singleLine = true,
-                enabled = maxTokensEnabled,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Reasoning Effort
-            if (showFollowToggles) {
-                FollowToggleRow(
-                    label = stringResource(Res.string.agent_edit_follow_reasoning_effort),
-                    checked = uiState.followDefaultReasoningEffort,
-                    onCheckedChange = { viewModel.onFollowReasoningEffortChange(it) }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-            val reasoningEnabled = !showFollowToggles || !uiState.followDefaultReasoningEffort
-            val reasoningValue = if (showFollowToggles && uiState.followDefaultReasoningEffort) {
-                uiState.defaultAgent?.reasoningEffort
-            } else {
-                uiState.reasoningEffort
-            }
-            ReasoningEffortDropdown(
-                selectedEffort = reasoningValue,
-                enabled = reasoningEnabled,
-                onEffortChange = { viewModel.onReasoningEffortChange(it) }
-            )
-
-            if (cloudUser != null && uiState.isEditing && !uiState.isDefault) {
                 Spacer(modifier = Modifier.height(24.dp))
-                SectionHeader(title = stringResource(Res.string.agent_edit_market_section))
+
+                SectionHeader(title = stringResource(Res.string.agent_edit_advanced_settings))
+
                 Spacer(modifier = Modifier.height(8.dp))
-                when (uiState.marketAgentRole) {
-                    "publisher" -> {
-                        Button(
-                            onClick = { showPushDialog = true },
+
+                // Temperature
+                if (showFollowToggles) {
+                    FollowToggleRow(
+                        label = stringResource(Res.string.agent_edit_follow_temperature),
+                        checked = uiState.followDefaultTemperature,
+                        onCheckedChange = { viewModel.onFollowTemperatureChange(it) }
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                val tempEnabled = !showFollowToggles || !uiState.followDefaultTemperature
+                val tempValue = if (showFollowToggles && uiState.followDefaultTemperature) {
+                    uiState.defaultAgent?.temperature ?: uiState.temperature
+                } else {
+                    uiState.temperature
+                }
+                Text(
+                    text = stringResource(Res.string.agent_edit_temperature_label, formatOneDecimal(tempValue)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (tempEnabled) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Slider(
+                    value = tempValue,
+                    onValueChange = { viewModel.onTemperatureChange(it) },
+                    enabled = tempEnabled,
+                    valueRange = 0f..2f,
+                    steps = 19,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Max Tokens
+                if (showFollowToggles) {
+                    FollowToggleRow(
+                        label = stringResource(Res.string.agent_edit_follow_max_tokens),
+                        checked = uiState.followDefaultMaxTokens,
+                        onCheckedChange = { viewModel.onFollowMaxTokensChange(it) }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                val maxTokensEnabled = !showFollowToggles || !uiState.followDefaultMaxTokens
+                val maxTokensValue = if (showFollowToggles && uiState.followDefaultMaxTokens) {
+                    uiState.defaultAgent?.maxTokens?.toString() ?: ""
+                } else {
+                    uiState.maxTokens ?: ""
+                }
+                OutlinedTextField(
+                    value = maxTokensValue,
+                    onValueChange = { value ->
+                        viewModel.onMaxTokensChange(value.ifBlank { null })
+                    },
+                    label = { Text(stringResource(Res.string.agent_edit_max_tokens_label)) },
+                    placeholder = { Text(stringResource(Res.string.agent_edit_max_tokens_placeholder)) },
+                    singleLine = true,
+                    enabled = maxTokensEnabled,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Reasoning Effort
+                if (showFollowToggles) {
+                    FollowToggleRow(
+                        label = stringResource(Res.string.agent_edit_follow_reasoning_effort),
+                        checked = uiState.followDefaultReasoningEffort,
+                        onCheckedChange = { viewModel.onFollowReasoningEffortChange(it) }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                val reasoningEnabled = !showFollowToggles || !uiState.followDefaultReasoningEffort
+                val reasoningValue = if (showFollowToggles && uiState.followDefaultReasoningEffort) {
+                    uiState.defaultAgent?.reasoningEffort
+                } else {
+                    uiState.reasoningEffort
+                }
+                ReasoningEffortDropdown(
+                    selectedEffort = reasoningValue,
+                    enabled = reasoningEnabled,
+                    onEffortChange = { viewModel.onReasoningEffortChange(it) }
+                )
+
+                if (cloudUser != null && uiState.isEditing && !uiState.isDefault) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    SectionHeader(title = stringResource(Res.string.agent_edit_market_section))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    when (uiState.marketAgentRole) {
+                        "publisher" -> {
+                            Button(
+                                onClick = { showPushDialog = true },
+                                enabled = !uiState.marketActionInProgress,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.FileUpload, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(Res.string.agent_edit_push_update))
+                            }
+                            TextButton(
+                                onClick = { showUnpublishDialog = true },
+                                enabled = !uiState.marketActionInProgress,
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            ) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(Res.string.agent_edit_unpublish))
+                            }
+                        }
+                        "importer" -> {
+                            Button(
+                                onClick = {
+                                    viewModel.checkMarketAgentUpdate { result ->
+                                        coroutineScope.launch {
+                                            result.onSuccess { update ->
+                                                if (update.hasUpdate) showPullDialog = true
+                                                else snackbarHostState.showSnackbar(strAlreadyUpToDate)
+                                            }.onFailure { error ->
+                                                snackbarHostState.showSnackbar(error.message ?: strGetUpdateFailed)
+                                            }
+                                        }
+                                    }
+                                },
+                                enabled = !uiState.marketActionInProgress,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.SystemUpdateAlt, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(Res.string.agent_edit_get_update))
+                            }
+                        }
+                        else -> Button(
+                            onClick = { showPublishDialog = true },
                             enabled = !uiState.marketActionInProgress,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(Icons.Default.FileUpload, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text(stringResource(Res.string.agent_edit_push_update))
+                            Text(stringResource(Res.string.agent_edit_publish_to_market))
                         }
-                        TextButton(
-                            onClick = { showUnpublishDialog = true },
-                            enabled = !uiState.marketActionInProgress,
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        ) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(Res.string.agent_edit_unpublish))
-                        }
-                    }
-                    "importer" -> {
-                        Button(
-                            onClick = {
-                                viewModel.checkMarketAgentUpdate { result ->
-                                    coroutineScope.launch {
-                                        result.onSuccess { update ->
-                                            if (update.hasUpdate) showPullDialog = true
-                                            else snackbarHostState.showSnackbar(strAlreadyUpToDate)
-                                        }.onFailure { error ->
-                                            snackbarHostState.showSnackbar(error.message ?: strGetUpdateFailed)
-                                        }
-                                    }
-                                }
-                            },
-                            enabled = !uiState.marketActionInProgress,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.SystemUpdateAlt, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(Res.string.agent_edit_get_update))
-                        }
-                    }
-                    else -> Button(
-                        onClick = { showPublishDialog = true },
-                        enabled = !uiState.marketActionInProgress,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.FileUpload, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(Res.string.agent_edit_publish_to_market))
                     }
                 }
             }
@@ -678,8 +686,7 @@ private fun ProviderDropdown(
         )
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.fillMaxWidth()
+            onDismissRequest = { expanded = false }
         ) {
             if (providers.isEmpty()) {
                 Text(
@@ -738,8 +745,7 @@ private fun ModelDropdown(
         )
         ExposedDropdownMenu(
             expanded = expanded && enabled,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.fillMaxWidth()
+            onDismissRequest = { expanded = false }
         ) {
             if (models.isEmpty()) {
                 Text(
@@ -825,8 +831,7 @@ private fun ReasoningEffortDropdown(
         )
         ExposedDropdownMenu(
             expanded = expanded && enabled,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.fillMaxWidth()
+            onDismissRequest = { expanded = false }
         ) {
             reasoningEffortOptions.forEach { (value, label) ->
                 DropdownMenuItem(
