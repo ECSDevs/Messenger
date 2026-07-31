@@ -52,6 +52,24 @@ compose.desktop {
             // packageVersion must be numeric triplets (jpackage constraint); the human-readable
             // versionName "vYYYYMMDD" is tracked separately in rootProject.ext["versionName"].
             packageVersion = "1.0.${rootProject.ext["versionCode"]}"
+            // Required runtime modules for the packaged JRE. Suggested by suggestModules, plus
+            // java.sql/sqlite-jdbc, TLS EC certificates, DNS naming and desktop/AWT internals.
+            modules(
+                "java.instrument",
+                "java.management",
+                "java.naming",
+                "java.security.jgss",
+                "java.sql",
+                "java.desktop",
+                "jdk.crypto.ec",
+                "jdk.unsupported",
+            )
+            windows {
+                shortcut = true
+                menu = true
+                menuGroup = "Messenger"
+                iconFile.set(project.file("src/main/resources/icon.ico"))
+            }
         }
         // ProGuard (enabled by default for the release build type) fails because
         // OkHttp's optional platform classes (org.conscrypt, org.openjsse,
