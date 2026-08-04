@@ -391,6 +391,9 @@ class ChatViewModel(
                                 typewriterState.completeSource()
                                 saveStreamResult(aiMessage, currentContent, conversationId, null)
                                 awaitTypewriterDone()
+                                if (currentContent.isNotBlank()) {
+                                    awaitMessagePersisted(aiMessageId, currentContent)
+                                }
                                 _streamingMessageId.value = null
                                 _isGenerating.value = false
                             }
@@ -399,6 +402,9 @@ class ChatViewModel(
                                 typewriterState.stop()
                                 saveStreamResult(aiMessage, currentContent, conversationId, event.message)
                                 setError(event.message)
+                                if (currentContent.isNotBlank()) {
+                                    awaitMessagePersisted(aiMessageId, currentContent)
+                                }
                                 _streamingMessageId.value = null
                                 _isGenerating.value = false
                             }
@@ -409,6 +415,9 @@ class ChatViewModel(
                     val errorMsg = getString(Res.string.error_api_no_valid_response)
                     saveStreamResult(aiMessage, currentContent, conversationId, errorMsg)
                     setError(errorMsg)
+                    if (currentContent.isNotBlank()) {
+                        awaitMessagePersisted(aiMessageId, currentContent)
+                    }
                     _streamingMessageId.value = null
                     _isGenerating.value = false
                 }
@@ -421,6 +430,9 @@ class ChatViewModel(
                 val errorMsg = e.message ?: getString(Res.string.error_unknown)
                 saveStreamResult(aiMessage, currentContent, conversationId, errorMsg)
                 setError(errorMsg)
+                if (currentContent.isNotBlank()) {
+                    awaitMessagePersisted(aiMessageId, currentContent)
+                }
                 _streamingMessageId.value = null
                 _isGenerating.value = false
             }
@@ -443,6 +455,29 @@ class ChatViewModel(
             // Reveal loop isn't running (bubble disposed) or buffer too large —
             // force-flush so the subsequent static render matches the live view.
             typewriterState.skipToEnd()
+        }
+    }
+
+    /**
+     * Waits for [messages] to reflect the final persisted [content] for [messageId]
+     * before the host unbinds [streamingMessageId]. Without this, the bubble switches
+     * from the live typewriter (which holds the streamed content in memory) to the
+     * static path while [Message.content] is still the stale empty value from the
+     * initial insert — the static path's `remember(message.id, message.content)`
+     * then seeds an empty state, causing a one-frame empty render (visible flicker)
+     * before the Room Flow re-emits with the persisted content. Bounded by a timeout
+     * so a missing emission (e.g. [saveStreamResult] no-op on blank content) does
+     * not block the stream completion forever.
+     */
+    private suspend fun awaitMessagePersisted(
+        messageId: String,
+        content: String,
+        timeoutMs: Long = 1000L
+    ) {
+        withTimeoutOrNull(timeoutMs) {
+            messages.first { list ->
+                list.any { it.id == messageId && it.content == content }
+            }
         }
     }
 
@@ -553,6 +588,9 @@ class ChatViewModel(
                                 typewriterState.completeSource()
                                 saveStreamResult(message, currentContent, message.conversationId, null)
                                 awaitTypewriterDone()
+                                if (currentContent.isNotBlank()) {
+                                    awaitMessagePersisted(messageId, currentContent)
+                                }
                                 _streamingMessageId.value = null
                                 _isGenerating.value = false
                             }
@@ -561,6 +599,9 @@ class ChatViewModel(
                                 typewriterState.stop()
                                 saveStreamResult(message, currentContent, message.conversationId, event.message)
                                 setError(event.message)
+                                if (currentContent.isNotBlank()) {
+                                    awaitMessagePersisted(messageId, currentContent)
+                                }
                                 _streamingMessageId.value = null
                                 _isGenerating.value = false
                             }
@@ -571,6 +612,9 @@ class ChatViewModel(
                         val errorMsg = getString(Res.string.error_api_no_valid_response)
                         saveStreamResult(message, currentContent, message.conversationId, errorMsg)
                         setError(errorMsg)
+                        if (currentContent.isNotBlank()) {
+                            awaitMessagePersisted(messageId, currentContent)
+                        }
                         _streamingMessageId.value = null
                         _isGenerating.value = false
                     }
@@ -583,6 +627,9 @@ class ChatViewModel(
                     val errorMsg = e.message ?: getString(Res.string.error_unknown)
                     saveStreamResult(message, currentContent, message.conversationId, errorMsg)
                     setError(errorMsg)
+                    if (currentContent.isNotBlank()) {
+                        awaitMessagePersisted(messageId, currentContent)
+                    }
                     _streamingMessageId.value = null
                     _isGenerating.value = false
                 }

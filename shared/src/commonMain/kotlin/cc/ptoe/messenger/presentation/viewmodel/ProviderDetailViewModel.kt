@@ -26,6 +26,7 @@ import cc.ptoe.messenger.domain.model.Provider
 import cc.ptoe.messenger.domain.repository.ApiRepository
 import cc.ptoe.messenger.domain.repository.ModelRepository
 import cc.ptoe.messenger.domain.repository.ProviderRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -121,6 +122,8 @@ class ProviderDetailViewModel(
                         isLoading = false
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -144,6 +147,8 @@ class ProviderDetailViewModel(
                     syncStatus = SyncStatus.SUCCESS,
                     syncedModels = fetchedModels
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     syncStatus = SyncStatus.ERROR,

@@ -649,8 +649,17 @@ class CloudSyncRepository(
             val account = refreshUser()
             syncMutex.withLock {
                 checkSignedIn()
-                pushLocalSnapshot(onlyPending = true)
-                syncInternal(expectedServerVersion = account.syncVersion).also { _syncError.value = null }
+                val pushedVersion = pushLocalSnapshot(onlyPending = true)
+                // Use the server version after our push as the sync cursor so we
+                // don't pull back the very deltas we just wrote. Without this,
+                // applyDelta() rewrites every message of the just-pushed
+                // conversation via delete + insertAll — Room re-emits the whole
+                // messages Flow and ChatScreen recomposes from scratch (visible
+                // as a full-page reload ~750ms after the AI message completes).
+                syncInternal(
+                    sinceOverride = pushedVersion.takeIf { it > 0L },
+                    expectedServerVersion = account.syncVersion
+                ).also { _syncError.value = null }
             }
         }
     }

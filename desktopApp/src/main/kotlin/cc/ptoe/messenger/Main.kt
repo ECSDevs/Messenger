@@ -16,13 +16,19 @@
 
 package cc.ptoe.messenger
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import java.awt.Dimension
+import javax.imageio.ImageIO
 import cc.ptoe.messenger.data.local.DesktopChatImageStore
 import cc.ptoe.messenger.data.local.desktopDatabaseBuilder
 import cc.ptoe.messenger.di.AppContainer
@@ -68,11 +74,28 @@ fun main() {
         Window(
             onCloseRequest = ::exitApplication,
             title = "Messenger",
-            state = windowState
+            state = windowState,
+            undecorated = true
         ) {
             window.minimumSize = Dimension(800, 600)
+            val iconImage = remember {
+                Thread.currentThread().contextClassLoader
+                    .getResourceAsStream("logo.png")
+                    ?.use { ImageIO.read(it) }
+            }
+            SideEffect {
+                if (iconImage != null) {
+                    window.iconImage = iconImage
+                }
+            }
             MessengerTheme(themeMode = themeMode) {
-                MainScaffold()
+                Column(modifier = Modifier.fillMaxSize()) {
+                    DesktopTitleBar(
+                        title = "Messenger",
+                        onCloseRequest = ::exitApplication
+                    )
+                    MainScaffold()
+                }
             }
         }
     }

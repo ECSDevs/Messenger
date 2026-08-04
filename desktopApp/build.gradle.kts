@@ -25,6 +25,7 @@ plugins {
 dependencies {
     implementation(project(":shared"))
     implementation(compose.desktop.currentOs)
+    implementation(compose.material3)
     implementation(libs.kotlinx.coroutines.swing)
     // Main.kt constructs AppContainer (RoomDatabase.Builder / okio.Path / HttpClient leak
     // through shared's public desktop API) and configures the Coil ImageLoader directly.
