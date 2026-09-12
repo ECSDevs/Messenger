@@ -11,7 +11,7 @@ Messenger is a Material 3 designed LLM chat application for Android, focused on 
 - **Language**: Kotlin
 - **UI**: Jetpack Compose (Material 3) + Wear Compose
 - **Architecture**: Clean Architecture (data/domain/presentation layers)
-- **Modules**: `shared` (KMP library: shared Android/Desktop logic), `androidApp` (Android application shell), `desktopApp` (Desktop application shell), `wear` (Wear OS), `server` (Next.js/Vercel account and incremental cloud sync service)
+- **Modules**: `shared` (KMP library: shared Android/Desktop logic), `androidApp` (Android application shell), `desktopApp` (Desktop application shell), `wear` (Wear OS), `server` (Next.js/Vercel SaaS platform: official website, web console, cloud sync, card-key billing, AI API relay)
 
 ## Project Structure
 
@@ -227,27 +227,26 @@ Messenger/
 │   ├── build.gradle.kts        # compose.desktop { application { mainClass = "cc.ptoe.messenger.MainKt"; ... } }
 │   └── src/main/kotlin/cc/ptoe/messenger/
 │       └── Main.kt             # Desktop entry point (constructs AppContainer directly)
-├── server/                     # Git submodule: Next.js account server + admin backend
+├── server/                     # Git submodule: Next.js SaaS platform (website, console, sync, billing, AI API)
 │   ├── app/
-│   │   ├── admin/              # Password-protected admin backend
+│   │   ├── console/            # Shared web console (user + admin sections) under /console
+│   │   ├── login/ /register/   # Web login & registration pages
+│   │   ├── v1/                 # OpenAI-compatible AI API proxy (/v1/models, /v1/chat/completions)
 │   │   └── api/
-│   │       ├── admin/login/ / logout/
+│   │       ├── admin/          # Admin-only JSON APIs (overview/plans/cards/models/upstreams)
 │   │       ├── agents/[id]/
 │   │       ├── auth/login/ / register/ / logout/ / me/ / password/ / account/
 │   │       ├── avatars/user/ / agents/[agentId]/
+│   │       ├── console/        # User console APIs (overview/redeem/redemptions/api-key)
 │   │       ├── conversations/[id]/
 │   │       ├── market/agents/ / agents/[id]/avatar/
+│   │       ├── plans/          # Public plan list for the website pricing section
 │   │       ├── providers/[id]/
 │   │       └── sync/
-│   ├── components/             # Admin UI components
-│   ├── lib/                    # Auth, storage, validation, shared types
+│   ├── components/             # Website/console UI components (RSC + client islands)
+│   ├── lib/                    # Auth, storage, billing/quota, AI-proxy helpers, validation, types
 │   ├── package.json
 │   └── README.md
-├── specs/                      # Design specs & implementation plans
-│   └── rewrite-server-mongodb-realtime-sync/
-│       ├── spec.md
-│       ├── tasks.md
-│       └── checklist.md
 ├── wear/                       # Wear OS companion module
 │   ├── proguard-rules.pro      # R8/ProGuard rules for wear
 │   └── src/main/java/cc/ptoe/messenger/
@@ -375,10 +374,13 @@ The project uses a manual dependency injection approach via an `AppContainer`:
 - **Multimodal messages**: `ChatMessageDto.content` is a `JsonElement` so a single DTO carries both the legacy text-string shape and the OpenAI `[{type,text|image_url}]` array shape. `ApiRepositoryImpl` picks the wire format based on `Message.hasImages`. Picked images are downscaled to 1568px on the longest side, EXIF-rotated, cached as PNGs under `filesDir/chat_images/`, and the cache is reaped on message delete. The local DB keeps the bitmap path/URI stable so the cloud sync layer and the UI never depend on a content:// URI re-issuing.
 - **Multimodal image cloud sync**: each image part is stored in `partsJson` as `{type:"image", dataUri, localPath}` where `dataUri` embeds the full base64 bitmap, so pushing a conversation to the cloud carries the image bytes inside the message document — no separate image upload endpoint exists. On the pull side, `CloudSyncRepository.rehydrateChatImages` runs before the Room write: any image part whose `localPath` does not exist on this device (fresh install / another device) is decoded from its `dataUri` into `filesDir/chat_images/sync_{sha256(messageId|partIndex|dataUri)}.{ext}` and the part's `localPath` is rewritten to the local copy, keeping Coil rendering purely file-based. The deterministic file name makes repeated syncs idempotent, and per-message files preserve the delete-reaping convention of `ChatImageStore`.
 
-### Cloud Account Server
+### Cloud SaaS Platform (server/)
 
-- `server/` is a standalone Next.js App Router project in a git submodule, intended for Vercel deployment
-- Messenger clients authenticate with email/password against serverless route handlers under `server/app/api/`
+- `server/` is a standalone Next.js App Router SaaS project in a git submodule, intended for Vercel deployment. It provides the official website (`/`, with a public pricing section backed by `GET /api/plans`), web login/registration (`/login`, `/register`), and a shared web console (`/console`)
+- **Roles**: the FIRST registered user is automatically promoted to `admin` (enforced by a unique `system_bootstrap` marker inside the registration transaction; an idempotent startup migration in `lib/mongo.ts` promotes the earliest user of pre-SaaS deployments). Admins and users share one `messenger_session` JWT cookie; every admin-only route/page re-checks `role === "admin"` against the database via `requireAdminUser()` (stale-token privilege escalation is impossible). The old `ADMIN_PASSWORD` / `/admin` backend is deleted
+- **Console**: users get 概览 (quota + usage + API key) and 财务 (card redemption + history); admins additionally get 全站概览, 套餐管理, 开卡, and 上游管理 in the same sidebar. Console pages are RSC with small client islands; the sidebar role comes from the database, not the JWT
+- **Card-key billing**: admins define `plans` (quota tokens + validity days) and batch-issue `card_keys` (codes `MS-XXXXX-XXXXX-XXXXX`, cards embed a creation-time plan snapshot so later plan edits/deletes never invalidate outstanding cards). Users redeem cards via `POST /api/console/redeem` — an atomic claim (`unused → redeemed`), quota grant (`quotaBalance += plan.quotaTokens`, `quotaExpiresAt = max(now, existing) + validityDays`), and `redemptions` record in one transaction
+- **AI API (OpenAI-compatible proxy)**: `/v1/models` and `/v1/chat/completions` authenticate with a per-user API key (`Authorization: Bearer sk-…`, regenerable in the console). Available models = enabled `ai_models` catalog ∩ models served by at least one enabled `upstream`. Requests relay to the highest-priority enabled upstream (failover on connect error/5xx before first byte); streaming responses inject `stream_options.include_usage` and pass upstream SSE bytes through verbatim while sniffing usage; after completion the server deducts `max(1, ceil(totalTokens × model rate))` from `users.quotaBalance` (floored at 0) and writes a `usage_logs` document. 402 (quota exhausted/expired), 401, 404, and 502 all use OpenAI `{"error":{...}}` bodies so the app's `extractHttpErrorMessage` displays them
 - MongoDB stores user documents plus versioned `agents`, `conversations`, and `providers` documents; conversations embed messages and providers embed models
 - Public Agent Market entries live separately in `market_agents`; they contain only portable Agent snapshots (name, avatar, prompt, and sampling parameters), never providers, model bindings, or API keys.
 - Each user has a monotonically increasing `syncVersion`. Entity writes atomically increment it and stamp the changed document's `version`; deletes are `deleted: true` tombstones returned by `GET /api/sync?since=N`
@@ -390,10 +392,10 @@ The project uses a manual dependency injection approach via an `AppContainer`:
 - Authenticated entity APIs are `PUT`/`DELETE` `/api/agents/{id}`, `/api/conversations/{id}`, and
   `/api/providers/{id}`. Avatar APIs use `GET`/`PUT`/`DELETE` `/api/avatars/user` and
   `/api/avatars/agents/{agentId}`; GET requests authenticate the user and proxy private Blob content
-- Account APIs include `PUT /api/auth/password` for authenticated password changes and `DELETE /api/auth/account` for permanent account deletion
-- The admin backend lives under `server/app/admin/` and uses a separate password-based session cookie from app users
-- MongoDB must be deployed as Atlas or a replica set because server writes use transactions to atomically advance the sync clock and update an entity
-- The `CloudSyncRepository` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/cloud/CloudSyncRepository.kt`) uses the session cookie and a per-account DataStore cursor to pull `GET /api/sync?since=N`; it applies tombstones transactionally, flattens provider models and conversation messages into Room, and pushes complete entity snapshots to the corresponding `PUT` endpoints. Its companions `CloudModels.kt` and `CloudApiClient.kt` live in the same `shared/.../data/cloud/` directory.
+- Account APIs include `PUT /api/auth/password` for authenticated password changes and `DELETE /api/auth/account` for permanent account deletion (now also cascades `redemptions` and `usage_logs`)
+- MongoDB must be deployed as Atlas or a replica set because server writes (sync clock, redemptions, admin bootstrap) use transactions
+- **Built-in cloud AI provider (client)**: on every login/`/me` refresh the client persists the user's `aiApiKey` and idempotently seeds/updates a local Provider with the reserved ID `BUILTIN_PROVIDER_ID = "builtin-messenger-cloud-ai"` (`CloudSyncRepository.kt`) pointing at `{serverUrl}/v1`. It is excluded from cloud sync on both the push side (`pushLocalSnapshot` + `AppContainer` change hooks) and the pull side (`applyDelta`), so devices never resurrect each other's copy; `hasLocalData()` ignores it so logins keep the auto-restore flow; logout/account deletion/server-URL change removes it; `ProvidersScreen` hides edit/delete for it. Room schema is unchanged (fixed string ID reuses the `providers` table, DB version stays 11)
+- The `CloudSyncRepository` (in `shared/src/commonMain/kotlin/cc/ptoe/messenger/data/cloud/CloudSyncRepository.kt`) uses the session cookie and a per-account DataStore cursor to pull `GET /api/sync?since=N`; it applies tombstones transactionally, flattens provider models and conversation messages into Room, and pushes complete entity snapshots to the corresponding `PUT` endpoints. Its companions `CloudModels.kt` and `CloudApiClient.kt` live in the same `shared/.../data/cloud/` directory. `CloudUser` carries optional SaaS fields (`role`, `aiApiKey`, `quotaBalance`, `quotaExpiresAt`) with defaults for backward compatibility
 - Multimodal message images ride inside `messages[].partsJson` (base64 `dataUri` per image part) in both directions; the server stores the string verbatim and the client rehydrates missing local files from the `dataUri` after a pull (see "Multimodal image cloud sync" above)
 - Mobile local repository mutations are debounced into cloud synchronization requests; deleted entities are retained as account-scoped pending-delete markers until the server tombstone write succeeds
 - User and agent avatars are uploaded as multipart `file` parts to the dedicated avatar endpoints;
@@ -545,7 +547,7 @@ If a change makes any section of AGENTS.md outdated or incomplete, update it in 
 3. For release builds, set up keystore in `keyring/messenger-release.jks`
 4. Environment variables for signing: `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
 5. Version code can be overridden with `VERSION_CODE` env var; version name with `VERSION_NAME` env var
-6. For the account server, create `server/.env.local` from `server/.env.example` and provide `JWT_SECRET`, `ADMIN_PASSWORD`, `MONGODB_URI` (Atlas or replica set), and `BLOB_READ_WRITE_TOKEN`
+6. For the account server, create `server/.env.local` from `server/.env.example` and provide `JWT_SECRET`, `MONGODB_URI` (Atlas or replica set), and `BLOB_READ_WRITE_TOKEN`. The first account registered through the website becomes the admin
 
 ### Server Commands
 
