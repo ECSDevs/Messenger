@@ -11,7 +11,7 @@ Messenger is a Material 3 designed LLM chat application for Android, focused on 
 - **Language**: Kotlin
 - **UI**: Jetpack Compose (Material 3) + Wear Compose
 - **Architecture**: Clean Architecture (data/domain/presentation layers)
-- **Modules**: `shared` (KMP library: shared Android/Desktop logic), `androidApp` (Android application shell), `desktopApp` (Desktop application shell), `wear` (Wear OS), `server` (Next.js/Vercel SaaS platform: official website, web console, cloud sync, card-key billing, AI API relay)
+- **Modules**: `shared` (KMP library: shared Android/Desktop logic), `androidApp` (Android application shell), `desktopApp` (Desktop application shell), `wear` (Wear OS), `server` (Next.js SaaS platform — Vercel or self-hosted: official website, web console, cloud sync, card-key billing, AI API relay)
 
 ## Project Structure
 
@@ -376,7 +376,7 @@ The project uses a manual dependency injection approach via an `AppContainer`:
 
 ### Cloud SaaS Platform (server/)
 
-- `server/` is a standalone Next.js App Router SaaS project in a git submodule, intended for Vercel deployment. It provides the official website (`/`, with a public pricing section backed by `GET /api/plans`), web login/registration (`/login`, `/register`), and a shared web console (`/console`)
+- `server/` is a standalone Next.js App Router SaaS project in a git submodule, deployable on Vercel or self-hosted Node. It provides the official website (`/`, with a public pricing section backed by `GET /api/plans`), web login/registration (`/login`, `/register`), and a shared web console (`/console`)
 - **Roles**: the FIRST registered user is automatically promoted to `admin` (enforced by a unique `system_bootstrap` marker inside the registration transaction; an idempotent startup migration in `lib/mongo.ts` promotes the earliest user of pre-SaaS deployments). Admins and users share one `messenger_session` JWT cookie; every admin-only route/page re-checks `role === "admin"` against the database via `requireAdminUser()` (stale-token privilege escalation is impossible). The old `ADMIN_PASSWORD` / `/admin` backend is deleted
 - **Console**: users get 概览 (quota + usage + API key) and 财务 (card redemption + history); admins additionally get 全站概览, 套餐管理, 开卡, and 上游管理 in the same sidebar. Console pages are RSC with small client islands; the sidebar role comes from the database, not the JWT
 - **Card-key billing**: admins define `plans` (quota tokens + validity days) and batch-issue `card_keys` (codes `MS-XXXXX-XXXXX-XXXXX`, cards embed a creation-time plan snapshot so later plan edits/deletes never invalidate outstanding cards). Users redeem cards via `POST /api/console/redeem` — an atomic claim (`unused → redeemed`), quota grant (`quotaBalance += plan.quotaTokens`, `quotaExpiresAt = max(now, existing) + validityDays`), and `redemptions` record in one transaction
@@ -385,10 +385,15 @@ The project uses a manual dependency injection approach via an `AppContainer`:
 - Public Agent Market entries live separately in `market_agents`; they contain only portable Agent snapshots (name, avatar, prompt, and sampling parameters), never providers, model bindings, or API keys.
 - Each user has a monotonically increasing `syncVersion`. Entity writes atomically increment it and stamp the changed document's `version`; deletes are `deleted: true` tombstones returned by `GET /api/sync?since=N`
 - Server registration seeds the one required default Agent in the same transaction as user creation, so the cloud data preserves the default-agent invariant
-- Vercel Blob private storage is used only for user and agent avatars at
-  `avatars/users/{userId}.{ext}` and `avatars/agents/{agentId}.{ext}`. Replacements snapshot the
-  prior blob, remove prefix-matched files, and restore the prior avatar if the new upload fails.
-  Authenticated avatar GET routes stream private blobs to mobile clients
+- Avatar blobs live behind a pluggable storage layer (`server/lib/blob-store.ts`): the `vercel`
+  backend (`lib/blob-vercel.ts`, vercel-blob-nonvercel pass-through — unchanged behavior for Vercel
+  deployments) or the self-hosted filesystem backend (`lib/blob-fs.ts`, `BLOB_STORAGE_DIR`, default
+  `./.blobs`, which replaced the removed `vercel-blob-emu` emulator). Selection via `BLOB_BACKEND`
+  (`auto` = Vercel when `BLOB_READ_WRITE_TOKEN` is set, else `fs`). Both backends share the stable
+  logical pathnames `avatars/users/{userId}.{ext}` and `avatars/agents/{agentId}.{ext}`.
+  Replacements snapshot the prior blob, remove prefix-matched files, and restore the prior avatar
+  if the new upload fails. Authenticated avatar GET routes stream content to mobile clients
+  through ETag-conditional responses
 - Authenticated entity APIs are `PUT`/`DELETE` `/api/agents/{id}`, `/api/conversations/{id}`, and
   `/api/providers/{id}`. Avatar APIs use `GET`/`PUT`/`DELETE` `/api/avatars/user` and
   `/api/avatars/agents/{agentId}`; GET requests authenticate the user and proxy private Blob content
@@ -547,7 +552,7 @@ If a change makes any section of AGENTS.md outdated or incomplete, update it in 
 3. For release builds, set up keystore in `keyring/messenger-release.jks`
 4. Environment variables for signing: `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
 5. Version code can be overridden with `VERSION_CODE` env var; version name with `VERSION_NAME` env var
-6. For the account server, create `server/.env.local` from `server/.env.example` and provide `JWT_SECRET`, `MONGODB_URI` (Atlas or replica set), and `BLOB_READ_WRITE_TOKEN`. The first account registered through the website becomes the admin
+6. For the account server, create `server/.env.local` from `server/.env.example` and provide `JWT_SECRET` and `MONGODB_URI` (Atlas or replica set). Avatar storage defaults to the self-hosted filesystem backend (`BLOB_STORAGE_DIR`, no Vercel account needed); set `BLOB_READ_WRITE_TOKEN` (or `BLOB_BACKEND=vercel`) only for Vercel deployments. The first account registered through the website becomes the admin
 
 ### Server Commands
 
