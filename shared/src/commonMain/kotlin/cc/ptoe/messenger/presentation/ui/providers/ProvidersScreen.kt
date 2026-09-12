@@ -86,6 +86,7 @@ import cc.ptoe.messenger.generated.resources.providers_model_count
 import cc.ptoe.messenger.generated.resources.providers_title
 import cc.ptoe.messenger.generated.resources.providers_view_models
 import org.jetbrains.compose.resources.stringResource
+import cc.ptoe.messenger.data.cloud.BUILTIN_PROVIDER_ID
 import cc.ptoe.messenger.di.AppContainerHolder
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -199,6 +200,8 @@ private fun ProviderListItem(
     val contextMenuState = rememberContextMenuState()
     val interactionSource = remember { MutableInteractionSource() }
     val hovered by interactionSource.collectIsHoveredAsState()
+    // 内置云 AI 服务商由登录流程自动配置，不提供编辑与删除入口。
+    val isBuiltin = item.provider.id == BUILTIN_PROVIDER_ID
     val backgroundColor = when {
         hovered && enableContextMenu -> MaterialTheme.colorScheme.surfaceContainerHigh
         else -> Color.Transparent
@@ -265,20 +268,22 @@ private fun ProviderListItem(
                         onClick()
                     }
                 )
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.action_edit)) },
-                    onClick = {
-                        expanded = false
-                        onEditClick()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.action_delete)) },
-                    onClick = {
-                        expanded = false
-                        onDeleteClick()
-                    }
-                )
+                if (!isBuiltin) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.action_edit)) },
+                        onClick = {
+                            expanded = false
+                            onEditClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.action_delete)) },
+                        onClick = {
+                            expanded = false
+                            onDeleteClick()
+                        }
+                    )
+                }
             }
         }
         Icon(
@@ -299,20 +304,22 @@ private fun ProviderListItem(
                         onClick()
                     }
                 )
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.action_edit)) },
-                    onClick = {
-                        contextMenuState.hide()
-                        onEditClick()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.action_delete)) },
-                    onClick = {
-                        contextMenuState.hide()
-                        onDeleteClick()
-                    }
-                )
+                if (!isBuiltin) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.action_edit)) },
+                        onClick = {
+                            contextMenuState.hide()
+                            onEditClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.action_delete)) },
+                        onClick = {
+                            contextMenuState.hide()
+                            onDeleteClick()
+                        }
+                    )
+                }
             }
         }
     }

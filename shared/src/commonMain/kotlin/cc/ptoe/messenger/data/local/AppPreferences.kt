@@ -36,6 +36,7 @@ class AppPreferences(private val dataStore: DataStore<Preferences>) {
         val CLOUD_SESSION = stringPreferencesKey("cloud_session")
         val CLOUD_SESSION_HOST = stringPreferencesKey("cloud_session_host")
         val CLOUD_USER = stringPreferencesKey("cloud_user")
+        val CLOUD_AI_API_KEY = stringPreferencesKey("cloud_ai_api_key")
     }
 
     val defaultAgentInitialized: Flow<Boolean> = dataStore.data
@@ -122,6 +123,16 @@ class AppPreferences(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    val cloudAiApiKey: Flow<String?> = dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.CLOUD_AI_API_KEY] }
+
+    suspend fun setCloudAiApiKey(key: String?) {
+        dataStore.edit { preferences ->
+            if (key.isNullOrBlank()) preferences.remove(PreferencesKeys.CLOUD_AI_API_KEY)
+            else preferences[PreferencesKeys.CLOUD_AI_API_KEY] = key
+        }
+    }
+
     suspend fun clearAll() {
         dataStore.edit { preferences ->
             preferences.clear()
@@ -133,6 +144,7 @@ class AppPreferences(private val dataStore: DataStore<Preferences>) {
             preferences.remove(PreferencesKeys.CLOUD_SESSION)
             preferences.remove(PreferencesKeys.CLOUD_SESSION_HOST)
             preferences.remove(PreferencesKeys.CLOUD_USER)
+            preferences.remove(PreferencesKeys.CLOUD_AI_API_KEY)
             if (accountId != null) {
                 preferences.remove(syncVersionKey(accountId))
                 preferences.remove(pendingDeletesKey(accountId))

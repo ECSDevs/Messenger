@@ -18,6 +18,7 @@ package cc.ptoe.messenger.di
 
 import androidx.room.RoomDatabase
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import cc.ptoe.messenger.data.cloud.BUILTIN_PROVIDER_ID
 import cc.ptoe.messenger.data.cloud.CloudSyncRepository
 import cc.ptoe.messenger.data.local.AppPreferences
 import cc.ptoe.messenger.data.local.ChatImageStore
@@ -103,12 +104,17 @@ class AppContainer(
 
     val providerRepository: ProviderRepository =
         ProviderRepositoryImpl(database.providerDao()) { id, deleted ->
-            cloudSyncRepository.requestLocalChange("provider", id, deleted)
+            // 内置云 AI 服务商不参与云同步（各设备本地自建）。
+            if (id != BUILTIN_PROVIDER_ID) {
+                cloudSyncRepository.requestLocalChange("provider", id, deleted)
+            }
         }
 
     val modelRepository: ModelRepository =
         ModelRepositoryImpl(database.modelDao()) { providerId, _ ->
-            cloudSyncRepository.requestLocalChange("provider", providerId)
+            if (providerId != BUILTIN_PROVIDER_ID) {
+                cloudSyncRepository.requestLocalChange("provider", providerId)
+            }
         }
 
     val agentRepository: AgentRepository = AgentRepositoryImpl(

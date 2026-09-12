@@ -74,6 +74,15 @@ import kotlin.time.Duration.Companion.milliseconds
 
 const val DEFAULT_CLOUD_SERVER_URL = "https://messenger.ptoe.cc"
 
+/**
+ * 内置云 AI 服务商的固定 ID。登录后由客户端以用户级 AI API Key 自动
+ * 配置，指向云端的 OpenAI 兼容代理（{server}/v1）。它不参与云同步：
+ * 每台设备在登录/同步时自行创建或刷新，推送与拉取两侧都按此 ID 过滤，
+ * 避免删除/重建在设备间互相复活。
+ */
+const val BUILTIN_PROVIDER_ID = "builtin-messenger-cloud-ai"
+const val BUILTIN_PROVIDER_NAME = "Messenger Cloud AI"
+
 class CloudSyncRepository(
     private val appPreferences: AppPreferences,
     private val database: MessengerDatabase,
@@ -112,10 +121,12 @@ class CloudSyncRepository(
             localChangesEnabled = false
             localDataMutex.withLock {
                 database.agentDao().clearAllMarketLinks()
+                removeBuiltinProvider()
             }
             appPreferences.setCloudSession(null)
             appPreferences.setCloudSessionHost(null)
             appPreferences.setCloudUser(null)
+            appPreferences.setCloudAiApiKey(null)
         }
         appPreferences.setCloudServerUrl(normalized.takeUnless { it == DEFAULT_CLOUD_SERVER_URL })
     }
@@ -182,10 +193,12 @@ class CloudSyncRepository(
         localChangesEnabled = false
         localDataMutex.withLock {
             database.agentDao().clearAllMarketLinks()
+            removeBuiltinProvider()
         }
         appPreferences.setCloudSession(null)
         appPreferences.setCloudSessionHost(null)
         appPreferences.setCloudUser(null)
+        appPreferences.setCloudAiApiKey(null)
     }
 
     suspend fun changePassword(currentPassword: String, newPassword: String): Unit = withContext(Dispatchers.IO) {
@@ -208,6 +221,9 @@ class CloudSyncRepository(
             )
         }
         cancelPendingLocalSync()
+        localDataMutex.withLock {
+            removeBuiltinProvider()
+        }
         appPreferences.clearCloudAccount(accountId)
     }
 
@@ -585,8 +601,10 @@ class CloudSyncRepository(
     }
 
     private suspend fun hasLocalData(): Boolean {
-        if (database.providerDao().count() > 0) return true
-        if (database.modelDao().count() > 0) return true
+        // 内置云 AI 服务商由客户端在登录后自动创建，不算作用户本地数据，
+        // 否则每次登录都会被误判为「本地有数据」而弹出同步选择框。
+        if (database.providerDao().countExcluding(BUILTIN_PROVIDER_ID) > 0) return true
+        if (database.modelDao().getAllEntities().any { it.providerId != BUILTIN_PROVIDER_ID }) return true
         if (database.conversationDao().count() > 0) return true
         if (database.messageDao().count() > 0) return true
 
@@ -670,7 +688,7 @@ class CloudSyncRepository(
         val pending = appPreferences.cloudPendingUpserts(account.id)
         fun shouldPush(type: String, id: String) = !onlyPending || "$type:$id" in pending
         val agents = database.agentDao().getAllEntities()
-        val providers = database.providerDao().getAllEntities()
+        val providers = database.providerDao().getAllEntities().filter { it.id != BUILTIN_PROVIDER_ID }
         val conversations = database.conversationDao().getAllEntities()
 
         val pushConversations = conversations.filter { shouldPush("conversation", it.id) }
@@ -774,6 +792,8 @@ class CloudSyncRepository(
             appPreferences.setCurrentAgentId(null)
         }
         applyDelta(delta)
+        // fullSync 的 replaceLocal 会 deleteAll 连带清掉内置服务商，这里补种。
+        ensureBuiltinProvider(account)
         val configuredServerUrl = serverUrl.first()
         cacheAgentAvatars(account.id, delta, configuredServerUrl)
         cacheLegacyAgentAvatars(account.id, configuredServerUrl)
@@ -931,6 +951,8 @@ class CloudSyncRepository(
             }
         }
         delta.providers.forEach { remote ->
+            // 内置云 AI 服务商不参与云同步（本地自建，见 BUILTIN_PROVIDER_ID）。
+            if (remote.id == BUILTIN_PROVIDER_ID) return@forEach
             if (remote.deleted) {
                 database.modelDao().deleteByProviderId(remote.id)
                 database.providerDao().delete(remote.id)
@@ -1084,10 +1106,12 @@ class CloudSyncRepository(
             localChangesEnabled = false
             localDataMutex.withLock {
                 database.agentDao().clearAllMarketLinks()
+                removeBuiltinProvider()
             }
             appPreferences.setCloudSession(null)
             appPreferences.setCloudSessionHost(null)
             appPreferences.setCloudUser(null)
+            appPreferences.setCloudAiApiKey(null)
         }
         appPreferences.setCloudServerUrl(baseUrl.takeUnless { it == DEFAULT_CLOUD_SERVER_URL })
         return baseUrl
@@ -1095,6 +1119,38 @@ class CloudSyncRepository(
 
     private suspend fun saveUser(value: CloudUser) {
         appPreferences.setCloudUser(json.encodeToString(CloudUser.serializer(), value))
+        appPreferences.setCloudAiApiKey(value.aiApiKey)
+        ensureBuiltinProvider(value)
+    }
+
+    /**
+     * 登录后自动配置内置云 AI 服务商：固定 ID 指向 {server}/v1，API Key 为
+     * 用户级 AI API Key（网页控制台可重置，重置后下一次 /me 刷新即同步到本地）。
+     * 幂等：已存在且配置一致时跳过。
+     */
+    private suspend fun ensureBuiltinProvider(value: CloudUser) {
+        val apiKey = value.aiApiKey
+        if (value.id.isEmpty() || apiKey.isNullOrBlank()) return
+        val baseUrl = "${serverUrl.first()}/v1"
+        val existing = database.providerDao().getById(BUILTIN_PROVIDER_ID).first()
+        if (existing == null) {
+            val now = System.currentTimeMillis()
+            database.providerDao().insert(
+                ProviderEntity(BUILTIN_PROVIDER_ID, BUILTIN_PROVIDER_NAME, baseUrl, apiKey, now, now)
+            )
+            logI(TAG, "Seeded built-in cloud AI provider baseUrl=$baseUrl")
+        } else if (existing.name != BUILTIN_PROVIDER_NAME || existing.baseUrl != baseUrl || existing.apiKey != apiKey) {
+            val now = System.currentTimeMillis()
+            database.providerDao().insert(
+                existing.copy(name = BUILTIN_PROVIDER_NAME, baseUrl = baseUrl, apiKey = apiKey, updatedAt = now)
+            )
+            logI(TAG, "Refreshed built-in cloud AI provider baseUrl=$baseUrl")
+        }
+    }
+
+    private suspend fun removeBuiltinProvider() {
+        database.modelDao().deleteByProviderId(BUILTIN_PROVIDER_ID)
+        database.providerDao().delete(BUILTIN_PROVIDER_ID)
     }
 
     private suspend fun refreshCachedUserAvatar(url: String?, avatarVersion: Long?) {

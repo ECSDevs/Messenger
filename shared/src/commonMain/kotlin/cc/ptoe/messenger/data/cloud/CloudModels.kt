@@ -23,6 +23,11 @@ import kotlinx.serialization.Serializable
 data class CloudUser(
     val id: String = "",
     val email: String = "",
+    // SaaS 字段：旧服务端响应不含这些键，全部带默认值以保持兼容。
+    val role: String? = null,
+    val aiApiKey: String? = null,
+    val quotaBalance: Long? = null,
+    val quotaExpiresAt: Long? = null,
     val avatarUrl: String? = null,
     val avatarVersion: Long? = null,
     val syncVersion: Long = 0,

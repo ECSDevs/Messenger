@@ -48,4 +48,7 @@ interface ProviderDao {
 
     @Query("SELECT COUNT(*) FROM providers")
     suspend fun count(): Int
+
+    @Query("SELECT COUNT(*) FROM providers WHERE id != :excludedId")
+    suspend fun countExcluding(excludedId: String): Int
 }
