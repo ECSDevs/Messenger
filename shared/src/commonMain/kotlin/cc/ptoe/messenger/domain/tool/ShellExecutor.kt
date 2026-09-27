@@ -14,17 +14,18 @@
  * limitations under the License.
  */
 
-package cc.ptoe.messenger.data.remote.dto
+package cc.ptoe.messenger.domain.tool
 
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
-
-@Serializable
-data class ChatDeltaDto(
-    @SerialName("role") val role: String? = null,
-    @SerialName("content") val content: JsonElement? = null,
-    @SerialName("reasoning_content") val reasoningContent: String? = null,
-    /** 流式工具调用增量片段：首块携带 id/name，arguments 跨块拼接。 */
-    @SerialName("tool_calls") val toolCalls: List<ToolCallDto>? = null
+/** Combined stdout/stderr text and the shell process exit code. */
+data class ShellResult(
+    val output: String,
+    val exitCode: Int
 )
+
+/**
+ * Executes a shell command on the host platform: Windows PowerShell on
+ * Windows, /bin/sh on other desktop platforms. [timeoutMs] bounds the whole
+ * execution; the process is destroyed when the timeout fires or the caller's
+ * coroutine is cancelled.
+ */
+expect suspend fun executeShellCommand(command: String, timeoutMs: Long): ShellResult
