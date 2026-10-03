@@ -22,7 +22,6 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewModelScope
 import kotlin.reflect.KClass
 import cc.ptoe.messenger.domain.model.Agent
-import cc.ptoe.messenger.domain.model.ChatModel
 import cc.ptoe.messenger.domain.model.Conversation
 import cc.ptoe.messenger.domain.model.MessageStatus
 import cc.ptoe.messenger.domain.repository.AgentRepository
@@ -30,11 +29,8 @@ import cc.ptoe.messenger.domain.repository.ConversationRepository
 import cc.ptoe.messenger.domain.repository.CurrentAgentRepository
 import cc.ptoe.messenger.domain.repository.MessageRepository
 import cc.ptoe.messenger.domain.repository.ModelRepository
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -44,27 +40,34 @@ import cc.ptoe.messenger.generated.resources.conversations_new_chat
 import org.jetbrains.compose.resources.getString
 import cc.ptoe.messenger.data.util.randomUuid
 
-data class ConversationsUiState(
-    val isMultiSelectMode: Boolean = false,
-    val selectedConversationIds: Set<String> = emptySet()
-)
-
-@OptIn(ExperimentalCoroutinesApi::class)
-class ConversationsViewModel(
+/**
+ * Agent 聊天列表子页的 ViewModel：固定展示某个 Agent 名下的全部会话
+ * （主页聊天列表不再做 Agent 筛选，本页是唯一的按 Agent 过滤入口）。
+ */
+class AgentConversationsViewModel(
+    private val agentId: String,
+    private val agentRepository: AgentRepository,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val currentAgentRepository: CurrentAgentRepository,
-    private val agentRepository: AgentRepository,
-    private val modelRepository: ModelRepository
+    private val modelRepository: ModelRepository,
+    private val currentAgentRepository: CurrentAgentRepository
 ) : ViewModel() {
 
-    val currentAgent: StateFlow<Agent?> = currentAgentRepository.currentAgent
+    val agent: StateFlow<Agent?> = agentRepository.getById(agentId)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = null
         )
 
+    val conversations: StateFlow<List<Conversation>> = conversationRepository.getByAgentId(agentId)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    /** 「切换 Agent」菜单的目标列表（与主页会话行的菜单保持一致）。 */
     val allAgents: StateFlow<List<Agent>> = agentRepository.getAll()
         .stateIn(
             scope = viewModelScope,
@@ -72,35 +75,14 @@ class ConversationsViewModel(
             initialValue = emptyList()
         )
 
-    private val _uiState = MutableStateFlow(ConversationsUiState())
-    val uiState: StateFlow<ConversationsUiState> = _uiState.asStateFlow()
-
-    /** 会话主页固定展示全部聊天（按 Agent 过滤在 Agent 聊天列表子页）。 */
-    val conversations: StateFlow<List<Conversation>> = conversationRepository.getAll()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
-
-    fun createNewConversation(
-        title: String? = null,
-        agentId: String? = null,
-        onCreated: (String) -> Unit = {}
-    ) {
-        viewModelScope.launch {
-            val agent = if (agentId != null) {
-                agentRepository.getById(agentId).first()
-            } else {
-                currentAgentRepository.currentAgent.first()
-            } ?: return@launch
+    fun createNewConversation(onCreated: (String) -> Unit = {}) {        viewModelScope.launch {
+            val agent = agentRepository.getById(agentId).first() ?: return@launch
             currentAgentRepository.setCurrentAgentId(agent.id)
             val now = System.currentTimeMillis()
-            val providerId = determineProviderId(agent)
             val conversation = Conversation(
                 id = randomUuid(),
-                title = title ?: getString(Res.string.conversations_new_chat),
-                providerId = providerId,
+                title = getString(Res.string.conversations_new_chat),
+                providerId = determineProviderId(agent),
                 agentId = agent.id,
                 createdAt = now,
                 updatedAt = now,
@@ -112,15 +94,11 @@ class ConversationsViewModel(
     }
 
     private suspend fun determineProviderId(agent: Agent): String {
-        val allModels = modelRepository.getAll().first()
-        val enabledModels = allModels.filter { it.isEnabled }
-
+        val enabledModels = modelRepository.getAll().first().filter { it.isEnabled }
         if (enabledModels.isEmpty()) return ""
-
         val defaultModel = agent.defaultModelId?.let { modelId ->
             enabledModels.find { it.id == modelId }
         }
-
         return (defaultModel ?: enabledModels.firstOrNull())?.providerId ?: ""
     }
 
@@ -128,11 +106,10 @@ class ConversationsViewModel(
         viewModelScope.launch {
             val conversation = conversationRepository.getById(conversationId).first()
                 ?: return@launch
-            val now = System.currentTimeMillis()
             conversationRepository.update(
                 conversation.copy(
                     title = newTitle,
-                    updatedAt = now
+                    updatedAt = System.currentTimeMillis()
                 )
             )
         }
@@ -177,55 +154,7 @@ class ConversationsViewModel(
         }
     }
 
-    fun switchAgent(agentId: String) {
-        viewModelScope.launch {
-            currentAgentRepository.setCurrentAgentId(agentId)
-        }
-    }
-
-    fun enterMultiSelectMode(conversationId: String) {
-        _uiState.value = _uiState.value.copy(
-            isMultiSelectMode = true,
-            selectedConversationIds = setOf(conversationId)
-        )
-    }
-
-    fun exitMultiSelectMode() {
-        _uiState.value = _uiState.value.copy(
-            isMultiSelectMode = false,
-            selectedConversationIds = emptySet()
-        )
-    }
-
-    fun toggleSelection(conversationId: String) {
-        val current = _uiState.value.selectedConversationIds
-        val newSet = if (conversationId in current) {
-            current - conversationId
-        } else {
-            current + conversationId
-        }
-        _uiState.value = _uiState.value.copy(selectedConversationIds = newSet)
-    }
-
-    fun selectAll(conversationIds: List<String>) {
-        _uiState.value = _uiState.value.copy(selectedConversationIds = conversationIds.toSet())
-    }
-
-    fun deselectAll() {
-        _uiState.value = _uiState.value.copy(selectedConversationIds = emptySet())
-    }
-
-    fun deleteConversationsBatch(ids: List<String>) {
-        if (ids.isEmpty()) return
-        viewModelScope.launch {
-            ids.forEach { id ->
-                conversationRepository.delete(id)
-            }
-            exitMultiSelectMode()
-        }
-    }
-
-    fun switchAgentForConversations(ids: List<String>, agentId: String) {
+    fun switchAgentForConversations(ids: List<String>, targetAgentId: String) {
         if (ids.isEmpty()) return
         viewModelScope.launch {
             val now = System.currentTimeMillis()
@@ -233,31 +162,32 @@ class ConversationsViewModel(
                 val conversation = conversationRepository.getById(id).first() ?: return@forEach
                 conversationRepository.update(
                     conversation.copy(
-                        agentId = agentId,
+                        agentId = targetAgentId,
                         updatedAt = now
                     )
                 )
             }
-            exitMultiSelectMode()
         }
     }
 
     companion object {
         fun provideFactory(
+            agentId: String,
+            agentRepository: AgentRepository,
             conversationRepository: ConversationRepository,
             messageRepository: MessageRepository,
-            currentAgentRepository: CurrentAgentRepository,
-            agentRepository: AgentRepository,
-            modelRepository: ModelRepository
+            modelRepository: ModelRepository,
+            currentAgentRepository: CurrentAgentRepository
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: KClass<T>, extras: CreationExtras): T {
-                return ConversationsViewModel(
+                return AgentConversationsViewModel(
+                    agentId,
+                    agentRepository,
                     conversationRepository,
                     messageRepository,
-                    currentAgentRepository,
-                    agentRepository,
-                    modelRepository
+                    modelRepository,
+                    currentAgentRepository
                 ) as T
             }
         }

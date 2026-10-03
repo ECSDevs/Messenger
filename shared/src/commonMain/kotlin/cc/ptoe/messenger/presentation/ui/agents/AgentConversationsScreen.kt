@@ -14,21 +14,19 @@
  * limitations under the License.
  */
 
-package cc.ptoe.messenger.presentation.ui.conversations
+package cc.ptoe.messenger.presentation.ui.agents
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -36,173 +34,141 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import cc.ptoe.messenger.domain.model.Agent
 import cc.ptoe.messenger.presentation.ui.components.ConfirmationDialog
 import cc.ptoe.messenger.presentation.ui.components.ConversationListItem
 import cc.ptoe.messenger.presentation.ui.components.EmptyState
 import cc.ptoe.messenger.presentation.ui.components.InputDialog
-import cc.ptoe.messenger.presentation.ui.components.MultiSelectTopBar
 import cc.ptoe.messenger.presentation.ui.components.SingleChoiceDialog
 import cc.ptoe.messenger.presentation.utils.WindowSizeClass
 import cc.ptoe.messenger.presentation.utils.windowSizeClassFor
-import cc.ptoe.messenger.presentation.viewmodel.ConversationsViewModel
+import cc.ptoe.messenger.presentation.viewmodel.AgentConversationsViewModel
 import cc.ptoe.messenger.generated.resources.Res
+import cc.ptoe.messenger.generated.resources.action_back
 import cc.ptoe.messenger.generated.resources.action_cancel
 import cc.ptoe.messenger.generated.resources.action_confirm
 import cc.ptoe.messenger.generated.resources.action_delete
-import cc.ptoe.messenger.generated.resources.conversations_delete_batch_confirm
+import cc.ptoe.messenger.generated.resources.agent_conversations_empty
+import cc.ptoe.messenger.generated.resources.agent_edit_title_edit
 import cc.ptoe.messenger.generated.resources.conversations_delete_confirm
 import cc.ptoe.messenger.generated.resources.conversations_delete_title
-import cc.ptoe.messenger.generated.resources.conversations_empty
 import cc.ptoe.messenger.generated.resources.conversations_new
 import cc.ptoe.messenger.generated.resources.conversations_rename_hint
 import cc.ptoe.messenger.generated.resources.conversations_rename_title
 import cc.ptoe.messenger.generated.resources.conversations_select_agent_title
-import cc.ptoe.messenger.generated.resources.conversations_switch_agent
 import cc.ptoe.messenger.generated.resources.conversations_title
 import org.jetbrains.compose.resources.stringResource
 import cc.ptoe.messenger.di.AppContainerHolder
 
 /**
- * 会话主页：固定展示全部聊天（按 Agent 的过滤入口在 Agent 页的
- * 聊天列表子页），不做 Agent 筛选。
+ * 某个 Agent 的聊天列表：Agent 页点击 Agent 进入的子页。
+ * 顶栏右侧设置图标进入 Agent 编辑页；列表点击会话进入聊天。
+ * 双栏布局下托管在 Agents 双栏右栏（隐藏返回键）。
  */
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConversationsScreen(
+fun AgentConversationsScreen(
+    agentId: String,
+    onBackClick: () -> Unit,
+    onEditClick: () -> Unit,
     onConversationClick: (String) -> Unit,
     modifier: Modifier = Modifier,
-    selectedConversationId: String? = null,
-    viewModel: ConversationsViewModel = viewModel(
-        factory = ConversationsViewModel.provideFactory(
+    showBackButton: Boolean = true,
+    viewModel: AgentConversationsViewModel = viewModel(
+        factory = AgentConversationsViewModel.provideFactory(
+            agentId = agentId,
+            agentRepository = AppContainerHolder.instance.agentRepository,
             conversationRepository = AppContainerHolder.instance.conversationRepository,
             messageRepository = AppContainerHolder.instance.messageRepository,
-            currentAgentRepository = AppContainerHolder.instance.currentAgentRepository,
-            agentRepository = AppContainerHolder.instance.agentRepository,
-            modelRepository = AppContainerHolder.instance.modelRepository
+            modelRepository = AppContainerHolder.instance.modelRepository,
+            currentAgentRepository = AppContainerHolder.instance.currentAgentRepository
         )
     )
 ) {
+    val agent by viewModel.agent.collectAsStateWithLifecycle()
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
-    val currentAgent by viewModel.currentAgent.collectAsStateWithLifecycle()
     val allAgents by viewModel.allAgents.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val agentsById = remember(allAgents) { allAgents.associateBy(Agent::id) }
-    // 可选为聊天对象的 Agent：内置标题生成等功能型角色不出现在选择器中。
-    val selectableAgents = remember(allAgents) { allAgents.filter { it.role != Agent.ROLE_TITLE } }
 
     var renameConversationId by remember { mutableStateOf<String?>(null) }
     var deleteConversationId by remember { mutableStateOf<String?>(null) }
     var renameInitialTitle by remember { mutableStateOf("") }
-    var showAgentPicker by remember { mutableStateOf(false) }
-    var showBatchDeleteDialog by remember { mutableStateOf(false) }
     var switchAgentTargetIds by remember { mutableStateOf<List<String>?>(null) }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val sizeClass = windowSizeClassFor(maxWidth)
-        val enableContextMenu = sizeClass != WindowSizeClass.Compact
+        val enableContextMenu = windowSizeClassFor(maxWidth) != WindowSizeClass.Compact
 
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
             topBar = {
-                if (uiState.isMultiSelectMode) {
-                    MultiSelectTopBar(
-                        selectedCount = uiState.selectedConversationIds.size,
-                        onExit = { viewModel.exitMultiSelectMode() },
-                        onSelectAll = { viewModel.selectAll(conversations.map { it.id }) },
-                        onDeselectAll = { viewModel.deselectAll() },
-                        actions = {
-                            IconButton(onClick = {
-                                switchAgentTargetIds = uiState.selectedConversationIds.toList()
-                            }) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = agent?.name ?: stringResource(Res.string.conversations_title),
+                            maxLines = 1
+                        )
+                    },
+                    navigationIcon = {
+                        if (showBackButton) {
+                            IconButton(onClick = onBackClick) {
                                 Icon(
-                                    imageVector = Icons.Default.SwapHoriz,
-                                    contentDescription = stringResource(Res.string.conversations_switch_agent)
-                                )
-                            }
-                            IconButton(onClick = { showBatchDeleteDialog = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = stringResource(Res.string.action_delete),
-                                    tint = MaterialTheme.colorScheme.error
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = stringResource(Res.string.action_back)
                                 )
                             }
                         }
-                    )
-                } else {
-                    androidx.compose.material3.LargeFlexibleTopAppBar(
-                        title = {
-                            Text(text = stringResource(Res.string.conversations_title))
-                        },
-                        colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
-                        ),
-                        modifier = Modifier.statusBarsPadding()
-                    )
-                }
-            },
-            floatingActionButton = {
-                if (!uiState.isMultiSelectMode) {
-                    // Keep the FAB above the floating bottom navigation pill
-                    // (80 dp bar + 12 dp gap) that the page scrolls beneath.
-                    androidx.compose.foundation.layout.Box(
-                        modifier = Modifier
-                            .navigationBarsPadding()
-                            .padding(bottom = 92.dp)
-                    ) {
-                        FloatingActionButton(
-                            onClick = { showAgentPicker = true }
-                        ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = stringResource(Res.string.conversations_new))
+                    },
+                    actions = {
+                        IconButton(onClick = onEditClick) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = stringResource(Res.string.agent_edit_title_edit)
+                            )
                         }
                     }
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = {
+                        viewModel.createNewConversation { conversationId ->
+                            onConversationClick(conversationId)
+                        }
+                    }
+                ) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = stringResource(Res.string.conversations_new))
                 }
             }
         ) { innerPadding ->
             if (conversations.isEmpty()) {
                 EmptyState(
                     icon = Icons.Default.ChatBubbleOutline,
-                    message = stringResource(Res.string.conversations_empty),
+                    message = stringResource(Res.string.agent_conversations_empty),
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .navigationBarsPadding()
                 )
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .navigationBarsPadding(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 92.dp)
+                        .navigationBarsPadding()
                 ) {
                     items(conversations, key = { it.id }) { conversation ->
                         ConversationListItem(
                             conversation = conversation,
-                            avatar = agentsById[conversation.agentId]?.avatar,
-                            isHighlighted = conversation.id == selectedConversationId,
-                            isMultiSelectMode = uiState.isMultiSelectMode,
-                            isMultiSelected = conversation.id in uiState.selectedConversationIds,
+                            avatar = agent?.avatar,
                             enableContextMenu = enableContextMenu,
-                            onClick = {
-                                if (uiState.isMultiSelectMode) {
-                                    viewModel.toggleSelection(conversation.id)
-                                } else {
-                                    onConversationClick(conversation.id)
-                                }
-                            },
-                            onLongClick = { viewModel.enterMultiSelectMode(conversation.id) },
+                            onClick = { onConversationClick(conversation.id) },
+                            onLongClick = { /* 本页不提供多选（主页负责批量管理） */ },
                             onCloneClick = {
                                 viewModel.cloneConversation(conversation.id, onConversationClick)
                             },
@@ -254,44 +220,6 @@ fun ConversationsScreen(
                 )
             }
 
-            if (showBatchDeleteDialog) {
-                ConfirmationDialog(
-                    title = stringResource(Res.string.conversations_delete_title),
-                    text = stringResource(
-                        Res.string.conversations_delete_batch_confirm,
-                        uiState.selectedConversationIds.size
-                    ),
-                    confirmButtonText = stringResource(Res.string.action_delete),
-                    dismissButtonText = stringResource(Res.string.action_cancel),
-                    onConfirm = {
-                        viewModel.deleteConversationsBatch(uiState.selectedConversationIds.toList())
-                        showBatchDeleteDialog = false
-                    },
-                    onDismiss = { showBatchDeleteDialog = false }
-                )
-            }
-
-            if (showAgentPicker) {
-                SingleChoiceDialog(
-                    title = stringResource(Res.string.conversations_select_agent_title),
-                    items = selectableAgents,
-                    initialSelectedId = currentAgent?.id ?: selectableAgents.firstOrNull()?.id,
-                    itemId = { it.id },
-                    itemLabel = { it.name },
-                    confirmButtonText = stringResource(Res.string.action_confirm),
-                    dismissButtonText = stringResource(Res.string.action_cancel),
-                    onConfirm = { agent ->
-                        showAgentPicker = false
-                        if (agent != null) {
-                            viewModel.createNewConversation(agentId = agent.id) { conversationId ->
-                                onConversationClick(conversationId)
-                            }
-                        }
-                    },
-                    onDismiss = { showAgentPicker = false }
-                )
-            }
-
             if (switchAgentTargetIds != null) {
                 val targetIds = switchAgentTargetIds!!
                 SingleChoiceDialog(
@@ -302,9 +230,9 @@ fun ConversationsScreen(
                     itemLabel = { it.name },
                     confirmButtonText = stringResource(Res.string.action_confirm),
                     dismissButtonText = stringResource(Res.string.action_cancel),
-                    onConfirm = { agent ->
-                        if (agent != null) {
-                            viewModel.switchAgentForConversations(targetIds, agent.id)
+                    onConfirm = { target ->
+                        if (target != null) {
+                            viewModel.switchAgentForConversations(targetIds, target.id)
                         }
                         switchAgentTargetIds = null
                     },
